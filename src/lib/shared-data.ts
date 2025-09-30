@@ -8,6 +8,7 @@ export interface Budget {
   remaining: number
   period: string
   color: string
+  source: string // ✅ Nouveau champ pour la source du montant
   createdAt: Date
 }
 
@@ -22,6 +23,13 @@ export interface Transaction {
   budgetId?: string
 }
 
+export interface Category {
+  id: string
+  name: string
+  color: string
+  createdAt: Date
+}
+
 // Budgets par défaut
 export const defaultBudgets: Budget[] = [
   {
@@ -33,6 +41,7 @@ export const defaultBudgets: Budget[] = [
     remaining: 1700,
     period: 'Mensuel',
     color: 'bg-purple-500',
+    source: 'Salaire',
     createdAt: new Date('2024-01-01')
   },
   {
@@ -44,6 +53,7 @@ export const defaultBudgets: Budget[] = [
     remaining: 1800,
     period: 'Objectif',
     color: 'bg-blue-600',
+    source: 'Épargne',
     createdAt: new Date('2024-01-02')
   },
   {
@@ -55,6 +65,7 @@ export const defaultBudgets: Budget[] = [
     remaining: 35000,
     period: 'Annuel',
     color: 'bg-green-500',
+    source: 'Revenus professionnels',
     createdAt: new Date('2024-01-03')
   },
   {
@@ -66,6 +77,7 @@ export const defaultBudgets: Budget[] = [
     remaining: 1400,
     period: 'Mensuel',
     color: 'bg-orange-500',
+    source: 'Salaire',
     createdAt: new Date('2024-01-04')
   },
   {
@@ -77,6 +89,7 @@ export const defaultBudgets: Budget[] = [
     remaining: 10000,
     period: 'Annuel',
     color: 'bg-indigo-500',
+    source: 'Épargne',
     createdAt: new Date('2024-01-05')
   }
 ]

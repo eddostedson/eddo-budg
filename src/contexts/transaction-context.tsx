@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { Transaction, defaultTransactions } from '@/lib/shared-data'
+import { Transaction } from '@/lib/shared-data'
 
 interface TransactionContextType {
   transactions: Transaction[]
@@ -16,8 +16,8 @@ interface TransactionContextType {
 const TransactionContext = createContext<TransactionContextType | undefined>(undefined)
 
 export function TransactionProvider({ children }: { children: ReactNode }) {
-  // ✅ Charger depuis LocalStorage au démarrage
-  const [transactions, setTransactions] = useState<Transaction[]>(defaultTransactions)
+  // ✅ État vide par défaut - pas de données fictives
+  const [transactions, setTransactions] = useState<Transaction[]>([])
 
   // Charger les transactions sauvegardées au démarrage
   useEffect(() => {

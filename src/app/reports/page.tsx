@@ -110,7 +110,7 @@ export default function ReportsPage() {
 
           <Card className="bg-white border border-gray-200">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500">Taux d'épargne</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-500">Taux d&apos;épargne</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-purple-600">
@@ -162,7 +162,7 @@ export default function ReportsPage() {
               <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
                 <div className="text-center">
                   <div className="text-4xl mb-2">📈</div>
-                  <p className="text-gray-500 text-sm">Graphique d'évolution</p>
+                  <p className="text-gray-500 text-sm">Graphique d&apos;évolution</p>
                   <p className="text-gray-400 text-xs mt-1">Intégration Chart.js à venir</p>
                 </div>
               </div>
@@ -196,7 +196,7 @@ export default function ReportsPage() {
               </div>
               
               <div>
-                <h4 className="font-medium text-gray-900 mb-3">Points d'Attention</h4>
+                <h4 className="font-medium text-gray-900 mb-3">Points d&apos;Attention</h4>
                 <ul className="space-y-2">
                   <li className="flex items-start gap-2">
                     <span className="text-orange-500 mt-0.5">⚠</span>
@@ -231,7 +231,7 @@ export default function ReportsPage() {
                 </div>
                 <div>
                   <h5 className="font-medium text-blue-900">Optimiser le budget alimentation</h5>
-                  <p className="text-sm text-blue-700">Planifiez vos repas à l'avance pour réduire les dépenses impulsives de 15-20%.</p>
+                  <p className="text-sm text-blue-700">Planifiez vos repas à l&apos;avance pour réduire les dépenses impulsives de 15-20%.</p>
                 </div>
               </div>
               
@@ -240,7 +240,7 @@ export default function ReportsPage() {
                   <span className="text-white text-xs">2</span>
                 </div>
                 <div>
-                  <h5 className="font-medium text-blue-900">Automatiser l'épargne</h5>
+                  <h5 className="font-medium text-blue-900">Automatiser l&apos;épargne</h5>
                   <p className="text-sm text-blue-700">Mettez en place un virement automatique de 400€/mois pour atteindre votre objectif.</p>
                 </div>
               </div>

@@ -19,19 +19,11 @@ interface CategoryContextType {
 
 const CategoryContext = createContext<CategoryContextType | undefined>(undefined)
 
-// Catégories par défaut
-const defaultCategories: Category[] = [
-  { id: '1', name: 'Alimentation', color: 'bg-green-500', createdAt: new Date() },
-  { id: '2', name: 'Transport', color: 'bg-blue-500', createdAt: new Date() },
-  { id: '3', name: 'Loisirs', color: 'bg-purple-500', createdAt: new Date() },
-  { id: '4', name: 'Santé', color: 'bg-red-500', createdAt: new Date() },
-  { id: '5', name: 'Vêtements', color: 'bg-pink-500', createdAt: new Date() },
-  { id: '6', name: 'Revenus', color: 'bg-emerald-500', createdAt: new Date() },
-  { id: '7', name: 'Autre', color: 'bg-gray-500', createdAt: new Date() }
-]
+// ✅ Plus de données par défaut - état vide uniquement
 
 export function CategoryProvider({ children }: { children: ReactNode }) {
-  const [categories, setCategories] = useState<Category[]>(defaultCategories)
+  // ✅ État vide par défaut - pas de données fictives
+  const [categories, setCategories] = useState<Category[]>([])
 
   // Charger les catégories sauvegardées au démarrage
   useEffect(() => {
@@ -47,7 +39,12 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
           setCategories(categoriesWithDates)
         } catch (error) {
           console.error('Erreur lors du chargement des catégories:', error)
+          // ✅ En cas d'erreur, garder l'état vide
+          setCategories([])
         }
+      } else {
+        // ✅ Pas de données sauvegardées - état vide
+        setCategories([])
       }
     }
   }, [])

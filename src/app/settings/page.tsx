@@ -146,7 +146,7 @@ export default function SettingsPage() {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Objectif d'épargne mensuel
+                Objectif d&apos;épargne mensuel
               </label>
               <Input 
                 type="number"
@@ -175,7 +175,7 @@ export default function SettingsPage() {
               variant="outline" 
               className="w-full justify-start"
             >
-              📱 Activer l'authentification à deux facteurs
+              📱 Activer l&apos;authentification à deux facteurs
             </Button>
             <Button 
               onClick={() => alert('Téléchargement des données en cours...')}

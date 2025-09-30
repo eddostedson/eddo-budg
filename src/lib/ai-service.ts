@@ -36,27 +36,27 @@ export interface SpendingAnalysis {
 
 export class AIFinancialService {
   // Analyse les patterns de dépenses
-  static analyzeSpendingPatterns(transactions: any[]): ExpensePattern[] {
+  static analyzeSpendingPatterns(transactions: Transaction[]): ExpensePattern[] {
     const patterns: ExpensePattern[] = []
     
     // Grouper par catégorie
-    const categoryGroups = transactions.reduce((groups, transaction) => {
+    const categoryGroups = transactions.reduce((groups: Record<string, Transaction[]>, transaction) => {
       const category = transaction.category || 'Autre'
       if (!groups[category]) {
         groups[category] = []
       }
       groups[category].push(transaction)
       return groups
-    }, {} as Record<string, any[]>)
+    }, {} as Record<string, Transaction[]>)
 
     // Analyser chaque catégorie
     Object.entries(categoryGroups).forEach(([category, categoryTransactions]) => {
-      const amounts = (categoryTransactions as Transaction[]).map(t => Math.abs(t.amount))
+      const amounts = categoryTransactions.map(t => Math.abs(t.amount))
       const averageAmount = amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length
       
       // Calculer la tendance (simplifié)
-      const recentTransactions = (categoryTransactions as Transaction[]).slice(-5)
-      const olderTransactions = (categoryTransactions as Transaction[]).slice(0, -5)
+      const recentTransactions = categoryTransactions.slice(-5)
+      const olderTransactions = categoryTransactions.slice(0, -5)
       
       const recentAvg = recentTransactions.length > 0 
         ? recentTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0) / recentTransactions.length 
@@ -82,7 +82,7 @@ export class AIFinancialService {
   }
 
   // Détermine la fréquence des transactions
-  private static determineFrequency(transactions: any[]): 'daily' | 'weekly' | 'monthly' {
+  private static determineFrequency(transactions: Transaction[]): 'daily' | 'weekly' | 'monthly' {
     if (transactions.length < 2) return 'monthly'
     
     const dates = transactions.map(t => new Date(t.date)).sort()
@@ -166,24 +166,36 @@ export class AIFinancialService {
   static generateInsights(analysis: SpendingAnalysis, patterns: ExpensePattern[]): AIInsight[] {
     const insights: AIInsight[] = []
     
-    // Détection de dépassement de budget
-    const totalBudget = 2500 // Budget exemple
+    // Si pas de données réelles, encourager l'utilisateur
+    if (analysis.totalSpent === 0) {
+      return [{
+        type: 'optimization',
+        title: 'Commencez votre analyse financière',
+        description: 'Créez votre premier budget et ajoutez quelques transactions pour obtenir des insights personnalisés.',
+        impact: 0,
+        priority: 'medium',
+        actionable: true
+      }]
+    }
+    
+    // Détection de dépassement de budget basée sur les vraies données
+    const totalBudget = analysis.totalSpent * 1.2 // Estimation du budget total
     if (analysis.totalSpent > totalBudget * 0.8) {
       insights.push({
         type: 'warning',
         title: 'Budget en voie de dépassement',
-        description: `Vous avez dépensé ${Math.round((analysis.totalSpent / totalBudget) * 100)}% de votre budget mensuel`,
+        description: `Vous avez dépensé ${Math.round((analysis.totalSpent / totalBudget) * 100)}% de votre budget estimé`,
         impact: analysis.totalSpent - totalBudget,
         priority: 'high',
         actionable: true
       })
     }
     
-    // Opportunités d'économie
+    // Opportunités d'économie basées sur les vraies catégories
     const highestCategory = Object.entries(analysis.categoryBreakdown)
       .sort(([,a], [,b]) => b - a)[0]
     
-    if (highestCategory && highestCategory[1] > totalBudget * 0.3) {
+    if (highestCategory && highestCategory[1] > analysis.totalSpent * 0.3) {
       insights.push({
         type: 'opportunity',
         title: 'Optimisation possible',
@@ -194,7 +206,7 @@ export class AIFinancialService {
       })
     }
     
-    // Prédictions basées sur les tendances
+    // Prédictions basées sur les vraies tendances
     const increasingPatterns = patterns.filter(p => p.trend === 'increasing')
     if (increasingPatterns.length > 0) {
       const totalIncrease = increasingPatterns.reduce((sum, p) => sum + p.averageAmount, 0)
@@ -208,15 +220,18 @@ export class AIFinancialService {
       })
     }
     
-    // Optimisations automatiques
-    insights.push({
-      type: 'optimization',
-      title: 'Épargne automatique recommandée',
-      description: 'Basé sur vos habitudes, vous pourriez épargner 200€/mois automatiquement',
-      impact: 200,
-      priority: 'low',
-      actionable: true
-    })
+    // Optimisations basées sur les vraies habitudes
+    const potentialSavings = analysis.totalSpent * 0.1 // 10% d'économie potentielle
+    if (potentialSavings > 0) {
+      insights.push({
+        type: 'optimization',
+        title: 'Épargne automatique recommandée',
+        description: `Basé sur vos habitudes, vous pourriez épargner ${potentialSavings.toFixed(0)} F CFA/mois automatiquement`,
+        impact: potentialSavings,
+        priority: 'low',
+        actionable: true
+      })
+    }
     
     return insights.sort((a, b) => {
       const priorityWeight = { high: 3, medium: 2, low: 1 }
@@ -285,13 +300,13 @@ export class AIFinancialService {
 }
 
 // Données de démonstration pour les tests
-export const mockTransactions = [
-  { id: 1, amount: -45.50, category: 'Alimentation', description: 'Courses Carrefour', date: '2024-01-15' },
-  { id: 2, amount: -12.00, category: 'Transport', description: 'Métro', date: '2024-01-16' },
-  { id: 3, amount: -89.99, category: 'Loisirs', description: 'Abonnement Netflix', date: '2024-01-17' },
-  { id: 4, amount: -156.78, category: 'Alimentation', description: 'Restaurant Le Petit Bistro', date: '2024-01-18' },
-  { id: 5, amount: -25.30, category: 'Transport', description: 'Essence Total', date: '2024-01-19' },
-  { id: 6, amount: -67.45, category: 'Vêtements', description: 'H&M', date: '2024-01-20' },
-  { id: 7, amount: -34.20, category: 'Santé', description: 'Pharmacie', date: '2024-01-21' },
-  { id: 8, amount: -123.45, category: 'Alimentation', description: 'Courses Leclerc', date: '2024-01-22' },
+export const mockTransactions: Transaction[] = [
+  { id: 1, amount: -45.50, category: 'Alimentation', description: 'Courses Carrefour', date: '2024-01-15', type: 'expense', status: 'completed' },
+  { id: 2, amount: -12.00, category: 'Transport', description: 'Métro', date: '2024-01-16', type: 'expense', status: 'completed' },
+  { id: 3, amount: -89.99, category: 'Loisirs', description: 'Abonnement Netflix', date: '2024-01-17', type: 'expense', status: 'completed' },
+  { id: 4, amount: -156.78, category: 'Alimentation', description: 'Restaurant Le Petit Bistro', date: '2024-01-18', type: 'expense', status: 'completed' },
+  { id: 5, amount: -25.30, category: 'Transport', description: 'Essence Total', date: '2024-01-19', type: 'expense', status: 'completed' },
+  { id: 6, amount: -67.45, category: 'Vêtements', description: 'H&M', date: '2024-01-20', type: 'expense', status: 'completed' },
+  { id: 7, amount: -34.20, category: 'Santé', description: 'Pharmacie', date: '2024-01-21', type: 'expense', status: 'completed' },
+  { id: 8, amount: -123.45, category: 'Alimentation', description: 'Courses Leclerc', date: '2024-01-22', type: 'expense', status: 'completed' },
 ]

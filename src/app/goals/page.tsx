@@ -131,7 +131,7 @@ export default function GoalsPage() {
           <div className="flex items-center gap-4">
             <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
               <span className="text-blue-500">🎯</span>
-              Objectifs d'Épargne
+              Objectifs d&apos;Épargne
             </h1>
             <Button 
               onClick={() => {
@@ -148,7 +148,7 @@ export default function GoalsPage() {
           <div className="flex items-center gap-4">
             <select 
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as any)}
+              onChange={(e) => setFilterStatus(e.target.value as 'all' | 'active' | 'completed')}
               className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             >
               <option value="all">Tous les objectifs</option>
@@ -345,7 +345,7 @@ export default function GoalsPage() {
           <div className="text-center py-12">
             <div className="text-gray-400 text-6xl mb-4">🎯</div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun objectif trouvé</h3>
-            <p className="text-gray-500 mb-4">Créez votre premier objectif d'épargne pour commencer.</p>
+            <p className="text-gray-500 mb-4">Créez votre premier objectif d&apos;épargne pour commencer.</p>
             <Button 
               onClick={() => {
                 setShowNewGoalForm(true);

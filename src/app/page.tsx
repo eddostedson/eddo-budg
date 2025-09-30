@@ -6,36 +6,39 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/hooks/useAuth'
 import { AIAssistant } from '@/components/ai-assistant'
-import { Budget } from '@/lib/shared-data'
+// import { Budget } from '@/lib/shared-data' // ✅ Supprimé car non utilisé
 import { useBudgets } from '@/contexts/budget-context'
 import { CFAAmount } from '@/components/ui/cfa-logo'
 
-interface SupabaseStatus {
-  success: boolean
-  message: string
-  user: { id: string; email: string } | null
-  connection: string
-  error?: string
-}
+// interface SupabaseStatus {
+//   success: boolean
+//   message: string
+//   user: { id: string; email: string } | null
+//   connection: string
+//   error?: string
+// } // ✅ Supprimé car non utilisé
 
 // Interface Budget maintenant importée de shared-data
 
 export default function Page() {
-  const [status, setStatus] = useState<SupabaseStatus | null>(null)
+  // const [status, setStatus] = useState<SupabaseStatus | null>(null) // ✅ Supprimé car non utilisé
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [showNewBudgetModal, setShowNewBudgetModal] = useState(false)
   const [selectedColor, setSelectedColor] = useState('bg-purple-500')
+  const [selectedBudgets, setSelectedBudgets] = useState<string[]>([])
+  const [showBulkActions, setShowBulkActions] = useState(false)
   
   // ✅ Utilisation du Context global
-  const { budgets, addBudget } = useBudgets()
+  const { budgets, addBudget, deleteBudget } = useBudgets()
   
   // Form data
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     amount: '',
-    period: 'Mensuel'
+    period: 'Mensuel',
+    source: '' // ✅ Champ source vide par défaut pour saisie libre
   })
   
   const { user, loading: authLoading } = useAuth()
@@ -45,15 +48,15 @@ export default function Page() {
       try {
         const response = await fetch('/api/ping-supabase')
         const data = await response.json()
-        setStatus(data)
+        // setStatus(data) // ✅ Supprimé car non utilisé
       } catch (error) {
-        setStatus({
-          success: false,
-          message: 'Failed to connect to Supabase',
-          user: null,
-          connection: 'failed',
-          error: error instanceof Error ? error.message : 'Unknown error'
-        })
+        // setStatus({
+        //   success: false,
+        //   message: 'Failed to connect to Supabase',
+        //   user: null,
+        //   connection: 'failed',
+        //   error: error instanceof Error ? error.message : 'Unknown error'
+        // }) // ✅ Supprimé car non utilisé
       } finally {
         setLoading(false)
       }
@@ -79,7 +82,8 @@ export default function Page() {
       spent: 0, // ✅ Nouveau budget, pas encore dépensé
       remaining: parseFloat(formData.amount), // ✅ Solde initial = montant total
       period: formData.period,
-      color: selectedColor
+      color: selectedColor,
+      source: formData.source // ✅ Ajout de la source
     })
     
     // Reset form
@@ -87,12 +91,56 @@ export default function Page() {
       name: '',
       description: '',
       amount: '',
-      period: 'Mensuel'
+      period: 'Mensuel',
+      source: '' // ✅ Reset avec champ vide pour saisie libre
     })
     setSelectedColor('bg-purple-500')
     setShowNewBudgetModal(false)
     
     alert('Budget créé avec succès !')
+  }
+
+  // Fonctions de sélection multiple
+  const toggleBudgetSelection = (budgetId: string) => {
+    setSelectedBudgets(prev => 
+      prev.includes(budgetId) 
+        ? prev.filter(id => id !== budgetId)
+        : [...prev, budgetId]
+    )
+  }
+
+  const selectAllBudgets = () => {
+    setSelectedBudgets(budgets.map(budget => budget.id))
+  }
+
+  const clearSelection = () => {
+    setSelectedBudgets([])
+  }
+
+  const deleteSelectedBudgets = () => {
+    if (selectedBudgets.length === 0) return
+    
+    const budgetNames = selectedBudgets.map(id => 
+      budgets.find(b => b.id === id)?.name
+    ).join(', ')
+    
+    if (confirm(`Êtes-vous sûr de vouloir supprimer les budgets : ${budgetNames} ?`)) {
+      selectedBudgets.forEach(id => deleteBudget(id))
+      setSelectedBudgets([])
+      setShowBulkActions(false)
+      alert(`${selectedBudgets.length} budget(s) supprimé(s) avec succès !`)
+    }
+  }
+
+  const deleteAllBudgets = () => {
+    if (budgets.length === 0) return
+    
+    if (confirm(`Êtes-vous sûr de vouloir supprimer TOUS les budgets (${budgets.length}) ? Cette action est irréversible !`)) {
+      budgets.forEach(budget => deleteBudget(budget.id))
+      setSelectedBudgets([])
+      setShowBulkActions(false)
+      alert('Tous les budgets ont été supprimés !')
+    }
   }
 
   // Filtrer les budgets selon la recherche
@@ -156,6 +204,31 @@ export default function Page() {
             </button>
           </div>
           
+          {/* Contrôles de sélection multiple */}
+          <div className="flex items-center gap-2">
+            {selectedBudgets.length > 0 && (
+              <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-lg">
+                <span className="text-blue-700 font-medium">
+                  {selectedBudgets.length} sélectionné(s)
+                </span>
+                <button
+                  onClick={clearSelection}
+                  className="text-blue-600 hover:text-blue-800 text-sm"
+                >
+                  Annuler
+                </button>
+              </div>
+            )}
+            
+            <button
+              onClick={() => setShowBulkActions(!showBulkActions)}
+              className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+            >
+              <span>⚙️</span>
+              Actions
+            </button>
+          </div>
+          
           <div className="flex items-center gap-4">
             <div className="relative">
               <input
@@ -196,23 +269,44 @@ export default function Page() {
 
           {/* Budget cards dynamiques */}
           {filteredBudgets.map((budget) => (
-            <Link 
+            <div 
               key={budget.id} 
-              href={`/budgets/${budget.id}`} 
               className="site-card h-64 overflow-hidden cursor-pointer group relative block"
             >
-              <div className={`h-32 bg-gradient-to-br ${budget.color} to-${budget.color.split('-')[1]}-600 relative`}>
-                <div className="absolute inset-0 bg-black/20"></div>
-                <div className="absolute bottom-4 left-4 right-4">
-                  <h3 className="text-white font-semibold text-lg mb-1">{budget.name}</h3>
-                  <p className="text-white/80 text-sm">{budget.description}</p>
-                </div>
+              {/* Checkbox de sélection */}
+              <div className="absolute top-2 left-2 z-10">
+                <input
+                  type="checkbox"
+                  checked={selectedBudgets.includes(budget.id)}
+                  onChange={(e) => {
+                    e.stopPropagation()
+                    toggleBudgetSelection(budget.id)
+                  }}
+                  className="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500"
+                />
+              </div>
+              
+              <Link 
+                href={`/budgets/${budget.id}`} 
+                className="block h-full"
+              >
+                <div className={`h-32 bg-gradient-to-br ${budget.color} to-${budget.color.split('-')[1]}-600 relative`}>
+                  <div className="absolute inset-0 bg-black/20"></div>
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <h3 className="text-white font-semibold text-lg mb-1">{budget.name}</h3>
+                    <p className="text-white/80 text-sm">{budget.description}</p>
+                  </div>
               </div>
               <div className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-500">
-                    {budget.period.toUpperCase()} • <CFAAmount amount={budget.amount} />
-                  </span>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-500">
+                        {budget.period.toUpperCase()} • <CFAAmount amount={budget.amount} />
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-gray-400">
+                        Source: {budget.source}
+                      </span>
                   <button 
                     onClick={(e) => {
                       e.preventDefault();
@@ -252,7 +346,8 @@ export default function Page() {
                   </div>
                 </div>
               </div>
-            </Link>
+              </Link>
+            </div>
           ))}
 
           {/* Message si aucun budget trouvé */}
@@ -260,7 +355,7 @@ export default function Page() {
             <div className="col-span-full text-center py-12">
               <div className="text-gray-400 text-6xl mb-4">🔍</div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun budget trouvé</h3>
-              <p className="text-gray-500">Aucun budget ne correspond à votre recherche "{searchQuery}".</p>
+              <p className="text-gray-500">Aucun budget ne correspond à votre recherche &quot;{searchQuery}&quot;.</p>
             </div>
           )}
         </div>
@@ -269,7 +364,7 @@ export default function Page() {
         <div className="mt-8 bg-white rounded-lg p-6 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Besoin d'aide avec votre budget ?</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Besoin d&apos;aide avec votre budget ?</h3>
               <p className="text-gray-600">Commandez un développement auprès de nos partenaires</p>
             </div>
             <button 
@@ -281,6 +376,81 @@ export default function Page() {
           </div>
         </div>
       </div>
+
+      {/* Menu d'actions en masse */}
+      {showBulkActions && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Actions en Masse</h2>
+              <button 
+                onClick={() => setShowBulkActions(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <button
+                  onClick={selectAllBudgets}
+                  className="w-full text-left p-3 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                >
+                  <div className="font-medium text-blue-900">Sélectionner tous les budgets</div>
+                  <div className="text-sm text-blue-700">Sélectionner les {budgets.length} budgets disponibles</div>
+                </button>
+                
+                <button
+                  onClick={clearSelection}
+                  className="w-full text-left p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <div className="font-medium text-gray-900">Désélectionner tout</div>
+                  <div className="text-sm text-gray-700">Annuler la sélection actuelle</div>
+                </button>
+              </div>
+              
+              <div className="border-t pt-4">
+                <div className="space-y-2">
+                  <button
+                    onClick={deleteSelectedBudgets}
+                    disabled={selectedBudgets.length === 0}
+                    className={`w-full text-left p-3 rounded-lg transition-colors ${
+                      selectedBudgets.length === 0
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-red-50 border border-red-200 hover:bg-red-100'
+                    }`}
+                  >
+                    <div className="font-medium text-red-900">
+                      Supprimer les budgets sélectionnés ({selectedBudgets.length})
+                    </div>
+                    <div className="text-sm text-red-700">
+                      Supprimer définitivement les budgets choisis
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={deleteAllBudgets}
+                    disabled={budgets.length === 0}
+                    className={`w-full text-left p-3 rounded-lg transition-colors ${
+                      budgets.length === 0
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-red-50 border border-red-200 hover:bg-red-100'
+                    }`}
+                  >
+                    <div className="font-medium text-red-900">
+                      Supprimer TOUS les budgets ({budgets.length})
+                    </div>
+                    <div className="text-sm text-red-700">
+                      ⚠️ Action irréversible - Supprimer tous les budgets
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Assistant IA */}
       <AIAssistant />
@@ -359,6 +529,19 @@ export default function Page() {
                     <option value="Objectif">Objectif</option>
                   </select>
                 </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Source du montant
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Salaire, Épargne, Prêt, Héritage..."
+                  value={formData.source}
+                  onChange={(e) => setFormData(prev => ({ ...prev, source: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-500"
+                />
               </div>
               
               <div>

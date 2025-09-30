@@ -3,7 +3,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useBudgets } from '@/contexts/budget-context'
+import { useTransactions } from '@/contexts/transaction-context'
+// import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card' // ✅ Supprimé car non utilisé
 
 interface Message {
   id: string
@@ -21,6 +23,8 @@ interface AIInsight {
 }
 
 export function AIAssistant() {
+  const { budgets } = useBudgets()
+  const { transactions } = useTransactions()
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -43,27 +47,71 @@ export function AIAssistant() {
     scrollToBottom()
   }, [messages])
 
-  // Simulated AI insights
-  const aiInsights: AIInsight[] = [
-    {
-      type: 'warning',
-      title: 'Budget Alimentaire Dépassé',
-      description: 'Vous avez déjà dépensé 85% de votre budget alimentaire ce mois-ci.',
-      action: 'Voir les détails'
-    },
-    {
-      type: 'tip',
-      title: 'Économie Potentielle',
-      description: 'En réduisant vos sorties restaurant de 20%, vous pourriez économiser 120€/mois.',
-      action: 'Appliquer'
-    },
-    {
-      type: 'prediction',
-      title: 'Prédiction Février',
-      description: 'Basé sur vos habitudes, vos dépenses de février seront probablement de 2,350€.',
-      action: 'Ajuster le budget'
+  // ✅ Insights basés sur les VRAIES données
+  const getRealInsights = (): AIInsight[] => {
+    // Si pas de données, afficher des messages d'encouragement
+    if (budgets.length === 0 && transactions.length === 0) {
+      return [
+        {
+          type: 'tip',
+          title: '🎯 Commencez votre analyse financière',
+          description: 'Créez votre premier budget et ajoutez quelques transactions pour obtenir des insights personnalisés.',
+          action: 'Créer un budget'
+        },
+        {
+          type: 'tip',
+          title: '💡 Première étape recommandée',
+          description: '1. Créez un budget mensuel 2. Ajoutez vos premières transactions 3. Obtenez des insights IA personnalisés',
+          action: 'Commencer'
+        }
+      ]
     }
-  ]
+
+    // Si il y a des données, générer des insights basés sur les vraies données
+    const insights: AIInsight[] = []
+    
+    // Analyse des budgets
+    if (budgets.length > 0) {
+      const totalBudget = budgets.reduce((sum, budget) => sum + budget.amount, 0)
+      const totalSpent = budgets.reduce((sum, budget) => sum + budget.spent, 0)
+      const totalRemaining = budgets.reduce((sum, budget) => sum + budget.remaining, 0)
+      
+      if (totalSpent > totalBudget * 0.8) {
+        insights.push({
+          type: 'warning',
+          title: 'Budget en voie de dépassement',
+          description: `Vous avez dépensé ${Math.round((totalSpent / totalBudget) * 100)}% de votre budget total.`,
+          action: 'Voir les détails'
+        })
+      }
+      
+      if (totalRemaining > totalBudget * 0.5) {
+        insights.push({
+          type: 'tip',
+          title: 'Économie disponible',
+          description: `Vous avez encore ${totalRemaining.toLocaleString()} F CFA disponibles dans vos budgets.`,
+          action: 'Optimiser'
+        })
+      }
+    }
+    
+    // Analyse des transactions
+    if (transactions.length > 0) {
+      const totalTransactions = transactions.length
+      const avgTransaction = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0) / totalTransactions
+      
+      insights.push({
+        type: 'prediction',
+        title: 'Analyse de vos habitudes',
+        description: `Basé sur vos ${totalTransactions} transactions, montant moyen: ${avgTransaction.toFixed(0)} F CFA.`,
+        action: 'Analyser'
+      })
+    }
+    
+    return insights
+  }
+
+  const aiInsights = getRealInsights()
 
   const simulateAIResponse = async (userMessage: string) => {
     setIsTyping(true)

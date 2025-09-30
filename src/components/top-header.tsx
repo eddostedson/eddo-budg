@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 export function TopHeader() {
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
 
   if (!user) return null
@@ -64,7 +64,7 @@ export function TopHeader() {
             <span className="text-sm">EN TRAVAIL</span>
           </div>
 
-          {/* Profile */}
+          {/* Profile avec bouton de déconnexion */}
           <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-2">
             <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-xs">
               {user.email?.[0]?.toUpperCase() || 'U'}
@@ -77,16 +77,12 @@ export function TopHeader() {
             <span className="text-white/60 text-xs">▼</span>
           </div>
 
-          {/* Status button */}
-          <div className="flex items-center gap-2 bg-white/20 rounded-lg px-3 py-2">
-            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-            <span className="text-white text-sm">Mon offre</span>
-            <span className="text-white/60 text-xs">▼</span>
-          </div>
-
-          {/* Invite button */}
-          <Button className="bg-white/20 hover:bg-white/30 text-white border-none rounded-lg px-4 py-2">
-            Inviter
+          {/* Bouton de déconnexion */}
+          <Button 
+            onClick={signOut}
+            className="bg-red-500/80 hover:bg-red-600 text-white border-none rounded-lg px-4 py-2 transition-colors"
+          >
+            Déconnexion
           </Button>
         </div>
       </div>

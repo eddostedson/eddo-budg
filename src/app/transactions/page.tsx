@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Transaction } from '@/lib/shared-data'
+// import { Transaction } from '@/lib/shared-data' // ✅ Supprimé car non utilisé
 import { useBudgets } from '@/contexts/budget-context'
 import { useTransactions } from '@/contexts/transaction-context'
 import { CategoryCombobox } from '@/components/ui/category-combobox'

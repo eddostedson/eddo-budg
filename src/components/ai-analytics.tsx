@@ -3,9 +3,13 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { AIFinancialService, mockTransactions, ExpensePattern, BudgetPrediction, AIInsight } from '@/lib/ai-service'
+import { AIFinancialService, ExpensePattern, BudgetPrediction, AIInsight } from '@/lib/ai-service'
+import { useBudgets } from '@/contexts/budget-context'
+import { useTransactions } from '@/contexts/transaction-context'
 
 export function AIAnalytics() {
+  const { budgets } = useBudgets()
+  const { transactions } = useTransactions()
   const [patterns, setPatterns] = useState<ExpensePattern[]>([])
   const [predictions, setPredictions] = useState<BudgetPrediction[]>([])
   const [insights, setInsights] = useState<AIInsight[]>([])
@@ -13,25 +17,52 @@ export function AIAnalytics() {
 
   useEffect(() => {
     performAIAnalysis()
-  }, [])
+  }, [budgets, transactions]) // ✅ Re-analyser quand les données changent
 
   const performAIAnalysis = async () => {
     setIsAnalyzing(true)
     
-    // Simulate AI processing delay
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Vérifier s'il y a des données réelles
+    if (transactions.length === 0 && budgets.length === 0) {
+      // ✅ Aucune donnée réelle - afficher un message d'encouragement personnalisé
+      setInsights([
+        {
+          type: 'optimization',
+          title: '🎯 Commencez votre analyse financière',
+          description: 'Créez votre premier budget et ajoutez quelques transactions pour obtenir des insights personnalisés basés sur VOS données.',
+          impact: 0,
+          priority: 'medium',
+          actionable: true
+        },
+        {
+          type: 'optimization',
+          title: '💡 Première étape recommandée',
+          description: '1. Créez un budget mensuel 2. Ajoutez vos premières transactions 3. Obtenez des insights IA personnalisés',
+          impact: 0,
+          priority: 'low',
+          actionable: true
+        }
+      ])
+      setPatterns([])
+      setPredictions([])
+      setIsAnalyzing(false)
+      return
+    }
     
-    // Analyser les patterns
-    const detectedPatterns = AIFinancialService.analyzeSpendingPatterns(mockTransactions)
+    // Simulate AI processing delay
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    
+    // Analyser les patterns avec les VRAIES données
+    const detectedPatterns = AIFinancialService.analyzeSpendingPatterns(transactions)
     setPatterns(detectedPatterns)
     
-    // Générer les prédictions
+    // Générer les prédictions basées sur les vraies données
     const futurePredictions = AIFinancialService.predictFutureExpenses(detectedPatterns, 3)
     setPredictions(futurePredictions)
     
-    // Calculer l'analyse globale
-    const totalSpent = mockTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0)
-    const categoryBreakdown = mockTransactions.reduce((breakdown, t) => {
+    // Calculer l'analyse globale avec les vraies données
+    const totalSpent = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0)
+    const categoryBreakdown = transactions.reduce((breakdown, t) => {
       const category = t.category || 'Autre'
       breakdown[category] = (breakdown[category] || 0) + Math.abs(t.amount)
       return breakdown
@@ -45,7 +76,7 @@ export function AIAnalytics() {
       insights: []
     }
     
-    // Générer les insights
+    // Générer les insights basés sur les vraies données
     const aiInsights = AIFinancialService.generateInsights(analysis, detectedPatterns)
     setInsights(aiInsights)
     
@@ -258,7 +289,7 @@ export function AIAnalytics() {
       <Card className="glass-card rounded-xl">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
-            💡 Suggestions d'Optimisation IA
+            💡 Suggestions d&apos;Optimisation IA
           </CardTitle>
         </CardHeader>
         <CardContent>
