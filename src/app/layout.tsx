@@ -3,10 +3,15 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 import { TopHeader } from "@/components/top-header";
+import { MobileNav } from "@/components/mobile-nav";
 import { ToastProvider } from "@/contexts/toast-context";
-import { BudgetProvider } from "@/contexts/budget-context";
+import { NotificationProvider } from "@/contexts/notification-context";
+import { RecetteProvider } from "@/contexts/recette-context";
+import { DepenseProvider } from "@/contexts/depense-context";
 import { TransactionProvider } from "@/contexts/transaction-context";
 import { CategoryProvider } from "@/contexts/category-context";
+import { TransferProvider } from "@/contexts/transfer-context";
+import { BudgetProvider } from "@/contexts/budget-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,19 +39,28 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased text-gray-900 min-h-screen main-content`}
       >
         <ToastProvider>
-          <BudgetProvider>
-            <TransactionProvider>
-              <CategoryProvider>
-                <Sidebar />
-                <TopHeader />
-                <main className="ml-16 pt-16 min-h-screen main-content">
-                  <div className="p-6">
-                    {children}
-                  </div>
-                </main>
-              </CategoryProvider>
-            </TransactionProvider>
-          </BudgetProvider>
+          <NotificationProvider>
+            <RecetteProvider>
+              <DepenseProvider>
+                <BudgetProvider>
+                  <TransactionProvider>
+                    <CategoryProvider>
+                      <TransferProvider>
+                        <Sidebar />
+                        <TopHeader />
+                        <MobileNav />
+                        <main className="ml-0 md:ml-16 pt-16 min-h-screen main-content">
+                          <div className="p-4 md:p-6">
+                            {children}
+                          </div>
+                        </main>
+                      </TransferProvider>
+                    </CategoryProvider>
+                  </TransactionProvider>
+                </BudgetProvider>
+              </DepenseProvider>
+            </RecetteProvider>
+          </NotificationProvider>
         </ToastProvider>
       </body>
     </html>

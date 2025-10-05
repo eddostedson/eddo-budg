@@ -6,128 +6,78 @@ import { BudgetService } from '@/lib/supabase/database'
 
 interface BudgetContextType {
   budgets: Budget[]
-  setBudgets: (budgets: Budget[] | ((prev: Budget[]) => Budget[])) => void
-  addBudget: (budget: Omit<Budget, 'id' | 'createdAt'>) => void
-  updateBudget: (id: string, updates: Partial<Budget>) => void
-  deleteBudget: (id: string) => void
-  getBudgetById: (id: string) => Budget | undefined
+  addBudget: (budget: Omit<Budget, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
+  updateBudget: (id: string, updates: Partial<Budget>) => Promise<void>
+  deleteBudget: (id: string) => Promise<void>
+  refreshBudgets: () => Promise<void>
 }
 
 const BudgetContext = createContext<BudgetContextType | undefined>(undefined)
 
 export function BudgetProvider({ children }: { children: ReactNode }) {
-  // ✅ État vide par défaut - pas de données fictives
   const [budgets, setBudgets] = useState<Budget[]>([])
 
-  // Charger les budgets sauvegardés au démarrage
-  useEffect(() => {
-    const loadBudgets = async () => {
-      try {
-        // Essayer de charger depuis Supabase
-        const supabaseBudgets = await BudgetService.getBudgets()
-        if (supabaseBudgets.length > 0) {
-          setBudgets(supabaseBudgets)
-        } else {
-          // Fallback vers localStorage si pas de données Supabase
-          if (typeof window !== 'undefined') {
-            const savedBudgets = localStorage.getItem('budgets')
-            if (savedBudgets) {
-              const parsedBudgets = JSON.parse(savedBudgets)
-              const budgetsWithDates = parsedBudgets.map((budget: Budget & { createdAt: string }) => ({
-                ...budget,
-                createdAt: new Date(budget.createdAt)
-              }))
-              setBudgets(budgetsWithDates)
-            } else {
-              // ✅ Pas de données - état vide, pas de données fictives
-              setBudgets([])
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Erreur lors du chargement des budgets:', error)
-        // Fallback vers localStorage
-        if (typeof window !== 'undefined') {
-          const savedBudgets = localStorage.getItem('budgets')
-          if (savedBudgets) {
-            const parsedBudgets = JSON.parse(savedBudgets)
-            const budgetsWithDates = parsedBudgets.map((budget: Budget & { createdAt: string }) => ({
-              ...budget,
-              createdAt: new Date(budget.createdAt)
-            }))
-            setBudgets(budgetsWithDates)
-          } else {
-            // ✅ Pas de données - état vide, pas de données fictives
-            setBudgets([])
-          }
-        }
-      }
-    }
-
-    loadBudgets()
-  }, [])
-
-  // Sauvegarder dans LocalStorage à chaque changement
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('budgets', JSON.stringify(budgets))
-    }
-  }, [budgets])
-
-  const addBudget = async (budgetData: Omit<Budget, 'id' | 'createdAt'>) => {
+  const refreshBudgets = async () => {
     try {
-      // Essayer de sauvegarder dans Supabase
-      const newBudget = await BudgetService.createBudget(budgetData)
-      if (newBudget) {
-        setBudgets(prev => [newBudget, ...prev])
+      const data = await BudgetService.getBudgets()
+      setBudgets(data)
+      if (data.length > 0) {
+        localStorage.setItem('budgets', JSON.stringify(data))
       } else {
-        // Fallback vers localStorage
-        const fallbackBudget: Budget = {
-          ...budgetData,
-          id: Date.now().toString(),
-          createdAt: new Date()
-        }
-        setBudgets(prev => [fallbackBudget, ...prev])
+        localStorage.removeItem('budgets')
       }
     } catch (error) {
-      console.error('Erreur lors de la création du budget:', error)
-      // Fallback vers localStorage
-      const fallbackBudget: Budget = {
-        ...budgetData,
-        id: Date.now().toString(),
-        createdAt: new Date()
+      console.error('Erreur lors du rafraîchissement des budgets:', error)
+      // Fallback to localStorage
+      const stored = localStorage.getItem('budgets')
+      if (stored) {
+        setBudgets(JSON.parse(stored))
       }
-      setBudgets(prev => [fallbackBudget, ...prev])
     }
   }
 
-  const updateBudget = (id: string, updates: Partial<Budget>) => {
-    setBudgets(prev => 
-      prev.map(budget => 
-        budget.id === id ? { ...budget, ...updates } : budget
-      )
-    )
+  useEffect(() => {
+    refreshBudgets()
+  }, [])
+
+  const addBudget = async (budget: Omit<Budget, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      const newBudget = await BudgetService.createBudget(budget)
+      if (newBudget) {
+        await refreshBudgets()
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout du budget:', error)
+      throw error
+    }
   }
 
-  const deleteBudget = (id: string) => {
-    setBudgets(prev => prev.filter(budget => budget.id !== id))
+  const updateBudget = async (id: string, updates: Partial<Budget>) => {
+    try {
+      const updatedBudget = await BudgetService.updateBudget(id, updates)
+      if (updatedBudget) {
+        await refreshBudgets()
+      }
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du budget:', error)
+      throw error
+    }
   }
 
-  const getBudgetById = (id: string) => {
-    return budgets.find(budget => budget.id === id)
-  }
-
-  const value: BudgetContextType = {
-    budgets,
-    setBudgets,
-    addBudget,
-    updateBudget,
-    deleteBudget,
-    getBudgetById
+  const deleteBudget = async (id: string) => {
+    try {
+      const success = await BudgetService.deleteBudget(id)
+      if (success) {
+        await refreshBudgets()
+      }
+    } catch (error) {
+      console.error('Erreur lors de la suppression du budget:', error)
+      throw error
+    }
   }
 
   return (
-    <BudgetContext.Provider value={value}>
+    <BudgetContext.Provider value={{ budgets, addBudget, updateBudget, deleteBudget, refreshBudgets }}>
       {children}
     </BudgetContext.Provider>
   )
@@ -136,7 +86,9 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
 export function useBudgets() {
   const context = useContext(BudgetContext)
   if (context === undefined) {
-    throw new Error('useBudgets must be used within a BudgetProvider')
+    throw new Error('useBudgets doit être utilisé à l\'intérieur d\'un BudgetProvider')
   }
   return context
 }
+
+

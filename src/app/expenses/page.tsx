@@ -8,18 +8,49 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useToast } from '@/contexts/toast-context'
-import type { Expense, Income, Category, Budget } from '@/types'
+import type { Budget } from '@/lib/shared-data'
+
+// Interfaces locales pour ce module
+interface Expense {
+  id: string
+  budget_id: string
+  category: string
+  amount: number
+  date?: string
+  description: string
+  created_at: string
+  updated_at: string
+}
+
+interface Income {
+  id: string
+  budget_id: string
+  category: string
+  amount: number
+  description: string
+  created_at: string
+  updated_at: string
+}
+
+interface TransactionCategory {
+  id: string
+  budget_id: string
+  name: string
+  type: 'income' | 'expense'
+  created_at: string
+  updated_at: string
+}
 
 export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [incomes, setIncomes] = useState<Income[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
+  const [categories, setCategories] = useState<TransactionCategory[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selectedBudget, setSelectedBudget] = useState<string>('')
   const [selectedIncome, setSelectedIncome] = useState<string>('')
-  const { showSuccess, showError, showInfo, showWarning } = useToast()
+  const { showSuccess, showInfo, showWarning } = useToast()
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showDetailDialog, setShowDetailDialog] = useState(false)
@@ -53,19 +84,35 @@ export default function ExpensesPage() {
           id: '1',
           name: 'Personnel',
           description: 'Budget personnel mensuel',
+          amount: 500000,
+          spent: 0,
+          remaining: 500000,
+          period: 'Mensuel',
+          color: 'bg-blue-500',
+          source: 'Salaire',
+          type: 'principal',
           created_at: '2024-01-15T10:00:00Z',
-          updated_at: '2024-01-15T10:00:00Z'
+          updated_at: '2024-01-15T10:00:00Z',
+          createdAt: new Date('2024-01-15T10:00:00Z')
         },
         {
           id: '2',
           name: 'Expertise',
           description: 'Budget pour activité d\'expertise',
+          amount: 200000,
+          spent: 0,
+          remaining: 200000,
+          period: 'Mensuel',
+          color: 'bg-green-500',
+          source: 'Freelance',
+          type: 'secondaire',
           created_at: '2024-01-10T14:30:00Z',
-          updated_at: '2024-01-10T14:30:00Z'
+          updated_at: '2024-01-10T14:30:00Z',
+          createdAt: new Date('2024-01-10T14:30:00Z')
         }
       ]
 
-      const mockCategories: Category[] = [
+      const mockCategories: TransactionCategory[] = [
         {
           id: '2',
           budget_id: '1',
@@ -96,10 +143,8 @@ export default function ExpensesPage() {
         {
           id: '1',
           budget_id: '1',
-          category_id: '1',
-          name: 'Salaire Janvier',
+          category: 'Salaire',
           amount: 3500,
-          date: '2024-01-31',
           description: 'Salaire mensuel',
           created_at: '2024-01-31T10:00:00Z',
           updated_at: '2024-01-31T10:00:00Z'
@@ -107,10 +152,8 @@ export default function ExpensesPage() {
         {
           id: '2',
           budget_id: '2',
-          category_id: '3',
-          name: 'Prestation Client A',
+          category: 'Prestations',
           amount: 2500,
-          date: '2024-01-15',
           description: 'Développement site web',
           created_at: '2024-01-15T14:00:00Z',
           updated_at: '2024-01-15T14:00:00Z'
@@ -121,11 +164,8 @@ export default function ExpensesPage() {
         {
           id: '1',
           budget_id: '1',
-          income_id: '1',
-          category_id: '2',
-          name: 'Courses alimentaires',
+          category: 'Alimentation',
           amount: 150,
-          date: '2024-02-01',
           description: 'Courses hebdomadaires',
           created_at: '2024-02-01T10:00:00Z',
           updated_at: '2024-02-01T10:00:00Z'
@@ -133,11 +173,8 @@ export default function ExpensesPage() {
         {
           id: '2',
           budget_id: '1',
-          income_id: '1',
-          category_id: '4',
-          name: 'Essence voiture',
+          category: 'Transport',
           amount: 80,
-          date: '2024-02-02',
           description: 'Plein d\'essence',
           created_at: '2024-02-02T15:00:00Z',
           updated_at: '2024-02-02T15:00:00Z'
@@ -176,13 +213,10 @@ export default function ExpensesPage() {
     
     const newExpense: Expense = {
       id: Date.now().toString(),
-      name: formData.name,
-      amount: amount,
-      date: formData.date,
-      description: formData.description,
-      category_id: formData.category_id,
-      income_id: formData.income_id,
       budget_id: formData.budget_id,
+      category: formData.name || 'Autre',
+      amount: amount,
+      description: formData.description,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
@@ -198,7 +232,7 @@ export default function ExpensesPage() {
       budget_id: selectedBudget
     })
     setShowForm(false)
-    showSuccess('Dépense créée !', `La dépense "${newExpense.name}" de ${formatCurrency(newExpense.amount)} a été créée.`)
+    showSuccess('Dépense créée !', `La dépense "${newExpense.category}" de ${formatCurrency(newExpense.amount)} a été créée.`)
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -220,12 +254,12 @@ export default function ExpensesPage() {
   const handleEditExpense = (expense: Expense) => {
     setEditingExpense(expense)
     setEditFormData({
-      name: expense.name,
+      name: expense.category,
       amount: expense.amount.toString(),
-      date: expense.date,
+      date: expense.date || new Date().toISOString().split('T')[0],
       description: expense.description || '',
-      category_id: expense.category_id,
-      income_id: expense.income_id,
+      category_id: '',
+      income_id: '',
       budget_id: expense.budget_id
     })
     setShowEditDialog(true)
@@ -234,7 +268,7 @@ export default function ExpensesPage() {
   const handleViewDetails = (expense: Expense) => {
     setSelectedExpense(expense)
     setShowDetailDialog(true)
-    showInfo('Détails de la dépense', `Affichage des détails de "${expense.name}"`)
+    showInfo('Détails de la dépense', `Affichage des détails de "${expense.category}"`)
   }
 
   const handleUpdateExpense = (e: React.FormEvent) => {
@@ -645,7 +679,7 @@ export default function ExpensesPage() {
                     <div className="flex items-center gap-3 mb-2">
                       <span className="text-2xl">💸</span>
                       <div>
-                        <h3 className="font-semibold text-lg">{expense.name}</h3>
+                        <h3 className="font-semibold text-lg">{expense.category}</h3>
                         <p className="text-sm text-gray-300">
                           {getCategoryName(expense.category_id)} • {getBudgetName(expense.budget_id)}
                         </p>
@@ -687,9 +721,9 @@ export default function ExpensesPage() {
                         size="sm"
                         className="cursor-pointer hover:bg-red-100 text-red-600 hover:text-red-700"
                         onClick={() => {
-                          if (confirm(`Êtes-vous sûr de vouloir supprimer la dépense "${expense.name}" ?`)) {
+                          if (confirm(`Êtes-vous sûr de vouloir supprimer la dépense "${expense.category}" ?`)) {
                             setExpenses(expenses.filter(e => e.id !== expense.id))
-                            showSuccess('Dépense supprimée !', `La dépense "${expense.name}" a été supprimée.`)
+                            showSuccess('Dépense supprimée !', `La dépense "${expense.category}" a été supprimée.`)
                           }
                         }}
                       >

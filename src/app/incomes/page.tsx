@@ -17,7 +17,7 @@ export default function IncomesPage() {
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selectedBudget, setSelectedBudget] = useState<string>('')
-  const { showSuccess, showError, showInfo } = useToast()
+  const { showSuccess, showInfo } = useToast()
   const [editingIncome, setEditingIncome] = useState<Income | null>(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showDetailDialog, setShowDetailDialog] = useState(false)

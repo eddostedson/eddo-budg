@@ -27,9 +27,7 @@ export async function GET() {
         .from('profiles')
         .insert({
           id: user.id,
-          email: user.email,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          created_at: new Date().toISOString()
         })
 
       if (insertError) {

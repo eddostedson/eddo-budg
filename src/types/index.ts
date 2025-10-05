@@ -1,59 +1,68 @@
+// ✅ TYPES CORRIGÉS - Correspondent maintenant à la structure réelle de la base de données
+
 export interface Budget {
   id: string
+  user_id?: string
   name: string
-  description?: string
+  description: string
+  amount: number
+  spent: number
+  remaining: number
+  period: string
+  color: string
+  source: string
+  type: 'principal' | 'secondaire'
   created_at: string
   updated_at: string
+  createdAt: Date
+}
+
+export interface Transaction {
+  id: number
+  user_id?: string
+  budget_id?: string
+  date: string
+  description: string
+  category: string
+  amount: number
+  type: 'income' | 'expense'
+  status: 'completed' | 'pending' | 'cancelled'
+  created_at?: string
+  updated_at?: string
+  budgetId?: string
 }
 
 export interface Category {
   id: string
-  budget_id: string
+  user_id?: string
   name: string
-  type: 'income' | 'expense'
-  created_at: string
-  updated_at: string
+  color: string
+  created_at?: string
+  createdAt: Date
 }
 
-export interface Income {
+export interface BudgetTransfer {
   id: string
-  budget_id: string
-  category_id: string
-  name: string
+  fromBudgetId: string
+  toBudgetId: string
   amount: number
   date: string
-  description?: string
-  created_at: string
-  updated_at: string
+  description: string
+  status: 'pending' | 'completed' | 'refunded'
+  createdAt: Date
 }
 
-export interface Expense {
-  id: string
-  budget_id: string
-  income_id: string
-  category_id: string
-  name: string
-  amount: number
-  date: string
-  description?: string
-  created_at: string
-  updated_at: string
-}
-
+// Types pour les résumés et statistiques
 export interface BudgetSummary {
   budget: Budget
   totalIncome: number
   totalExpenses: number
   remaining: number
-  categories: {
-    income: Category[]
-    expense: Category[]
-  }
+  transactionCount: number
 }
 
-export interface IncomeSummary {
-  income: Income
-  totalExpenses: number
-  remaining: number
-  expenses: Expense[]
+export interface TransactionSummary {
+  total: number
+  byCategory: Record<string, number>
+  byType: Record<'income' | 'expense', number>
 }

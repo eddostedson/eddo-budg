@@ -8,10 +8,40 @@ import { Button } from '@/components/ui/button'
 
 const sidebarItems = [
   { 
-    href: '/', 
-    label: 'Budgets', 
+    href: '/accueil', 
+    label: 'Accueil', 
+    icon: '🏠',
+    description: 'Dashboard'
+  },
+  { 
+    href: '/recettes', 
+    label: 'Recettes', 
     icon: '💰',
-    description: ''
+    description: 'Vos revenus'
+  },
+  { 
+    href: '/depenses', 
+    label: 'Dépenses', 
+    icon: '💸',
+    description: 'Vos sorties'
+  },
+  { 
+    href: '/ai-insights', 
+    label: 'Assistant IA', 
+    icon: '🤖',
+    description: 'Analyses intelligentes'
+  },
+  { 
+    href: '/ai-chat', 
+    label: 'Chat IA', 
+    icon: '💬',
+    description: 'Discussion financière'
+  },
+  { 
+    href: '/rapports', 
+    label: 'Rapports', 
+    icon: '📊',
+    description: 'États financiers'
   },
   { 
     href: '/transactions', 
@@ -22,19 +52,13 @@ const sidebarItems = [
   { 
     href: '/ai-analysis', 
     label: 'Analytics', 
-    icon: '📊',
+    icon: '📈',
     description: ''
   },
   { 
     href: '/categories', 
     label: 'Catégories', 
     icon: '📂',
-    description: ''
-  },
-  { 
-    href: '/reports', 
-    label: 'Rapports', 
-    icon: '📈',
     description: ''
   },
   { 
@@ -67,7 +91,7 @@ export function Sidebar() {
   if (!user) return null
 
   return (
-    <div className="fixed left-0 top-0 h-full w-16 sidebar-dark flex flex-col items-center py-4">
+    <div className="hidden md:flex fixed left-0 top-0 h-full w-16 sidebar-dark flex-col items-center py-4">
       {/* Logo/Brand */}
       <div className="mb-8">
         <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">

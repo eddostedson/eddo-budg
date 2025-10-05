@@ -1,0 +1,387 @@
+/* Modern Global Styles */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Custom Modern Styles */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 text-gray-900 antialiased;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  /* Modern Glass Effect */
+  .glass {
+    @apply bg-white/60 backdrop-blur-xl border border-white/30;
+  }
+  
+  .glass-dark {
+    @apply bg-gray-900/60 backdrop-blur-xl border border-gray-700/30;
+  }
+  
+  /* Modern Gradients */
+  .gradient-primary {
+    @apply bg-gradient-to-r from-blue-500 to-indigo-600;
+  }
+  
+  .gradient-success {
+    @apply bg-gradient-to-r from-green-500 to-emerald-600;
+  }
+  
+  .gradient-warning {
+    @apply bg-gradient-to-r from-yellow-500 to-orange-600;
+  }
+  
+  .gradient-danger {
+    @apply bg-gradient-to-r from-red-500 to-pink-600;
+  }
+  
+  .gradient-info {
+    @apply bg-gradient-to-r from-cyan-500 to-blue-600;
+  }
+  
+  /* Modern Shadows */
+  .shadow-modern {
+    @apply shadow-2xl shadow-blue-500/10;
+  }
+  
+  .shadow-modern-lg {
+    @apply shadow-3xl shadow-blue-500/20;
+  }
+  
+  /* Modern Animations */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out;
+  }
+  
+  .animate-slide-in {
+    animation: slideIn 0.5s ease-out;
+  }
+  
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out;
+  }
+  
+  .animate-bounce-in {
+    animation: bounceIn 0.6s ease-out;
+  }
+  
+  .animate-flip-in {
+    animation: flipIn 0.5s ease-out;
+  }
+  
+  .animate-zoom-in {
+    animation: zoomIn 0.3s ease-out;
+  }
+  
+  /* Modern Hover Effects */
+  .hover-lift {
+    @apply transition-all duration-300 hover:scale-105 hover:shadow-lg;
+  }
+  
+  .hover-glow {
+    @apply transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/25;
+  }
+  
+  .hover-slide {
+    @apply transition-all duration-300 hover:translate-x-1;
+  }
+  
+  .hover-rotate {
+    @apply transition-all duration-300 hover:rotate-3;
+  }
+  
+  /* Modern Focus States */
+  .focus-modern {
+    @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+  }
+  
+  .focus-modern-inset {
+    @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset;
+  }
+  
+  /* Modern Text Effects */
+  .text-gradient {
+    @apply bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent;
+  }
+  
+  .text-gradient-primary {
+    @apply bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent;
+  }
+  
+  .text-gradient-success {
+    @apply bg-gradient-to-r from-green-500 to-emerald-600 bg-clip-text text-transparent;
+  }
+  
+  .text-gradient-warning {
+    @apply bg-gradient-to-r from-yellow-500 to-orange-600 bg-clip-text text-transparent;
+  }
+  
+  .text-gradient-danger {
+    @apply bg-gradient-to-r from-red-500 to-pink-600 bg-clip-text text-transparent;
+  }
+  
+  /* Modern Borders */
+  .border-modern {
+    @apply border border-white/30;
+  }
+  
+  .border-modern-dark {
+    @apply border border-gray-700/30;
+  }
+  
+  /* Modern Rounded Corners */
+  .rounded-modern {
+    @apply rounded-2xl;
+  }
+  
+  .rounded-modern-lg {
+    @apply rounded-3xl;
+  }
+  
+  /* Modern Spacing */
+  .space-modern {
+    @apply space-y-6;
+  }
+  
+  .space-modern-sm {
+    @apply space-y-4;
+  }
+  
+  .space-modern-lg {
+    @apply space-y-8;
+  }
+  
+  /* Modern Typography */
+  .heading-modern {
+    @apply text-3xl font-bold text-gray-900;
+  }
+  
+  .heading-modern-lg {
+    @apply text-4xl font-bold text-gray-900;
+  }
+  
+  .heading-modern-xl {
+    @apply text-5xl font-bold text-gray-900;
+  }
+  
+  .text-modern {
+    @apply text-lg text-gray-700;
+  }
+  
+  .text-modern-sm {
+    @apply text-sm text-gray-600;
+  }
+  
+  .text-modern-lg {
+    @apply text-xl text-gray-700;
+  }
+}
+
+@layer utilities {
+  /* Modern Utilities */
+  .backdrop-blur-modern {
+    backdrop-filter: blur(20px);
+  }
+  
+  .backdrop-blur-modern-lg {
+    backdrop-filter: blur(40px);
+  }
+  
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .text-shadow-lg {
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  }
+  
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .scrollbar-modern {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.5) transparent;
+  }
+  
+  .scrollbar-modern::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .scrollbar-modern::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-modern::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.5);
+    border-radius: 3px;
+  }
+  
+  .scrollbar-modern::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.7);
+  }
+}
+
+/* Custom Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes flipIn {
+  from {
+    opacity: 0;
+    transform: rotateY(-90deg);
+  }
+  to {
+    opacity: 1;
+    transform: rotateY(0);
+  }
+}
+
+@keyframes zoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Modern Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .dark-mode {
+    @apply bg-gray-900 text-white;
+  }
+  
+  .dark-mode .glass {
+    @apply bg-gray-800/60 backdrop-blur-xl border border-gray-700/30;
+  }
+  
+  .dark-mode .text-gradient {
+    @apply bg-gradient-to-r from-blue-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent;
+  }
+}
+
+/* Modern Print Styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+  
+  .print-break {
+    page-break-before: always;
+  }
+  
+  .print-break-after {
+    page-break-after: always;
+  }
+}
+
+/* Modern Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Modern High Contrast Mode */
+@media (prefers-contrast: high) {
+  .high-contrast {
+    @apply border-2 border-black;
+  }
+  
+  .high-contrast .text-gradient {
+    @apply text-black;
+  }
+}
+
+/* Modern Focus Visible */
+.focus-visible:focus-visible {
+  @apply outline-none ring-2 ring-blue-500 ring-offset-2;
+}
+
+/* Modern Selection */
+::selection {
+  @apply bg-blue-500 text-white;
+}
+
+::-moz-selection {
+  @apply bg-blue-500 text-white;
+}
+
+
+
+
+
+

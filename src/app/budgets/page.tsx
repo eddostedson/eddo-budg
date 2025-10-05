@@ -1,365 +1,137 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { formatDate } from '@/lib/utils'
-import { AuthGuard } from '@/components/auth-guard'
-import { useToast } from '@/contexts/toast-context'
-import type { Budget } from '@/types'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/browser'
+import { useBudgets } from '@/contexts/budget-context'
+import { Budget } from '@/lib/shared-data'
+import Link from 'next/link'
 
 export default function BudgetsPage() {
-  const [budgets, setBudgets] = useState<Budget[]>([])
-  const [showForm, setShowForm] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const { showSuccess, showError, showInfo } = useToast()
+  const router = useRouter()
+  const { budgets, addBudget, deleteBudget, updateBudget } = useBudgets()
+  const [showModal, setShowModal] = useState(false)
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null)
-  const [showEditDialog, setShowEditDialog] = useState(false)
-  const [showDetailDialog, setShowDetailDialog] = useState(false)
-  const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null)
-  const [formData, setFormData] = useState({
-    name: '',
-    description: ''
-  })
-  const [editFormData, setEditFormData] = useState({
-    name: '',
-    description: ''
-  })
+  const [formData, setFormData] = useState({ name: '', description: '' })
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
 
-  // Mock data pour le développement
   useEffect(() => {
-    // Simuler un appel API
-    setTimeout(() => {
-      setBudgets([
-        {
-          id: '1',
-          name: 'Personnel',
-          description: 'Budget personnel mensuel',
-          created_at: '2024-01-15T10:00:00Z',
-          updated_at: '2024-01-15T10:00:00Z'
-        },
-        {
-          id: '2',
-          name: 'Expertise',
-          description: 'Budget pour activité d\'expertise',
-          created_at: '2024-01-10T14:30:00Z',
-          updated_at: '2024-01-10T14:30:00Z'
-        }
-      ])
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/auth')
+        return
+      }
       setLoading(false)
-    }, 500)
-  }, [])
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    const newBudget: Budget = {
-      id: Date.now().toString(),
-      name: formData.name,
-      description: formData.description,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
     }
-
-    setBudgets([...budgets, newBudget])
-    setFormData({ name: '', description: '' })
-    setShowForm(false)
-    showSuccess('Budget créé !', `Le budget "${newBudget.name}" a été créé avec succès.`)
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
-
-  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEditFormData({
-      ...editFormData,
-      [e.target.name]: e.target.value
-    })
-  }
-
-  const handleEditBudget = (budget: Budget) => {
-    setEditingBudget(budget)
-    setEditFormData({
-      name: budget.name,
-      description: budget.description || ''
-    })
-    setShowEditDialog(true)
-  }
-
-  const handleViewDetails = (budget: Budget) => {
-    setSelectedBudget(budget)
-    setShowDetailDialog(true)
-    showInfo('Détails du budget', `Affichage des détails de "${budget.name}"`)
-  }
-
-  const handleUpdateBudget = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editingBudget) return
-
-    const updatedBudget: Budget = {
-      ...editingBudget,
-      name: editFormData.name,
-      description: editFormData.description,
-      updated_at: new Date().toISOString()
-    }
-
-    setBudgets(budgets.map(budget => 
-      budget.id === editingBudget.id ? updatedBudget : budget
-    ))
-    setShowEditDialog(false)
-    setEditingBudget(null)
-    showSuccess('Budget modifié !', `Le budget "${updatedBudget.name}" a été mis à jour.`)
-  }
+    checkAuth()
+  }, [router, supabase.auth])
 
   if (loading) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-400"></div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Vérification de l'authentification...</p>
         </div>
       </div>
     )
   }
 
+  const handleOpenModal = (budget: Budget | null = null) => {
+    if (budget) {
+      setEditingBudget(budget)
+      setFormData({ name: budget.name, description: budget.description })
+    } else {
+      setEditingBudget(null)
+      setFormData({ name: '', description: '' })
+    }
+    setShowModal(true)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (editingBudget) {
+      await updateBudget(editingBudget.id, formData)
+    } else {
+      await addBudget(formData)
+    }
+    setShowModal(false)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Êtes-vous sûr de vouloir supprimer ce budget ? Cela ne supprimera pas les recettes ou dépenses associées.')) {
+      await deleteBudget(id)
+    }
+  }
+
   return (
-    <AuthGuard>
-      <div className="container mx-auto py-8 px-4">
+    <div className="min-h-screen bg-gray-50 p-8">
       <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
-            💰 Budgets
-          </h1>
-          <p className="text-gray-300 mt-2">Gérez vos différents budgets</p>
-        </div>
-        <Button 
-          onClick={() => setShowForm(!showForm)}
-          className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white font-semibold transition-all duration-200 hover:scale-105 shadow-lg shadow-yellow-400/20"
+        <h1 className="text-3xl font-bold text-gray-800">Mes Budgets (Projets)</h1>
+        <button
+          onClick={() => handleOpenModal()}
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold shadow-md hover:bg-blue-700 transition-colors"
         >
-          {showForm ? '❌ Annuler' : '✨ Nouveau Budget'}
-        </Button>
+          + Créer un Budget
+        </button>
       </div>
 
-      {showForm && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Créer un nouveau budget</CardTitle>
-            <CardDescription>
-              Ajoutez un nouveau budget pour organiser vos finances
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {budgets.map(budget => (
+          <div key={budget.id} className="bg-white rounded-lg shadow-md p-6 flex flex-col justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">{budget.name}</h2>
+              <p className="text-gray-600 mb-4">{budget.description}</p>
+            </div>
+            <div className="flex justify-end gap-2">
+               <Link href={`/budgets/${budget.id}`} className="text-sm text-blue-600 hover:underline">
+                Gérer
+              </Link>
+              <button onClick={() => handleOpenModal(budget)} className="text-sm text-yellow-600 hover:underline">Modifier</button>
+              <button onClick={() => handleDelete(budget.id)} className="text-sm text-red-600 hover:underline">Supprimer</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
+            <h2 className="text-2xl font-bold mb-6">{editingBudget ? 'Modifier le Budget' : 'Nouveau Budget'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="name">Nom du budget *</Label>
-                <Input
-                  id="name"
-                  name="name"
+                <label className="block text-sm font-medium text-gray-700">Nom du Budget</label>
+                <input
                   type="text"
                   value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="ex: Personnel, Expertise..."
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="description">Description</Label>
-                <Input
-                  id="description"
-                  name="description"
-                  type="text"
+                <label className="block text-sm font-medium text-gray-700">Description</label>
+                <textarea
                   value={formData.description}
-                  onChange={handleInputChange}
-                  placeholder="Description optionnelle du budget"
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  rows={4}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <div className="flex gap-2">
-                <Button type="submit">Créer le budget</Button>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setShowForm(false)}
-                >
+              <div className="flex justify-end gap-4 pt-4">
+                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50">
                   Annuler
-                </Button>
+                </button>
+                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                  {editingBudget ? 'Enregistrer' : 'Créer'}
+                </button>
               </div>
             </form>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {budgets.length === 0 ? (
-          <div className="col-span-full text-center py-12">
-            <div className="text-gray-400 text-6xl mb-4">💰</div>
-            <h3 className="text-lg font-medium text-white mb-2">
-              Aucun budget trouvé
-            </h3>
-            <p className="text-gray-600 mb-4">
-              Commencez par créer votre premier budget
-            </p>
-            <Button onClick={() => setShowForm(true)}>
-              Créer mon premier budget
-            </Button>
           </div>
-        ) : (
-          budgets.map((budget) => (
-            <Card key={budget.id} className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <span className="text-2xl">💰</span>
-                  {budget.name}
-                </CardTitle>
-                {budget.description && (
-                  <CardDescription>{budget.description}</CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm text-gray-600">
-                  <p>Créé le {formatDate(budget.created_at)}</p>
-                  <div className="flex justify-between items-center pt-4">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="cursor-pointer"
-                      onClick={() => handleViewDetails(budget)}
-                    >
-                      👁️ Voir détails
-                    </Button>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="cursor-pointer hover:bg-gray-100"
-                        onClick={() => handleEditBudget(budget)}
-                      >
-                        ✏️ Modifier
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="cursor-pointer hover:bg-red-100 text-red-600 hover:text-red-700"
-                        onClick={() => {
-                          if (confirm(`Êtes-vous sûr de vouloir supprimer le budget "${budget.name}" ?`)) {
-                            setBudgets(budgets.filter(b => b.id !== budget.id))
-                            showSuccess('Budget supprimé !', `Le budget "${budget.name}" a été supprimé.`)
-                          }
-                        }}
-                      >
-                        🗑️ Supprimer
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
-
-      {/* Modale de modification */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Modifier le budget</DialogTitle>
-            <DialogDescription>
-              Modifiez les informations du budget
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleUpdateBudget} className="space-y-4 mt-4">
-            <div>
-              <Label htmlFor="edit-name">Nom du budget *</Label>
-              <Input
-                id="edit-name"
-                name="name"
-                type="text"
-                value={editFormData.name}
-                onChange={handleEditInputChange}
-                placeholder="ex: Personnel, Expertise..."
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-description">Description</Label>
-              <Input
-                id="edit-description"
-                name="description"
-                type="text"
-                value={editFormData.description}
-                onChange={handleEditInputChange}
-                placeholder="Description optionnelle du budget"
-              />
-            </div>
-            <div className="flex gap-2 pt-4">
-              <Button type="submit">Sauvegarder</Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => setShowEditDialog(false)}
-              >
-                Annuler
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modale de détails */}
-      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Détails du budget</DialogTitle>
-            <DialogDescription>
-              Informations complètes du budget
-            </DialogDescription>
-          </DialogHeader>
-          {selectedBudget && (
-            <div className="space-y-4 mt-4">
-              <div>
-                <Label className="font-semibold">Nom:</Label>
-                <p className="text-gray-300">{selectedBudget.name}</p>
-              </div>
-              {selectedBudget.description && (
-                <div>
-                  <Label className="font-semibold">Description:</Label>
-                  <p className="text-gray-300">{selectedBudget.description}</p>
-                </div>
-              )}
-              <div>
-                <Label className="font-semibold">Créé le:</Label>
-                <p className="text-gray-300">{formatDate(selectedBudget.created_at)}</p>
-              </div>
-              <div>
-                <Label className="font-semibold">Dernière modification:</Label>
-                <p className="text-gray-300">{formatDate(selectedBudget.updated_at)}</p>
-              </div>
-              <div className="flex gap-2 pt-4">
-                <Button 
-                  onClick={() => {
-                    setShowDetailDialog(false)
-                    handleEditBudget(selectedBudget)
-                  }}
-                >
-                  ✏️ Modifier
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowDetailDialog(false)}
-                >
-                  Fermer
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-      </div>
-    </AuthGuard>
+        </div>
+      )}
+    </div>
   )
 }

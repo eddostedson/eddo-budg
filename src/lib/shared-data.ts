@@ -1,15 +1,11 @@
 // Données partagées entre les pages
 export interface Budget {
   id: string
+  userId?: string
   name: string
   description: string
-  amount: number
-  spent: number
-  remaining: number
-  period: string
-  color: string
-  source: string // ✅ Nouveau champ pour la source du montant
-  createdAt: Date
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Transaction {
@@ -19,7 +15,7 @@ export interface Transaction {
   category: string
   amount: number
   type: 'income' | 'expense'
-  status: 'completed' | 'pending'
+  status: 'completed' | 'pending' | 'cancelled'
   budgetId?: string
 }
 
@@ -30,10 +26,78 @@ export interface Category {
   createdAt: Date
 }
 
+// ✅ Interface pour les transferts entre budgets
+export interface BudgetTransfer {
+  id: string
+  fromBudgetId: string
+  toBudgetId: string
+  amount: number
+  date: string
+  description: string
+  status: 'pending' | 'completed' | 'refunded' // pending = prêt non remboursé, refunded = remboursé
+  createdAt: Date
+}
+
+// ✅ Interface pour les RECETTES (Revenus)
+export interface Recette {
+  id: string
+  userId?: string
+  libelle: string
+  description: string
+  montant: number
+  soldeDisponible: number
+  source: string // Salaire, Prime, Freelance, etc.
+  periodicite: 'unique' | 'mensuelle' | 'hebdomadaire' | 'annuelle'
+  dateReception: string
+  categorie: string
+  statut: 'attendue' | 'reçue' | 'retardée' | 'annulée'
+  createdAt: string
+  updatedAt: string
+}
+
+// ✅ Interface pour les DÉPENSES
+export interface Depense {
+  id: number
+  userId?: string
+  recetteId?: string
+  libelle: string
+  montant: number
+  date: string
+  description: string
+  createdAt: string
+  updatedAt: string
+}
+
+// ✅ Interface pour les ALLOCATIONS (Recettes → Budgets)
+export interface Allocation {
+  id: number
+  userId?: string
+  recetteId: string
+  budgetId: string
+  montant: number
+  dateAllocation: string
+  createdAt: string
+}
+
 // Budgets par défaut
 export const defaultBudgets: Budget[] = [
   {
     id: '1',
+    name: 'ACCD-PRINCIPAL',
+    description: 'COMPTE PRINCIPAL',
+    amount: 2865336,
+    spent: 0,
+    remaining: 2232122,
+    period: 'Objectif',
+    color: 'bg-green-500',
+    source: 'REMISE & PRET',
+    type: 'principal',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    createdAt: new Date('2024-01-01')
+  },
+  {
+    id: '2',
     name: 'Budget Personnel',
     description: 'Le plus brillant de cette année !!!',
     amount: 2500,
@@ -42,10 +106,13 @@ export const defaultBudgets: Budget[] = [
     period: 'Mensuel',
     color: 'bg-purple-500',
     source: 'Salaire',
+    type: 'secondaire',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
     createdAt: new Date('2024-01-01')
   },
   {
-    id: '2',
+    id: '3',
     name: 'Budget Vacances',
     description: 'Planification voyage Europe',
     amount: 3000,
@@ -54,10 +121,13 @@ export const defaultBudgets: Budget[] = [
     period: 'Objectif',
     color: 'bg-blue-600',
     source: 'Épargne',
+    type: 'secondaire',
+    created_at: '2024-01-02T00:00:00Z',
+    updated_at: '2024-01-02T00:00:00Z',
     createdAt: new Date('2024-01-02')
   },
   {
-    id: '3',
+    id: '4',
     name: 'Budget Professionnel',
     description: 'Gestion des revenus et investissements',
     amount: 50000,
@@ -66,10 +136,13 @@ export const defaultBudgets: Budget[] = [
     period: 'Annuel',
     color: 'bg-green-500',
     source: 'Revenus professionnels',
+    type: 'principal',
+    created_at: '2024-01-03T00:00:00Z',
+    updated_at: '2024-01-03T00:00:00Z',
     createdAt: new Date('2024-01-03')
   },
   {
-    id: '4',
+    id: '5',
     name: 'Budget Familial',
     description: 'Dépenses du foyer et enfants',
     amount: 3500,
@@ -78,10 +151,13 @@ export const defaultBudgets: Budget[] = [
     period: 'Mensuel',
     color: 'bg-orange-500',
     source: 'Salaire',
+    type: 'secondaire',
+    created_at: '2024-01-04T00:00:00Z',
+    updated_at: '2024-01-04T00:00:00Z',
     createdAt: new Date('2024-01-04')
   },
   {
-    id: '5',
+    id: '6',
     name: 'Budget Épargne',
     description: 'Objectifs d\'épargne et investissements',
     amount: 15000,
@@ -90,6 +166,9 @@ export const defaultBudgets: Budget[] = [
     period: 'Annuel',
     color: 'bg-indigo-500',
     source: 'Épargne',
+    type: 'secondaire',
+    created_at: '2024-01-05T00:00:00Z',
+    updated_at: '2024-01-05T00:00:00Z',
     createdAt: new Date('2024-01-05')
   }
 ]

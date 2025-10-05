@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0f172a;
-  --foreground: #f8fafc;
+  --background: #f8fafc;
+  --foreground: #1e293b;
 }
 
 @theme inline {
@@ -14,7 +14,7 @@
 
 body {
   background: #f8fafc;
-  color: var(--foreground);
+  color: #1e293b;
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   min-height: 100vh;
 }
@@ -28,6 +28,27 @@ body {
 /* Main content area */
 .main-content {
   background: #f8fafc;
+  color: #1e293b;
+}
+
+/* Force text visibility */
+.main-content * {
+  color: inherit;
+}
+
+.main-content h1,
+.main-content h2,
+.main-content h3,
+.main-content h4,
+.main-content h5,
+.main-content h6 {
+  color: #1e293b;
+}
+
+.main-content p,
+.main-content span,
+.main-content div {
+  color: #1e293b;
 }
 
 /* Header style */
@@ -121,4 +142,49 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.5);
+}
+
+/* Responsive improvements */
+@media (max-width: 640px) {
+  .main-content {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  
+  /* Améliorer l'espacement sur mobile */
+  .main-content > div {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Améliorer la lisibilité sur très petits écrans */
+@media (max-width: 480px) {
+  .main-content h1 {
+    font-size: 1.875rem; /* text-3xl */
+  }
+  
+  .main-content h2 {
+    font-size: 1.5rem; /* text-2xl */
+  }
+  
+  .main-content h3 {
+    font-size: 1.25rem; /* text-xl */
+  }
+}
+
+/* Optimiser les grilles pour mobile */
+@media (max-width: 768px) {
+  .grid-responsive {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+/* Améliorer les boutons sur mobile */
+@media (max-width: 640px) {
+  .btn-mobile {
+    min-height: 44px; /* Taille minimale recommandée pour le touch */
+    padding: 0.75rem 1rem;
+  }
 }

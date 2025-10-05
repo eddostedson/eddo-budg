@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+// import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Goal {
@@ -60,8 +60,8 @@ const mockGoals: Goal[] = [
 ]
 
 export default function GoalsPage() {
-  const [goals, setGoals] = useState<Goal[]>(mockGoals)
-  const [showNewGoalForm, setShowNewGoalForm] = useState(false)
+  const [goals] = useState<Goal[]>(mockGoals)
+  const [, setShowNewGoalForm] = useState(false)
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed' | 'paused'>('all')
 
   const filteredGoals = goals.filter(goal => 

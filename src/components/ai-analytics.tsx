@@ -1,29 +1,23 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AIFinancialService, ExpensePattern, BudgetPrediction, AIInsight } from '@/lib/ai-service'
-import { useBudgets } from '@/contexts/budget-context'
 import { useTransactions } from '@/contexts/transaction-context'
 
 export function AIAnalytics() {
-  const { budgets } = useBudgets()
   const { transactions } = useTransactions()
   const [patterns, setPatterns] = useState<ExpensePattern[]>([])
   const [predictions, setPredictions] = useState<BudgetPrediction[]>([])
   const [insights, setInsights] = useState<AIInsight[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
 
-  useEffect(() => {
-    performAIAnalysis()
-  }, [budgets, transactions]) // ✅ Re-analyser quand les données changent
-
-  const performAIAnalysis = async () => {
+  const performAIAnalysis = useCallback(async () => {
     setIsAnalyzing(true)
     
     // Vérifier s'il y a des données réelles
-    if (transactions.length === 0 && budgets.length === 0) {
+    if (transactions.length === 0) {
       // ✅ Aucune donnée réelle - afficher un message d'encouragement personnalisé
       setInsights([
         {
@@ -81,7 +75,11 @@ export function AIAnalytics() {
     setInsights(aiInsights)
     
     setIsAnalyzing(false)
-  }
+  }, [transactions])
+
+  useEffect(() => {
+    performAIAnalysis()
+  }, [performAIAnalysis]) // ✅ Re-analyser quand les données changent
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {

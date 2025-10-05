@@ -8,16 +8,26 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/contexts/toast-context'
-import type { Category, Budget } from '@/types'
+import type { Budget } from '@/lib/shared-data'
+
+// Interface locale pour les catégories de ce module
+interface TransactionCategory {
+  id: string
+  budget_id: string
+  name: string
+  type: 'income' | 'expense'
+  created_at: string
+  updated_at: string
+}
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<Category[]>([])
+  const [categories, setCategories] = useState<TransactionCategory[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selectedBudget, setSelectedBudget] = useState<string>('')
-  const { showSuccess, showError, showInfo } = useToast()
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  const { showSuccess } = useToast()
+  const [editingCategory, setEditingCategory] = useState<TransactionCategory | null>(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
@@ -38,19 +48,35 @@ export default function CategoriesPage() {
           id: '1',
           name: 'Personnel',
           description: 'Budget personnel mensuel',
+          amount: 500000,
+          spent: 0,
+          remaining: 500000,
+          period: 'Mensuel',
+          color: 'bg-blue-500',
+          source: 'Salaire',
+          type: 'principal',
           created_at: '2024-01-15T10:00:00Z',
-          updated_at: '2024-01-15T10:00:00Z'
+          updated_at: '2024-01-15T10:00:00Z',
+          createdAt: new Date('2024-01-15T10:00:00Z')
         },
         {
           id: '2',
           name: 'Expertise',
           description: 'Budget pour activité d\'expertise',
+          amount: 200000,
+          spent: 0,
+          remaining: 200000,
+          period: 'Mensuel',
+          color: 'bg-green-500',
+          source: 'Freelance',
+          type: 'secondaire',
           created_at: '2024-01-10T14:30:00Z',
-          updated_at: '2024-01-10T14:30:00Z'
+          updated_at: '2024-01-10T14:30:00Z',
+          createdAt: new Date('2024-01-10T14:30:00Z')
         }
       ]
 
-      const mockCategories: Category[] = [
+      const mockCategories: TransactionCategory[] = [
         {
           id: '1',
           budget_id: '1',
@@ -96,7 +122,7 @@ export default function CategoriesPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
-    const newCategory: Category = {
+    const newCategory: TransactionCategory = {
       id: Date.now().toString(),
       name: formData.name,
       type: formData.type,
@@ -125,7 +151,7 @@ export default function CategoriesPage() {
     })
   }
 
-  const handleEditCategory = (category: Category) => {
+  const handleEditCategory = (category: TransactionCategory) => {
     setEditingCategory(category)
     setEditFormData({
       name: category.name,
@@ -139,7 +165,7 @@ export default function CategoriesPage() {
     e.preventDefault()
     if (!editingCategory) return
 
-    const updatedCategory: Category = {
+    const updatedCategory: TransactionCategory = {
       ...editingCategory,
       name: editFormData.name,
       type: editFormData.type,

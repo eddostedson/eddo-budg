@@ -13,7 +13,7 @@ export function TopHeader() {
   if (!user) return null
 
   return (
-    <header className="fixed top-0 left-16 right-0 h-16 top-header z-40">
+    <header className="fixed top-0 left-0 md:left-16 right-0 h-16 top-header z-40">
       <div className="flex items-center justify-between h-full px-6">
         {/* Left side - Title and navigation */}
         <div className="flex items-center gap-6">
@@ -32,9 +32,9 @@ export function TopHeader() {
           </nav>
         </div>
 
-        {/* Center - Search */}
-        <div className="flex-1 max-w-md mx-6">
-          <div className="relative">
+        {/* Center - Search - caché sur mobile */}
+        <div className="hidden md:flex flex-1 max-w-md mx-6">
+          <div className="relative w-full">
             <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/60">
               🔍
             </span>
@@ -49,40 +49,41 @@ export function TopHeader() {
         </div>
 
         {/* Right side - Time, status, profile */}
-        <div className="flex items-center gap-4">
-          {/* Time */}
-          <div className="text-white font-medium">
+        <div className="flex items-center gap-2 md:gap-4">
+          {/* Time - caché sur mobile */}
+          <div className="hidden md:block text-white font-medium">
             {new Date().toLocaleTimeString('fr-FR', { 
               hour: '2-digit', 
               minute: '2-digit' 
             })}
           </div>
 
-          {/* Status */}
-          <div className="flex items-center gap-2 text-white/80">
+          {/* Status - caché sur mobile */}
+          <div className="hidden md:flex items-center gap-2 text-white/80">
             <div className="w-2 h-2 bg-green-400 rounded-full"></div>
             <span className="text-sm">EN TRAVAIL</span>
           </div>
 
-          {/* Profile avec bouton de déconnexion */}
-          <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-xs">
+          {/* Profile - version mobile */}
+          <div className="flex items-center gap-2 bg-white/10 rounded-lg px-2 md:px-3 py-2">
+            <div className="w-6 h-6 md:w-8 md:h-8 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-xs">
               {user.email?.[0]?.toUpperCase() || 'U'}
             </div>
-            <div className="text-sm">
+            <div className="hidden md:block text-sm">
               <div className="text-white font-medium">
                 {user.email?.split('@')[0] || 'Utilisateur'}
               </div>
             </div>
-            <span className="text-white/60 text-xs">▼</span>
+            <span className="hidden md:block text-white/60 text-xs">▼</span>
           </div>
 
-          {/* Bouton de déconnexion */}
+          {/* Bouton de déconnexion - version mobile */}
           <Button 
             onClick={signOut}
-            className="bg-red-500/80 hover:bg-red-600 text-white border-none rounded-lg px-4 py-2 transition-colors"
+            className="bg-red-500/80 hover:bg-red-600 text-white border-none rounded-lg px-2 md:px-4 py-2 transition-colors text-xs md:text-sm"
           >
-            Déconnexion
+            <span className="hidden sm:inline">Déconnexion</span>
+            <span className="sm:hidden">×</span>
           </Button>
         </div>
       </div>

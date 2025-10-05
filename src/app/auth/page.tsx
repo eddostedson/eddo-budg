@@ -1,12 +1,36 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/supabase/browser'
 import { useToast } from '@/contexts/toast-context'
+// Composants de remplacement simples
+const ResetPasswordModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+  if (!isOpen) return null
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-lg">
+        <h3 className="text-lg font-semibold mb-4">Réinitialiser le mot de passe</h3>
+        <p className="text-gray-600 mb-4">Fonctionnalité en cours de développement&hellip;</p>
+        <button onClick={onClose} className="bg-blue-500 text-white px-4 py-2 rounded">
+          Fermer
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const SuccessMessage = ({ message }: { message: string }) => {
+  return (
+    <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+      {message}
+    </div>
+  )
+}
 
 type AuthMode = 'signin' | 'signup'
 
@@ -14,14 +38,28 @@ export default function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('signin')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const { showSuccess, showError, showInfo } = useToast()
+  const { showSuccess, showError } = useToast()
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     confirmPassword: ''
   })
+  const [rememberMe, setRememberMe] = useState(false)
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
+  const searchParams = useSearchParams()
 
   const supabase = createClient()
+
+  // Gérer les messages de succès depuis l'URL
+  useEffect(() => {
+    const message = searchParams.get('message')
+    if (message === 'password-updated') {
+      setSuccessMessage('Votre mot de passe a été mis à jour avec succès !')
+      setShowSuccessMessage(true)
+    }
+  }, [searchParams])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -29,6 +67,17 @@ export default function AuthPage() {
       [e.target.name]: e.target.value
     })
     setMessage(null)
+  }
+
+  // ✅ Vider les champs par défaut (sauf si "Se souvenir")
+  const clearFields = () => {
+    if (!rememberMe) {
+      setFormData({
+        email: '',
+        password: '',
+        confirmPassword: ''
+      })
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -81,8 +130,10 @@ export default function AuthPage() {
           await fetch('/api/ensure-profile', { cache: 'no-store' }).catch(() => {})
           setMessage({ type: 'success', text: 'Connexion réussie ! Redirection...' })
           showSuccess('Connexion réussie !', `Bienvenue ${data.user.email} !`)
+          // ✅ Vider les champs après connexion réussie
+          clearFields()
           setTimeout(() => {
-            window.location.href = '/'
+            window.location.href = '/accueil'
           }, 1000)
         }
       }
@@ -115,158 +166,206 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent mb-2">
-            💰 Compta MVP
-          </h1>
-          <p className="text-gray-300">
-            {mode === 'signin' ? 'Connectez-vous à votre compte' : 'Créez votre compte'}
-          </p>
-        </div>
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+        <div className="absolute inset-0 opacity-20" style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+        }}></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+      </div>
 
-        <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700/50">
-          <CardHeader>
-            <CardTitle className="text-white">{mode === 'signin' ? 'Connexion' : 'Inscription'}</CardTitle>
-            <CardDescription className="text-gray-300">
-              {mode === 'signin'
-                ? 'Entrez vos identifiants pour accéder à votre compte'
-                : 'Créez un nouveau compte pour commencer'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {message && (
-              <div
-                className={`mb-4 p-3 rounded-lg ${
-                  message.type === 'success'
-                    ? 'bg-green-900/20 border border-green-800/30 text-green-400'
-                    : 'bg-red-900/20 border border-red-800/30 text-red-400'
-                }`}
-              >
-                {message.text}
+      {/* Floating Elements */}
+      <div className="absolute top-20 left-20 w-32 h-32 bg-gradient-to-r from-yellow-400/20 to-orange-500/20 rounded-full blur-xl animate-pulse"></div>
+      <div className="absolute top-40 right-20 w-24 h-24 bg-gradient-to-r from-purple-400/20 to-pink-500/20 rounded-full blur-xl animate-pulse delay-1000"></div>
+      <div className="absolute bottom-20 left-40 w-40 h-40 bg-gradient-to-r from-blue-400/20 to-cyan-500/20 rounded-full blur-xl animate-pulse delay-2000"></div>
+      <div className="absolute top-60 left-1/2 w-20 h-20 bg-gradient-to-r from-green-400/20 to-emerald-500/20 rounded-full blur-xl animate-pulse delay-3000"></div>
+
+      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <Card className="bg-white/10 backdrop-blur-2xl border-white/20 shadow-2xl rounded-3xl overflow-hidden">
+            <CardHeader className="text-center space-y-6 p-8">
+              <div className="mx-auto w-20 h-20 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-3xl flex items-center justify-center shadow-2xl animate-bounce">
+                <span className="text-3xl">💰</span>
               </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  placeholder="votre@email.com"
-                  required
-                  disabled={loading}
-                />
+                <CardTitle className="text-4xl font-bold bg-gradient-to-r from-yellow-400 via-orange-500 to-pink-500 bg-clip-text text-transparent animate-pulse">
+                  Compta MVP
+                </CardTitle>
+                <CardDescription className="text-white/80 mt-3 text-lg">
+                  {mode === 'signin' ? 'Connectez-vous à votre compte' : 'Créez votre compte'}
+                </CardDescription>
               </div>
+            </CardHeader>
+            <CardContent className="space-y-8 p-8">
+              {message && (
+                <div
+                  className={`p-4 rounded-2xl border backdrop-blur-sm ${
+                    message.type === 'success'
+                      ? 'bg-green-500/20 border-green-400/30 text-green-100'
+                      : 'bg-red-500/20 border-red-400/30 text-red-100'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${message?.type === 'success' ? 'bg-green-400' : 'bg-red-400'} animate-pulse`}></div>
+                    <span className="font-medium">{message?.text}</span>
+                  </div>
+                </div>
+              )}
 
-              <div>
-                <Label htmlFor="password">Mot de passe</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  placeholder="••••••••"
-                  required
-                  disabled={loading}
-                />
-              </div>
-
-              {mode === 'signup' && (
-                <div>
-                  <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-3">
+                  <Label htmlFor="email" className="text-white font-semibold text-sm">Email</Label>
                   <Input
-                    id="confirmPassword"
-                    name="confirmPassword"
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="votre@email.com"
+                    required
+                    disabled={loading}
+                    className="bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-yellow-400 focus:ring-yellow-400/30 rounded-2xl h-12 transition-all duration-300 hover:bg-white/15"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <Label htmlFor="password" className="text-white font-semibold text-sm">Mot de passe</Label>
+                  <Input
+                    id="password"
+                    name="password"
                     type="password"
-                    value={formData.confirmPassword}
+                    value={formData.password}
                     onChange={handleInputChange}
                     placeholder="••••••••"
                     required
                     disabled={loading}
+                    className="bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-yellow-400 focus:ring-yellow-400/30 rounded-2xl h-12 transition-all duration-300 hover:bg-white/15"
                   />
                 </div>
-              )}
 
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    {mode === 'signin' ? 'Connexion...' : 'Création...'}
+                {mode === 'signup' && (
+                  <div className="space-y-3">
+                    <Label htmlFor="confirmPassword" className="text-white font-semibold text-sm">Confirmer le mot de passe</Label>
+                    <Input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type="password"
+                      value={formData.confirmPassword}
+                      onChange={handleInputChange}
+                      placeholder="••••••••"
+                      required
+                      disabled={loading}
+                      className="bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-yellow-400 focus:ring-yellow-400/30 rounded-2xl h-12 transition-all duration-300 hover:bg-white/15"
+                    />
                   </div>
-                ) : mode === 'signin' ? 'Se connecter' : 'Créer le compte'}
-              </Button>
-            </form>
+                )}
 
-            <div className="mt-6">
+                {/* ✅ Case "Se souvenir de moi" pour la connexion */}
+                {mode === 'signin' && (
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="rememberMe"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-5 h-5 text-yellow-400 bg-white/10 border-white/30 rounded-lg focus:ring-yellow-400/30 focus:ring-2"
+                    />
+                    <label htmlFor="rememberMe" className="text-white/90 text-sm">
+                      Se souvenir de mes identifiants
+                    </label>
+                  </div>
+                )}
+
+                <Button 
+                  type="submit" 
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-yellow-400 via-orange-500 to-pink-500 hover:from-yellow-500 hover:via-orange-600 hover:to-pink-600 text-white font-bold py-4 rounded-2xl transition-all duration-300 hover:scale-105 shadow-2xl shadow-yellow-400/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <span>{mode === 'signin' ? 'Connexion...' : 'Création...'}</span>
+                    </div>
+                  ) : (
+                    mode === 'signin' ? 'Se connecter' : 'Créer le compte'
+                  )}
+                </Button>
+              </form>
+
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
+                  <div className="w-full border-t border-white/20"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">Ou</span>
+                  <span className="px-6 bg-gradient-to-r from-indigo-900 to-purple-900 text-white/80 font-medium">Ou</span>
                 </div>
               </div>
 
               <Button
                 type="button"
                 variant="outline"
-                className="w-full mt-4"
+                className="w-full bg-white/10 border-white/30 text-white hover:bg-white/20 hover:border-white/40 py-4 rounded-2xl transition-all duration-300 hover:scale-105 shadow-lg backdrop-blur-sm"
                 onClick={handleGoogleSignIn}
                 disabled={loading}
               >
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
+                <svg className="w-6 h-6 mr-3" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
                 Continuer avec Google
               </Button>
-            </div>
 
-            <div className="mt-6 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setMode(mode === 'signin' ? 'signup' : 'signin')
-                  setMessage(null)
-                  setFormData({ email: '', password: '', confirmPassword: '' })
-                }}
-                className="text-sm text-blue-600 hover:text-blue-500"
-                disabled={loading}
-              >
-                {mode === 'signin'
-                  ? "Pas encore de compte ? S’inscrire"
-                  : "Déjà un compte ? Se connecter"}
-              </button>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="text-center space-y-3">
+                {mode === 'signin' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowResetModal(true)}
+                    className="text-blue-400 hover:text-blue-300 underline text-sm transition-all duration-300 hover:scale-105 font-medium"
+                    disabled={loading}
+                  >
+                    Mot de passe oublié ?
+                  </button>
+                )}
+                
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode(mode === 'signin' ? 'signup' : 'signin')
+                    setMessage(null)
+                    setFormData({ email: '', password: '', confirmPassword: '' })
+                  }}
+                  className="text-yellow-400 hover:text-yellow-300 underline text-sm transition-all duration-300 hover:scale-105 font-medium"
+                  disabled={loading}
+                >
+                  {mode === 'signin'
+                    ? "Pas encore de compte ? S'inscrire"
+                    : "Déjà un compte ? Se connecter"}
+                </button>
+              </div>
+            </CardContent>
+          </Card>
 
-        <div className="text-center">
-          <p className="text-xs text-gray-500">
+          <p className="text-center text-white/60 text-sm mt-8 font-light">
             En vous connectant, vous acceptez nos conditions d&apos;utilisation
           </p>
         </div>
       </div>
+
+      {/* Modal de réinitialisation de mot de passe */}
+      <ResetPasswordModal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+      />
+
+      {/* Message de succès */}
+      {showSuccessMessage && (
+        <SuccessMessage
+          message={successMessage}
+        />
+      )}
     </div>
   )
 }
