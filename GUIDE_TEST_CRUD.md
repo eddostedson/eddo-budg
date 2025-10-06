@@ -168,3 +168,6 @@ Si vous rencontrez des problèmes :
 3. Vérifiez la connexion à Supabase
 4. Relancez l'application si nécessaire
 
+
+
+

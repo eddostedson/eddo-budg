@@ -62,6 +62,12 @@ const sidebarItems = [
     description: ''
   },
   { 
+    href: '/notes', 
+    label: 'Notes', 
+    icon: '📝',
+    description: 'Dépenses futures'
+  },
+  { 
     href: '/goals', 
     label: 'Objectifs', 
     icon: '🎯',

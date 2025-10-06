@@ -440,6 +440,7 @@ export class DepenseService {
   // Créer une nouvelle dépense
   static async createDepense(depense: Omit<Depense, 'id' | 'createdAt' | 'updatedAt'>): Promise<Depense | null> {
     try {
+      console.log('🚀 === DÉBUT CRÉATION DÉPENSE ===')
       console.log('🔐 Vérification de l\'authentification...')
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       
@@ -454,13 +455,14 @@ export class DepenseService {
       }
       
       console.log('✅ Utilisateur authentifié:', user.id)
+      console.log('📦 Données reçues:', depense)
       console.log('📦 Données à insérer:', {
         user_id: user.id,
         libelle: depense.libelle,
         montant: depense.montant,
         date: depense.date,
         description: depense.description,
-        budget_id: null
+        recette_id: depense.recetteId
       })
 
       const insertData: Record<string, string | number> = {
@@ -474,10 +476,14 @@ export class DepenseService {
       // Ajouter recette_id si présent
       if (depense.recetteId) {
         insertData.recette_id = depense.recetteId
+        console.log('🔗 Recette liée:', depense.recetteId)
+      } else {
+        console.log('⚠️ Aucune recette liée')
       }
 
-      console.log('📤 Envoi vers Supabase:', insertData)
-
+      console.log('📤 Données finales à envoyer:', insertData)
+      console.log('📤 Tentative d\'insertion dans Supabase...')
+      
       const { data, error } = await supabase
         .from('depenses')
         .insert(insertData)
@@ -485,21 +491,27 @@ export class DepenseService {
         .single()
 
       if (error) {
-        console.error('❌ Erreur Supabase lors de la création de la dépense:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-          fullError: JSON.stringify(error, null, 2)
-        })
-        console.error('📋 Détails complets de l\'erreur:', error)
+        console.error('❌ ERREUR SUPABASE DÉTECTÉE!')
+        console.error('❌ Message d\'erreur:', error.message)
+        console.error('❌ Code d\'erreur:', error.code)
+        console.error('❌ Détails:', error.details)
+        console.error('❌ Hint:', error.hint)
+        console.error('❌ Erreur complète:', JSON.stringify(error, null, 2))
+        console.error('🔍 Données qui ont causé l\'erreur:', insertData)
+        
+        // Afficher l'erreur dans une alerte pour l'utilisateur
+        alert(`Erreur Supabase: ${error.message}\nCode: ${error.code}\nDétails: ${error.details}`)
+        
         throw error
       }
       
-      console.log('✅ Dépense créée dans Supabase:', data)
+      console.log('✅ Dépense créée dans Supabase avec succès!')
+      console.log('✅ Données retournées:', data)
+      console.log('🔍 ID de la dépense créée:', data.id)
+      console.log('🚀 === FIN CRÉATION DÉPENSE ===')
       
       // Mapper les données pour le format de l'application
-      return {
+      const result = {
         id: data.id,
         userId: data.user_id,
         recetteId: data.recette_id || undefined,
@@ -510,8 +522,17 @@ export class DepenseService {
         createdAt: data.created_at,
         updatedAt: data.updated_at
       }
+      
+      console.log('✅ Dépense mappée:', result)
+      return result
     } catch (error) {
-      console.error('❌ Erreur inattendue:', error)
+      console.error('❌ ERREUR INATTENDUE DANS createDepense:', error)
+      console.error('❌ Type d\'erreur:', typeof error)
+      console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'Pas de stack trace')
+      
+      // Afficher l'erreur dans une alerte pour l'utilisateur
+      alert(`Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`)
+      
       return null
     }
   }

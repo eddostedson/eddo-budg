@@ -89,3 +89,6 @@ CREATE INDEX IF NOT EXISTS idx_budget_depenses_depense ON public.budget_depenses
 SELECT 'Migration (V4 CLEAN) terminée avec succès ! Tables budgets, budget_recettes et budget_depenses créées.' AS status;
 
 
+
+
+

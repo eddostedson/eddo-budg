@@ -98,3 +98,6 @@ HAVING r.solde_disponible != (r.montant - COALESCE(SUM(d.montant), 0));
 SELECT 'Script de diagnostic terminé. Vérifiez les résultats ci-dessus.' AS message;
 
 
+
+
+

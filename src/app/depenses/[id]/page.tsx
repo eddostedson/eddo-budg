@@ -245,7 +245,7 @@ export default function DepenseDetailPage() {
                         <td className="px-6 py-4 text-right">
                           <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 border border-blue-300">
                             <span className="text-sm font-bold text-blue-700">
-                              {formatCurrency(recetteAssociee.soldeDisponible + depense.montant)}
+                              {formatCurrency(recetteAssociee.montant - (depenses.filter(d => d.recetteId === recetteAssociee.id).reduce((total, d) => total + d.montant, 0) - depense.montant))}
                             </span>
                           </div>
                         </td>
@@ -289,19 +289,22 @@ export default function DepenseDetailPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {recetteAssociee ? (
-                          <div className={`inline-flex items-center px-3 py-1 rounded-full ${
-                            recetteAssociee.soldeDisponible > 0 
-                              ? 'bg-blue-100 border border-blue-300' 
-                              : 'bg-red-100 border border-red-300'
-                          }`}>
-                            <span className={`text-sm font-bold ${
-                              recetteAssociee.soldeDisponible > 0 ? 'text-blue-700' : 'text-red-700'
+                        {recetteAssociee ? (() => {
+                          const soldeCorrect = recetteAssociee.montant - depenses.filter(d => d.recetteId === recetteAssociee.id).reduce((total, d) => total + d.montant, 0)
+                          return (
+                            <div className={`inline-flex items-center px-3 py-1 rounded-full ${
+                              soldeCorrect > 0 
+                                ? 'bg-blue-100 border border-blue-300' 
+                                : 'bg-red-100 border border-red-300'
                             }`}>
-                              {formatCurrency(recetteAssociee.soldeDisponible)}
-                            </span>
-                          </div>
-                        ) : (
+                              <span className={`text-sm font-bold ${
+                                soldeCorrect > 0 ? 'text-blue-700' : 'text-red-700'
+                              }`}>
+                                {formatCurrency(soldeCorrect)}
+                              </span>
+                            </div>
+                          )
+                        })() : (
                           <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
@@ -323,7 +326,7 @@ export default function DepenseDetailPage() {
                       <td className="px-6 py-5 text-right">
                         <div className="text-sm opacity-90">Solde Avant</div>
                         <div className="text-lg font-bold">
-                          {recetteAssociee ? formatCurrency(recetteAssociee.soldeDisponible + depense.montant) : '-'}
+                          {recetteAssociee ? formatCurrency(recetteAssociee.montant - (depenses.filter(d => d.recetteId === recetteAssociee.id).reduce((total, d) => total + d.montant, 0) - depense.montant)) : '-'}
                         </div>
                       </td>
                       <td className="px-6 py-5 text-right">
@@ -332,11 +335,11 @@ export default function DepenseDetailPage() {
                       </td>
                       <td className="px-6 py-5 text-right">
                         <div className={`inline-flex items-center px-4 py-2 rounded-xl font-bold text-xl shadow-lg ${
-                          recetteAssociee && recetteAssociee.soldeDisponible > 0
+                          recetteAssociee && (recetteAssociee.montant - depenses.filter(d => d.recetteId === recetteAssociee.id).reduce((total, d) => total + d.montant, 0)) > 0
                             ? 'bg-green-400 text-green-900' 
                             : 'bg-red-400 text-red-900'
                         }`}>
-                          {recetteAssociee ? formatCurrency(recetteAssociee.soldeDisponible) : '-'}
+                          {recetteAssociee ? formatCurrency(recetteAssociee.montant - depenses.filter(d => d.recetteId === recetteAssociee.id).reduce((total, d) => total + d.montant, 0)) : '-'}
                         </div>
                       </td>
                     </tr>
@@ -379,5 +382,7 @@ export default function DepenseDetailPage() {
     </div>
   )
 }
+
+
 
 

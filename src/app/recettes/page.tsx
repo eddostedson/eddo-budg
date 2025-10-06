@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
 import { useRecettes } from '@/contexts/recette-context'
 import { useDepenses } from '@/contexts/depense-context'
+import { useNotifications } from '@/contexts/notification-context'
+import { useConfirm } from '@/components/modern-confirm'
+import TransfertModal from '@/components/transfer-modal'
 import { Recette } from '@/lib/shared-data'
 
 const COLORS = [
@@ -20,11 +23,21 @@ const COLORS = [
 
 export default function RecettesPage() {
   const router = useRouter()
-  const { recettes, addRecette, deleteRecette, updateRecette, getTotalRecettes, getTotalDisponible } = useRecettes()
+  const { recettes, addRecette, deleteRecette, updateRecette, getTotalRecettes, getTotalDisponible, refreshRecettes } = useRecettes()
   const { depenses } = useDepenses()
+  const { showSuccess, showError, showWarning } = useNotifications()
+  const { confirm, ConfirmDialog } = useConfirm()
   const [showModal, setShowModal] = useState(false)
   const [editingRecette, setEditingRecette] = useState<Recette | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // États pour l'UX améliorée
+  const [newlyAddedId, setNewlyAddedId] = useState<number | null>(null)
+  const [highlightedRow, setHighlightedRow] = useState<number | null>(null)
+  
+  // États pour le modal de transfert
+  const [showTransfertModal, setShowTransfertModal] = useState(false)
+  const [selectedRecetteForTransfert, setSelectedRecetteForTransfert] = useState<Recette | null>(null)
   const supabase = createClient()
   
   // Filtres de recherche
@@ -60,6 +73,44 @@ export default function RecettesPage() {
     }
     checkAuth()
   }, [router, supabase.auth])
+
+  // Écouter les mises à jour de recettes et dépenses depuis d'autres pages
+  useEffect(() => {
+    const handleRecetteUpdate = () => {
+      console.log('🔄 Recette mise à jour détectée, rafraîchissement...')
+      refreshRecettes()
+    }
+
+    const handleDepenseAdded = () => {
+      console.log('💰 Dépense ajoutée détectée, rafraîchissement des recettes...')
+      refreshRecettes()
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('recetteUpdated', handleRecetteUpdate)
+      window.addEventListener('depenseAdded', handleDepenseAdded)
+      return () => {
+        window.removeEventListener('recetteUpdated', handleRecetteUpdate)
+        window.removeEventListener('depenseAdded', handleDepenseAdded)
+      }
+    }
+  }, [refreshRecettes])
+
+  // Auto-scroll vers la nouvelle recette et surlignage
+  useEffect(() => {
+    if (newlyAddedId && recettes.length > 0) {
+      setTimeout(() => {
+        const element = document.getElementById(`recette-${newlyAddedId}`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          setTimeout(() => {
+            setHighlightedRow(null)
+            setNewlyAddedId(null)
+          }, 5000)
+        }
+      }, 100)
+    }
+  }, [newlyAddedId, recettes])
 
   if (loading) {
     return (
@@ -114,24 +165,62 @@ export default function RecettesPage() {
       montant: parseFloat(formData.montant)
     }
 
-    if (editingRecette) {
-      // Mise à jour
-      await updateRecette(editingRecette.id, recetteData)
-      alert('Recette mise à jour !')
-    } else {
-      // Création
-      await addRecette(recetteData)
-      alert('Recette créée !')
+    try {
+      if (editingRecette) {
+        // Mise à jour
+        await updateRecette(editingRecette.id, recetteData)
+        showSuccess(
+          "Recette mise à jour",
+          "Votre recette a été modifiée avec succès !"
+        )
+      } else {
+        // Création
+        await addRecette(recetteData)
+        showSuccess(
+          "Recette créée",
+          "Votre nouvelle recette a été enregistrée avec succès !"
+        )
+        
+        // Marquer la nouvelle recette pour le scroll et le surlignage
+        // On utilise un ID temporaire basé sur le timestamp
+        const tempId = Date.now()
+        setNewlyAddedId(tempId)
+        setHighlightedRow(tempId)
+      }
+      
+      resetForm()
+      setShowModal(false)
+    } catch (error) {
+      showError(
+        "Erreur de création",
+        "Une erreur est survenue lors de la création de la recette. Veuillez réessayer."
+      )
     }
-    
-    resetForm()
-    setShowModal(false)
   }
   
   const handleDelete = async (id: string) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette recette ?')) {
-      await deleteRecette(id)
-      alert('Recette supprimée !')
+    const confirmed = await confirm(
+      'Supprimer la recette',
+      'Êtes-vous sûr de vouloir supprimer cette recette ? Cette action est irréversible.',
+      {
+        confirmText: 'Supprimer',
+        cancelText: 'Annuler',
+        type: 'danger'
+      }
+    )
+    if (confirmed) {
+      try {
+        await deleteRecette(id)
+        showSuccess(
+          "Recette supprimée",
+          "La recette a été supprimée avec succès !"
+        )
+      } catch (error) {
+        showError(
+          "Erreur de suppression",
+          "Une erreur est survenue lors de la suppression. Veuillez réessayer."
+        )
+      }
     }
   }
 
@@ -139,8 +228,24 @@ export default function RecettesPage() {
     return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA'
   }
 
+  // Fonction pour ouvrir le modal de transfert
+  const handleOpenTransfertModal = (recette: Recette) => {
+    setSelectedRecetteForTransfert(recette)
+    setShowTransfertModal(true)
+  }
+
+  // Fonction pour fermer le modal de transfert
+  const handleCloseTransfertModal = () => {
+    setShowTransfertModal(false)
+    setSelectedRecetteForTransfert(null)
+  }
+
+  // Séparer les recettes actives et clôturées
+  const recettesActives = recettes.filter(recette => recette.statutCloture === 'active' || !recette.statutCloture)
+  const recettesCloturees = recettes.filter(recette => recette.statutCloture === 'cloturee')
+
   // Filtrer les recettes selon les critères de recherche
-  const filteredRecettes = recettes.filter(recette => {
+  const filteredRecettesActives = recettesActives.filter(recette => {
     const matchLibelle = !searchFilters.libelle || recette.libelle.toLowerCase().includes(searchFilters.libelle.toLowerCase())
     const matchMontantMin = !searchFilters.montantMin || recette.montant >= parseFloat(searchFilters.montantMin)
     const matchMontantMax = !searchFilters.montantMax || recette.montant <= parseFloat(searchFilters.montantMax)
@@ -150,6 +255,9 @@ export default function RecettesPage() {
     const matchStatut = !searchFilters.statut || recette.statut === searchFilters.statut
     
     return matchLibelle && matchMontantMin && matchMontantMax && matchSource && matchDateDebut && matchDateFin && matchStatut
+  }).sort((a, b) => {
+    // Trier par date croissante (plus anciennes en haut, plus récentes en bas)
+    return new Date(a.dateReception).getTime() - new Date(b.dateReception).getTime()
   })
 
   const handlePrint = (orientation: 'portrait' | 'landscape') => {
@@ -303,14 +411,14 @@ export default function RecettesPage() {
                 <button
                   onClick={() => handlePrint('portrait')}
                   className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-                  disabled={filteredRecettes.length === 0}
+                  disabled={filteredRecettesActives.length === 0}
                 >
                   🖨️ Portrait
                 </button>
                 <button
                   onClick={() => handlePrint('landscape')}
                   className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-                  disabled={filteredRecettes.length === 0}
+                  disabled={filteredRecettesActives.length === 0}
                 >
                   🖨️ Paysage
                 </button>
@@ -379,9 +487,9 @@ export default function RecettesPage() {
               />
             </div>
             
-            {filteredRecettes.length !== recettes.length && (
+            {filteredRecettesActives.length !== recettesActives.length && (
               <p className="text-white text-sm mt-3">
-                📌 {filteredRecettes.length} résultat(s) sur {recettes.length} recette(s)
+                📌 {filteredRecettesActives.length} résultat(s) sur {recettesActives.length} recette(s) actives
               </p>
             )}
           </div>
@@ -460,12 +568,25 @@ export default function RecettesPage() {
 
         {/* Recettes Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredRecettes.map((recette, index) => (
-            <div 
-              key={recette.id}
-              onClick={() => router.push(`/recettes/${recette.id}`)}
-              className="group relative bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border-l-4 border-blue-500 cursor-pointer"
-            >
+          {filteredRecettesActives.map((recette, index) => {
+            const isHighlighted = highlightedRow === parseInt(recette.id)
+            
+            // Calculer le solde correct en temps réel
+            const depensesLiees = depenses.filter(d => d.recetteId === recette.id)
+            const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
+            const soldeCorrect = recette.montant - totalDepenses
+            
+            return (
+              <div
+                key={recette.id}
+                id={`recette-${recette.id}`}
+                onClick={() => router.push(`/recettes/${recette.id}`)}
+                className={`group relative bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-500 transform hover:-translate-y-1 border-l-4 border-blue-500 cursor-pointer ${
+                  isHighlighted
+                    ? 'bg-green-100 border-green-300 shadow-2xl transform scale-[1.02] highlight-new-item'
+                    : ''
+                }`}
+              >
               <div className="p-6">
                 <div className="flex items-start justify-between">
                   <div>
@@ -480,11 +601,11 @@ export default function RecettesPage() {
                 <div className="bg-green-50 border-2 border-green-500 rounded-xl p-3 mb-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-green-700">💰 Solde Disponible</span>
-                    <span className="text-xl font-bold text-green-600">{formatCurrency(recette.soldeDisponible)}</span>
+                    <span className="text-xl font-bold text-green-600">{formatCurrency(soldeCorrect)}</span>
                   </div>
-                  {recette.soldeDisponible < recette.montant && (
+                  {totalDepenses > 0 && (
                     <p className="text-xs text-green-600 mt-1">
-                      Dépensé : {formatCurrency(recette.montant - recette.soldeDisponible)}
+                      Dépensé : {formatCurrency(totalDepenses)}
                     </p>
                   )}
                 </div>
@@ -505,25 +626,40 @@ export default function RecettesPage() {
                       handleEditClick(recette)
                     }} 
                     className="bg-white/80 backdrop-blur-sm w-8 h-8 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                    title="Modifier la recette"
                   >
                     ✏️
                   </button>
+                  {soldeCorrect > 0 && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleOpenTransfertModal(recette)
+                      }} 
+                      className="bg-white/80 backdrop-blur-sm w-8 h-8 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                      title="Transférer le solde restant"
+                    >
+                      🔄
+                    </button>
+                  )}
                   <button 
                     onClick={(e) => {
                       e.stopPropagation()
                       handleDelete(recette.id)
                     }} 
                     className="bg-white/80 backdrop-blur-sm w-8 h-8 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                    title="Supprimer la recette"
                   >
                     🗑️
                   </button>
                 </div>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
 
-        {filteredRecettes.length === 0 && (
+        {filteredRecettesActives.length === 0 && recettesCloturees.length === 0 && (
           <div className="text-center py-16">
             <div className="text-8xl mb-6">💰</div>
             <h3 className="text-2xl font-bold text-gray-900 mb-3">Aucune recette</h3>
@@ -537,6 +673,95 @@ export default function RecettesPage() {
             >
               + Créer une recette
             </button>
+          </div>
+        )}
+
+        {/* Section des Recettes Clôturées */}
+        {recettesCloturees.length > 0 && (
+          <div className="mt-12">
+            <div className="bg-gradient-to-r from-orange-600 via-red-500 to-orange-600 rounded-2xl p-6 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-bold text-white flex items-center gap-3">
+                    <span className="text-4xl">🔒</span>
+                    Recettes Clôturées
+                  </h2>
+                  <p className="text-orange-100 text-lg mt-2">Recettes avec solde épuisé (solde = 0)</p>
+                </div>
+                <div className="bg-white/20 backdrop-blur-lg rounded-xl px-4 py-2">
+                  <span className="text-2xl font-bold text-white">{recettesCloturees.length}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {recettesCloturees.map((recette, index) => {
+                const depensesLiees = depenses.filter(d => d.recetteId === recette.id)
+                const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
+                const soldeCorrect = recette.montant - totalDepenses
+                
+                return (
+                  <div
+                    key={recette.id}
+                    className="group relative bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-500 transform hover:-translate-y-1 border-l-4 border-orange-500 cursor-pointer"
+                  >
+                    <div className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900 mb-2">{recette.libelle}</h3>
+                          <p className="text-2xl font-bold text-orange-600 mb-1">{formatCurrency(recette.montant)}</p>
+                          <p className="text-xs text-gray-500 mb-3">Montant initial</p>
+                        </div>
+                        <div className="w-4 h-4 rounded-full bg-orange-500"></div>
+                      </div>
+                      
+                      {/* Solde Épuisé - Encadré Orange */}
+                      <div className="bg-orange-100 border-2 border-orange-500 rounded-xl p-3 mb-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-orange-700">🔒 Solde Épuisé</span>
+                          <span className="text-xl font-bold text-orange-600">{formatCurrency(soldeCorrect)}</span>
+                        </div>
+                        <p className="text-xs text-orange-600 mt-1">
+                          Dépensé : {formatCurrency(totalDepenses)}
+                        </p>
+                      </div>
+                      
+                      <p className="text-sm text-gray-600 mb-4 h-10">{recette.description}</p>
+                      
+                      <div className="text-xs text-gray-500 space-y-2">
+                        <div className="flex justify-between"><span className="font-medium">Source:</span> <span>{recette.source}</span></div>
+                        <div className="flex justify-between"><span className="font-medium">Date:</span> <span>{new Date(recette.dateReception).toLocaleDateString('fr-FR')}</span></div>
+                        <div className="flex justify-between"><span className="font-medium">Statut:</span> <span className="font-bold text-orange-600">Clôturée</span></div>
+                      </div>
+                      
+                      {/* Actions pour recettes clôturées */}
+                      <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            router.push(`/recettes/${recette.id}`)
+                          }} 
+                          className="bg-white/80 backdrop-blur-sm w-8 h-8 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                          title="Voir les détails"
+                        >
+                          👁️
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(recette.id)
+                          }} 
+                          className="bg-white/80 backdrop-blur-sm w-8 h-8 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                          title="Supprimer la recette"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 
@@ -799,6 +1024,33 @@ export default function RecettesPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de transfert */}
+      <TransfertModal
+        isOpen={showTransfertModal}
+        onClose={handleCloseTransfertModal}
+        recetteSourceId={selectedRecetteForTransfert?.id}
+        montantDisponible={selectedRecetteForTransfert ? 
+          selectedRecetteForTransfert.montant - depenses.filter(d => d.recetteId === selectedRecetteForTransfert.id).reduce((total, depense) => total + depense.montant, 0) 
+          : 0
+        }
+      />
+
+      {/* Bouton flottant pour créer une recette */}
+      <button
+        onClick={() => {
+          resetForm()
+          setShowModal(true)
+        }}
+        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-4 rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 flex items-center gap-3 font-semibold text-lg floating-button"
+        title="Créer une nouvelle recette"
+      >
+        <span className="text-2xl">+</span>
+        <span className="hidden sm:inline">Créer Recette</span>
+      </button>
+
+      {/* Dialog de confirmation */}
+      <ConfirmDialog />
     </div>
   )
 }

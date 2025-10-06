@@ -46,6 +46,7 @@ export interface Recette {
   description: string
   montant: number
   soldeDisponible: number
+  statutCloture: 'active' | 'cloturee' // Nouveau: statut de clôture
   source: string // Salaire, Prime, Freelance, etc.
   periodicite: 'unique' | 'mensuelle' | 'hebdomadaire' | 'annuelle'
   dateReception: string

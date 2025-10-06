@@ -1,117 +1,143 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { BudgetTransfer } from '@/lib/shared-data'
+import { Transfert, TransfertFormData } from '@/types/transfer'
+import { TransfertService } from '@/lib/supabase/transfer-service'
 
-interface TransferContextType {
-  transfers: BudgetTransfer[]
-  addTransfer: (transfer: Omit<BudgetTransfer, 'id' | 'createdAt'>) => void
-  updateTransferStatus: (id: string, status: 'pending' | 'completed' | 'refunded') => void
-  getTransfersByBudget: (budgetId: string) => BudgetTransfer[]
-  getPendingTransfers: (budgetId: string) => { borrowed: BudgetTransfer[], lent: BudgetTransfer[] }
-  getDebtSummary: (budgetId: string) => { totalBorrowed: number, totalLent: number, netDebt: number }
+interface TransfertContextType {
+  transferts: Transfert[]
+  addTransfert: (transfert: TransfertFormData) => Promise<void>
+  deleteTransfert: (id: string) => Promise<void>
+  refreshTransferts: () => Promise<void>
+  getTransfertsByRecette: (recetteId: string) => Transfert[]
 }
 
-const TransferContext = createContext<TransferContextType | undefined>(undefined)
+const TransfertContext = createContext<TransfertContextType | undefined>(undefined)
 
-export function TransferProvider({ children }: { children: ReactNode }) {
-  const [transfers, setTransfers] = useState<BudgetTransfer[]>([])
+export function TransfertProvider({ children }: { children: ReactNode }) {
+  const [transferts, setTransferts] = useState<Transfert[]>([])
 
-  // Charger les transferts depuis localStorage au démarrage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTransfers = localStorage.getItem('budgetTransfers')
-      if (savedTransfers) {
-        try {
-          const parsedTransfers = JSON.parse(savedTransfers)
-          const transfersWithDates = parsedTransfers.map((transfer: BudgetTransfer & { createdAt: string }) => ({
-            ...transfer,
-            createdAt: new Date(transfer.createdAt)
-          }))
-          setTransfers(transfersWithDates)
-        } catch (error) {
-          console.error('Erreur lors du chargement des transferts:', error)
-          setTransfers([])
+  // Fonction pour recharger les transferts depuis Supabase
+  const refreshTransferts = async () => {
+    try {
+      console.log('🔄 Rechargement des transferts depuis Supabase...')
+      const supabaseTransferts = await TransfertService.getTransferts()
+      
+      console.log('✅ Transferts rechargés depuis Supabase:', supabaseTransferts.length)
+      
+      setTransferts(supabaseTransferts)
+      
+      // Mettre à jour localStorage
+      if (typeof window !== 'undefined') {
+        if (supabaseTransferts.length > 0) {
+          localStorage.setItem('transferts', JSON.stringify(supabaseTransferts))
+          console.log('💾 localStorage mis à jour avec les nouveaux transferts')
+        } else {
+          localStorage.removeItem('transferts')
         }
-      } else {
-        setTransfers([])
       }
+    } catch (error) {
+      console.error('❌ Erreur lors du rechargement des transferts:', error)
+      setTransferts([])
     }
+  }
+
+  // Charger les transferts au montage du composant
+  useEffect(() => {
+    refreshTransferts()
   }, [])
 
-  // Sauvegarder dans localStorage à chaque changement
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('budgetTransfers', JSON.stringify(transfers))
+  // Créer un nouveau transfert
+  const addTransfert = async (transfertData: TransfertFormData) => {
+    try {
+      console.log('➕ Création d\'un nouveau transfert:', transfertData)
+      
+      const newTransfert = await TransfertService.createTransfert({
+        recetteSourceId: transfertData.recetteSourceId,
+        recetteDestinationId: transfertData.recetteDestinationId,
+        montant: transfertData.montant,
+        description: transfertData.description,
+        dateTransfert: transfertData.dateTransfert
+      })
+
+      if (newTransfert) {
+        console.log('✅ Transfert créé avec succès:', newTransfert.id)
+        await refreshTransferts()
+        
+        // Notifier les autres composants qu'un transfert a été effectué
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('transfertEffectue', { 
+            detail: { 
+              transfert: newTransfert,
+              recetteSourceId: transfertData.recetteSourceId,
+              recetteDestinationId: transfertData.recetteDestinationId,
+              montant: transfertData.montant
+            }
+          }))
+        }
+        
+        return newTransfert
+      } else {
+        throw new Error('Échec de la création du transfert')
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'ajout du transfert:', error)
+      throw error
     }
-  }, [transfers])
+  }
 
-  const addTransfer = (transferData: Omit<BudgetTransfer, 'id' | 'createdAt'>) => {
-    const newTransfer: BudgetTransfer = {
-      ...transferData,
-      id: Date.now().toString(),
-      createdAt: new Date()
+  // Supprimer un transfert
+  const deleteTransfert = async (id: string) => {
+    try {
+      console.log('🗑️ Suppression du transfert:', id)
+      
+      const success = await TransfertService.deleteTransfert(id)
+      
+      if (success) {
+        console.log('✅ Transfert supprimé avec succès:', id)
+        await refreshTransferts()
+        
+        // Notifier les autres composants qu'un transfert a été supprimé
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('transfertSupprime', { 
+            detail: { transfertId: id }
+          }))
+        }
+      } else {
+        throw new Error('Échec de la suppression du transfert')
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la suppression du transfert:', error)
+      throw error
     }
-    setTransfers(prev => [newTransfer, ...prev])
   }
 
-  const updateTransferStatus = (id: string, status: 'pending' | 'completed' | 'refunded') => {
-    setTransfers(prev =>
-      prev.map(transfer =>
-        transfer.id === id ? { ...transfer, status } : transfer
-      )
+  // Récupérer les transferts d'une recette spécifique
+  const getTransfertsByRecette = (recetteId: string) => {
+    return transferts.filter(t => 
+      t.recetteSourceId === recetteId || t.recetteDestinationId === recetteId
     )
   }
 
-  const getTransfersByBudget = (budgetId: string) => {
-    return transfers.filter(
-      transfer => transfer.fromBudgetId === budgetId || transfer.toBudgetId === budgetId
-    )
+  const value: TransfertContextType = {
+    transferts,
+    addTransfert,
+    deleteTransfert,
+    refreshTransferts,
+    getTransfertsByRecette
   }
 
-  const getPendingTransfers = (budgetId: string) => {
-    const borrowed = transfers.filter(
-      transfer => transfer.toBudgetId === budgetId && transfer.status === 'pending'
-    )
-    const lent = transfers.filter(
-      transfer => transfer.fromBudgetId === budgetId && transfer.status === 'pending'
-    )
-    return { borrowed, lent }
-  }
-
-  const getDebtSummary = (budgetId: string) => {
-    const totalBorrowed = transfers
-      .filter(transfer => transfer.toBudgetId === budgetId && transfer.status === 'pending')
-      .reduce((sum, transfer) => sum + transfer.amount, 0)
-
-    const totalLent = transfers
-      .filter(transfer => transfer.fromBudgetId === budgetId && transfer.status === 'pending')
-      .reduce((sum, transfer) => sum + transfer.amount, 0)
-
-    const netDebt = totalBorrowed - totalLent
-
-    return { totalBorrowed, totalLent, netDebt }
-  }
-
-  const value: TransferContextType = {
-    transfers,
-    addTransfer,
-    updateTransferStatus,
-    getTransfersByBudget,
-    getPendingTransfers,
-    getDebtSummary
-  }
-
-  return <TransferContext.Provider value={value}>{children}</TransferContext.Provider>
+  return (
+    <TransfertContext.Provider value={value}>
+      {children}
+    </TransfertContext.Provider>
+  )
 }
 
-export function useTransfers() {
-  const context = useContext(TransferContext)
+export function useTransferts() {
+  const context = useContext(TransfertContext)
   if (context === undefined) {
-    throw new Error('useTransfers must be used within a TransferProvider')
+    throw new Error('useTransferts must be used within a TransfertProvider')
   }
   return context
 }
-
-
-

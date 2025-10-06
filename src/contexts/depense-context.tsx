@@ -66,8 +66,10 @@ export function DepenseProvider({ children }: { children: ReactNode }) {
       if (newDepense) {
         console.log('✅ Dépense créée avec succès:', newDepense.id)
         await refreshDepenses()
+        return newDepense
       } else {
-        console.error('❌ Échec de la création de la dépense')
+        console.error('❌ Échec de la création de la dépense - createDepense a retourné null')
+        throw new Error('Échec de la création de la dépense en base de données')
       }
     } catch (error) {
       console.error('❌ Erreur lors de l\'ajout de la dépense:', error)

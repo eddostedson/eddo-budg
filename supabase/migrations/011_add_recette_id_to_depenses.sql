@@ -79,3 +79,6 @@ EXECUTE FUNCTION deduire_solde_recette();
 SELECT 'Migration terminée : recette_id ajouté et trigger de déduction créé.' AS status;
 
 
+
+
+

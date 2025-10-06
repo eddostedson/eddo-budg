@@ -196,3 +196,6 @@ Remplacez le modal actuel (lignes 500-602 dans `/src/app/depenses/page.tsx`) par
 Copiez-collez ce code pour remplacer le modal actuel !
 
 
+
+
+

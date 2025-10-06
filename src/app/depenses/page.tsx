@@ -16,9 +16,28 @@ export default function DepensesPage() {
   const { showSuccess, showError, showWarning } = useNotifications()
   const { confirm, ConfirmDialog } = useConfirm()
   const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
   const supabase = createClient()
 
-  const [showModal, setShowModal] = useState(false)
+  // Rafraîchir les recettes quand le modal s'ouvre
+  useEffect(() => {
+    if (showModal) {
+      refreshRecettes()
+    }
+  }, [showModal, refreshRecettes])
+
+  // Écouter les mises à jour de recettes depuis d'autres pages
+  useEffect(() => {
+    const handleRecetteUpdate = () => {
+      console.log('🔄 Recette mise à jour détectée, rafraîchissement...')
+      refreshRecettes()
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('recetteUpdated', handleRecetteUpdate)
+      return () => window.removeEventListener('recetteUpdated', handleRecetteUpdate)
+    }
+  }, [refreshRecettes])
   const [editingDepense, setEditingDepense] = useState<Depense | null>(null)
   const [selectedRecetteId, setSelectedRecetteId] = useState<string>('')
   
@@ -39,6 +58,17 @@ export default function DepensesPage() {
     description: ''
   })
 
+  // États pour l'UX améliorée
+  const [newlyAddedId, setNewlyAddedId] = useState<number | null>(null)
+  const [highlightedRow, setHighlightedRow] = useState<number | null>(null)
+  
+  // État pour l'autocomplétion des libellés
+  const [showLibelleSuggestions, setShowLibelleSuggestions] = useState(false)
+  const [libelleSuggestions, setLibelleSuggestions] = useState<string[]>([])
+  
+  // Récupérer les libellés uniques des dépenses existantes
+  const uniqueLibelles = Array.from(new Set(depenses.map(d => d.libelle).filter(Boolean)))
+
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -50,6 +80,44 @@ export default function DepensesPage() {
     }
     checkAuth()
   }, [router, supabase.auth])
+
+  // Filtrer les dépenses selon les critères de recherche
+  const filteredDepenses = depenses.filter(depense => {
+    const matchLibelle = !searchFilters.libelle || depense.libelle.toLowerCase().includes(searchFilters.libelle.toLowerCase())
+    const matchMontantMin = !searchFilters.montantMin || depense.montant >= parseFloat(searchFilters.montantMin)
+    const matchMontantMax = !searchFilters.montantMax || depense.montant <= parseFloat(searchFilters.montantMax)
+    const matchRecette = !searchFilters.recetteId || depense.recetteId === searchFilters.recetteId
+    const matchDateDebut = !searchFilters.dateDebut || new Date(depense.date) >= new Date(searchFilters.dateDebut)
+    const matchDateFin = !searchFilters.dateFin || new Date(depense.date) <= new Date(searchFilters.dateFin)
+    
+    return matchLibelle && matchMontantMin && matchMontantMax && matchRecette && matchDateDebut && matchDateFin
+  }).sort((a, b) => {
+    // Trier par date croissante (plus anciennes en haut, plus récentes en bas)
+    return new Date(a.date).getTime() - new Date(b.date).getTime()
+  })
+
+  // Auto-scroll vers la nouvelle dépense et surlignage
+  useEffect(() => {
+    if (newlyAddedId && filteredDepenses.length > 0) {
+      // Attendre que le DOM soit mis à jour
+      setTimeout(() => {
+        const element = document.getElementById(`depense-${newlyAddedId}`)
+        if (element) {
+          // Scroll vers l'élément
+          element.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          })
+          
+          // Supprimer le surlignage après 5 secondes
+          setTimeout(() => {
+            setHighlightedRow(null)
+            setNewlyAddedId(null)
+          }, 5000)
+        }
+      }, 100)
+    }
+  }, [newlyAddedId, filteredDepenses])
 
   if (loading) {
     return (
@@ -63,11 +131,23 @@ export default function DepensesPage() {
   }
 
   const selectedRecette = recettes.find(r => r.id === selectedRecetteId)
-  const soldeRestantCalcule = selectedRecette 
-    ? selectedRecette.soldeDisponible - parseFloat(formData.montant || '0')
-    : 0
+  const soldeRestantCalcule = selectedRecette ? (() => {
+    // Calculer le solde correct en temps réel
+    const depensesLiees = depenses.filter(d => d.recetteId === selectedRecette.id)
+    const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
+    const soldeCorrect = selectedRecette.montant - totalDepenses
+    return soldeCorrect - parseFloat(formData.montant || '0')
+  })() : 0
 
-  const handleOpenModal = () => {
+  const handleOpenModal = async () => {
+    // Rafraîchir les recettes avant d'ouvrir le modal
+    await refreshRecettes()
+    
+    // Attendre un peu pour s'assurer que les données sont bien chargées
+    setTimeout(async () => {
+      await refreshRecettes()
+    }, 100)
+    
     if (recettes.length === 0) {
       showWarning(
         "Recette requise",
@@ -137,11 +217,24 @@ export default function DepensesPage() {
           "Dépense créée",
           "Votre nouvelle dépense a été enregistrée avec succès !"
         )
+        
+        // Marquer la nouvelle dépense pour le scroll et le surlignage
+        // On utilise un ID temporaire basé sur le timestamp
+        const tempId = Date.now()
+        setNewlyAddedId(tempId)
+        setHighlightedRow(tempId)
       }
 
       // Rafraîchir les données pour voir les soldes mis à jour
       await refreshDepenses()
       await refreshRecettes()
+      
+      // Notifier les autres composants qu'une dépense a été ajoutée
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('depenseAdded', { 
+          detail: { recetteId: selectedRecetteId, montant: parseFloat(formData.montant) }
+        }))
+      }
       
       resetForm()
       setShowModal(false)
@@ -190,18 +283,6 @@ export default function DepensesPage() {
   const getTotalDepenses = () => {
     return filteredDepenses.reduce((total, depense) => total + depense.montant, 0)
   }
-
-  // Filtrer les dépenses selon les critères de recherche
-  const filteredDepenses = depenses.filter(depense => {
-    const matchLibelle = !searchFilters.libelle || depense.libelle.toLowerCase().includes(searchFilters.libelle.toLowerCase())
-    const matchMontantMin = !searchFilters.montantMin || depense.montant >= parseFloat(searchFilters.montantMin)
-    const matchMontantMax = !searchFilters.montantMax || depense.montant <= parseFloat(searchFilters.montantMax)
-    const matchRecette = !searchFilters.recetteId || depense.recetteId === searchFilters.recetteId
-    const matchDateDebut = !searchFilters.dateDebut || new Date(depense.date) >= new Date(searchFilters.dateDebut)
-    const matchDateFin = !searchFilters.dateFin || new Date(depense.date) <= new Date(searchFilters.dateFin)
-    
-    return matchLibelle && matchMontantMin && matchMontantMax && matchRecette && matchDateDebut && matchDateFin
-  })
 
   const handlePrint = (orientation: 'portrait' | 'landscape') => {
     const printWindow = window.open('', '', 'width=800,height=600')
@@ -463,6 +544,8 @@ export default function DepensesPage() {
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Date</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Libellé</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Recette Source</th>
+                    <th className="text-right py-4 px-6 text-sm font-semibold text-gray-700">Solde Initial</th>
+                    <th className="text-right py-4 px-6 text-sm font-semibold text-gray-700">Disponible</th>
                     <th className="text-right py-4 px-6 text-sm font-semibold text-gray-700">Montant</th>
                     <th className="text-center py-4 px-6 text-sm font-semibold text-gray-700">Actions</th>
                   </tr>
@@ -470,11 +553,17 @@ export default function DepensesPage() {
                 <tbody>
                   {filteredDepenses.map((depense) => {
                     const recetteLiee = recettes.find(r => r.id === depense.recetteId)
+                    const isHighlighted = highlightedRow === depense.id
                     return (
                       <tr 
-                        key={depense.id} 
+                        key={depense.id}
+                        id={`depense-${depense.id}`}
                         onClick={() => router.push(`/depenses/${depense.id}`)}
-                        className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+                        className={`border-b border-gray-100 hover:bg-gray-50 transition-all duration-500 cursor-pointer ${
+                          isHighlighted 
+                            ? 'bg-green-100 border-green-300 shadow-lg transform scale-[1.02] highlight-new-item' 
+                            : ''
+                        }`}
                       >
                         <td className="py-4 px-6 text-sm text-gray-600">
                           {new Date(depense.date).toLocaleDateString('fr-FR')}
@@ -499,6 +588,31 @@ export default function DepensesPage() {
                             </button>
                           ) : (
                             <span className="italic text-gray-400">Aucune</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-6 text-right">
+                          {recetteLiee ? (
+                            <span className="text-sm font-semibold text-blue-600">
+                              {formatCurrency(recetteLiee.montant)}
+                            </span>
+                          ) : (
+                            <span className="italic text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-6 text-right">
+                          {recetteLiee ? (() => {
+                            // Calculer le solde correct en temps réel
+                            const depensesLiees = depenses.filter(d => d.recetteId === recetteLiee.id)
+                            const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
+                            const soldeCorrect = recetteLiee.montant - totalDepenses
+                            
+                            return (
+                              <span className="text-sm font-semibold text-green-600">
+                                {formatCurrency(soldeCorrect)}
+                              </span>
+                            )
+                          })() : (
+                            <span className="italic text-gray-400">-</span>
                           )}
                         </td>
                         <td className="py-4 px-6 text-right">
@@ -576,16 +690,27 @@ export default function DepensesPage() {
                 <div className="relative">
                   <select
                     value={selectedRecetteId}
-                    onChange={(e) => setSelectedRecetteId(e.target.value)}
+                    onChange={async (e) => {
+                      setSelectedRecetteId(e.target.value)
+                      // Rafraîchir les recettes quand on change de sélection
+                      await refreshRecettes()
+                    }}
                     className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-red-50 border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-4 focus:ring-red-100 transition-all appearance-none cursor-pointer font-medium text-gray-800 pr-12"
                     required
                   >
                     <option value="">-- Choisissez la source --</option>
-                    {recettes.map(recette => (
-                      <option key={recette.id} value={recette.id}>
-                        {recette.libelle} • {formatCurrency(recette.soldeDisponible)} disponible
-                      </option>
-                    ))}
+                    {recettes.filter(recette => recette.statutCloture !== 'cloturee').map(recette => {
+                      // Calculer le solde correct en temps réel
+                      const depensesLiees = depenses.filter(d => d.recetteId === recette.id)
+                      const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
+                      const soldeCorrect = recette.montant - totalDepenses
+                      
+                      return (
+                        <option key={recette.id} value={recette.id}>
+                          {recette.libelle} • {formatCurrency(soldeCorrect)} disponible
+                        </option>
+                      )
+                    })}
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                     <span className="text-2xl">🔽</span>
@@ -603,18 +728,18 @@ export default function DepensesPage() {
                       </div>
                       <div>
                         <p className="text-xs text-green-700 font-medium uppercase tracking-wide">Solde Disponible</p>
-                        <p className="text-2xl font-bold text-green-700">{formatCurrency(selectedRecette.soldeDisponible)}</p>
+                        <p className="text-2xl font-bold text-green-700">{formatCurrency(selectedRecette.montant - depenses.filter(d => d.recetteId === selectedRecette.id).reduce((total, depense) => total + depense.montant, 0))}</p>
                       </div>
                     </div>
                     {formData.montant && parseFloat(formData.montant) > 0 && (
                       <div className="text-right">
                         <p className="text-xs text-gray-600 font-medium">Après dépense</p>
                         <p className={`text-xl font-bold ${
-                          selectedRecette.soldeDisponible - parseFloat(formData.montant) >= 0 
+                          soldeRestantCalcule >= 0 
                             ? 'text-blue-600' 
                             : 'text-red-600'
                         }`}>
-                          {formatCurrency(selectedRecette.soldeDisponible - parseFloat(formData.montant))}
+                          {formatCurrency(soldeRestantCalcule)}
                         </p>
                       </div>
                     )}
@@ -661,8 +786,8 @@ export default function DepensesPage() {
                 </div>
               </div>
 
-              {/* Libellé - Input stylisé */}
-              <div className="group">
+              {/* Libellé - Input avec autocomplétion */}
+              <div className="group relative">
                 <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
                   <span className="text-xl">🏷️</span>
                   Libellé
@@ -671,11 +796,54 @@ export default function DepensesPage() {
                 <input
                   type="text"
                   value={formData.libelle}
-                  onChange={(e) => setFormData(prev => ({...prev, libelle: e.target.value}))}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setFormData(prev => ({...prev, libelle: value}))
+                    
+                    // Filtrer les suggestions
+                    if (value.length > 0) {
+                      const filtered = uniqueLibelles.filter(lib => 
+                        lib.toLowerCase().includes(value.toLowerCase())
+                      )
+                      setLibelleSuggestions(filtered)
+                      setShowLibelleSuggestions(filtered.length > 0)
+                    } else {
+                      setShowLibelleSuggestions(false)
+                    }
+                  }}
+                  onFocus={() => {
+                    if (formData.libelle.length > 0 && libelleSuggestions.length > 0) {
+                      setShowLibelleSuggestions(true)
+                    }
+                  }}
+                  onBlur={() => {
+                    // Délai pour permettre le clic sur une suggestion
+                    setTimeout(() => setShowLibelleSuggestions(false), 200)
+                  }}
                   className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-red-50 border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-4 focus:ring-red-100 transition-all font-medium"
                   placeholder="Ex: Facture d'électricité, Loyer, Transport..."
                   required
                 />
+                
+                {/* Liste des suggestions */}
+                {showLibelleSuggestions && libelleSuggestions.length > 0 && (
+                  <div className="absolute z-50 w-full mt-2 bg-white border-2 border-red-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                    {libelleSuggestions.map((suggestion, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => {
+                          setFormData(prev => ({...prev, libelle: suggestion}))
+                          setShowLibelleSuggestions(false)
+                        }}
+                        className="w-full px-5 py-3 text-left hover:bg-red-50 transition-colors border-b border-gray-100 last:border-b-0 flex items-center gap-3"
+                      >
+                        <span className="text-red-500">🏷️</span>
+                        <span className="font-medium text-gray-700">{suggestion}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Description - Textarea moderne */}
@@ -717,6 +885,16 @@ export default function DepensesPage() {
 
       {/* Dialog de confirmation moderne */}
       <ConfirmDialog />
+
+      {/* Bouton flottant pour créer une dépense */}
+      <button
+        onClick={handleOpenModal}
+        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white px-6 py-4 rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 flex items-center gap-3 font-semibold text-lg floating-button"
+        title="Créer une nouvelle dépense"
+      >
+        <span className="text-2xl">+</span>
+        <span className="hidden sm:inline">Créer Dépense</span>
+      </button>
     </div>
   )
 }

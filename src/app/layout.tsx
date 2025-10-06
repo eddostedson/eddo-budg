@@ -10,7 +10,8 @@ import { RecetteProvider } from "@/contexts/recette-context";
 import { DepenseProvider } from "@/contexts/depense-context";
 import { TransactionProvider } from "@/contexts/transaction-context";
 import { CategoryProvider } from "@/contexts/category-context";
-import { TransferProvider } from "@/contexts/transfer-context";
+import { TransfertProvider } from "@/contexts/transfer-context";
+import { NotesProvider } from "@/contexts/notes-context";
 import { BudgetProvider } from "@/contexts/budget-context";
 
 const geistSans = Geist({
@@ -45,16 +46,18 @@ export default function RootLayout({
                 <BudgetProvider>
                   <TransactionProvider>
                     <CategoryProvider>
-                      <TransferProvider>
-                        <Sidebar />
-                        <TopHeader />
-                        <MobileNav />
-                        <main className="ml-0 md:ml-16 pt-16 min-h-screen main-content">
-                          <div className="p-4 md:p-6">
-                            {children}
-                          </div>
-                        </main>
-                      </TransferProvider>
+                      <TransfertProvider>
+                        <NotesProvider>
+                          <Sidebar />
+                          <TopHeader />
+                          <MobileNav />
+                          <main className="ml-0 md:ml-16 pt-16 min-h-screen main-content">
+                            <div className="p-4 md:p-6">
+                              {children}
+                            </div>
+                          </main>
+                        </NotesProvider>
+                      </TransfertProvider>
                     </CategoryProvider>
                   </TransactionProvider>
                 </BudgetProvider>

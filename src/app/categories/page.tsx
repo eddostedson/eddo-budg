@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/contexts/toast-context'
-import type { Budget } from '@/lib/shared-data'
+import type { Budget } from '@/types'
 
 // Interface locale pour les catégories de ce module
 interface TransactionCategory {

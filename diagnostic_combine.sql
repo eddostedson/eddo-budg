@@ -11,3 +11,6 @@ SELECT
     (SELECT SUM(montant - solde_disponible) FROM recettes) as difference_mystere;
 
 
+
+
+

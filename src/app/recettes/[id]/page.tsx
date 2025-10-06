@@ -5,16 +5,26 @@ import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
 import { useRecettes } from '@/contexts/recette-context'
 import { useDepenses } from '@/contexts/depense-context'
+import { useNotifications } from '@/contexts/notification-context'
 
 export default function RecetteDetailPage() {
   const router = useRouter()
   const params = useParams()
   const recetteId = params.id as string
   
-  const { recettes } = useRecettes()
+  const { recettes, updateRecette, refreshRecettes } = useRecettes()
   const { depenses } = useDepenses()
+  const { showSuccess, showError } = useNotifications()
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
+
+  // États pour les versements supplémentaires
+  const [showVersementModal, setShowVersementModal] = useState(false)
+  const [versementData, setVersementData] = useState({
+    montant: '',
+    description: '',
+    date: new Date().toISOString().split('T')[0]
+  })
 
   const recette = recettes.find(r => r.id === recetteId)
   const depensesLiees = depenses.filter(d => d.recetteId === recetteId)
@@ -30,6 +40,51 @@ export default function RecetteDetailPage() {
     }
     checkAuth()
   }, [router, supabase.auth])
+
+  // Fonctions pour gérer les versements supplémentaires
+  const handleVersementSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!versementData.montant || parseFloat(versementData.montant) <= 0) {
+      showError("Montant invalide", "Veuillez saisir un montant valide.")
+      return
+    }
+
+    try {
+      const nouveauMontant = parseFloat(versementData.montant)
+      const montantTotal = recette.montant + nouveauMontant
+      
+      // Mettre à jour la recette avec le nouveau montant total
+      await updateRecette(recetteId, {
+        ...recette,
+        montant: montantTotal,
+        soldeDisponible: recette.soldeDisponible + nouveauMontant
+      })
+
+      // Rafraîchir les recettes pour s'assurer que tous les contextes sont à jour
+      await refreshRecettes()
+      
+      // Notifier les autres composants qu'une recette a été mise à jour
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('recetteUpdated', { 
+          detail: { recetteId, newAmount: montantTotal, newSolde: recette.soldeDisponible + nouveauMontant }
+        }))
+      }
+      
+      showSuccess(
+        "Versement ajouté",
+        `Versement de ${formatCurrency(nouveauMontant)} ajouté avec succès !`
+      )
+      
+      setVersementData({ montant: '', description: '', date: new Date().toISOString().split('T')[0] })
+      setShowVersementModal(false)
+    } catch (error) {
+      showError(
+        "Erreur d'ajout",
+        "Une erreur est survenue lors de l'ajout du versement."
+      )
+    }
+  }
 
   if (loading) {
     return (
@@ -101,12 +156,23 @@ export default function RecetteDetailPage() {
             </div>
             <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-xl p-4 border border-white border-opacity-20">
               <p className="text-blue-100 text-xs font-medium mb-1">SOLDE DISPONIBLE</p>
-              <p className="text-2xl font-bold text-green-300">{formatCurrency(recette.soldeDisponible)}</p>
+              <p className="text-2xl font-bold text-green-300">{formatCurrency(recette.montant - totalDepense)}</p>
             </div>
             <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-xl p-4 border border-white border-opacity-20">
               <p className="text-blue-100 text-xs font-medium mb-1">NOMBRE DE DÉPENSES</p>
               <p className="text-2xl font-bold">{depensesLiees.length}</p>
             </div>
+          </div>
+
+          {/* Bouton Ajouter Versement */}
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={() => setShowVersementModal(true)}
+              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-8 py-4 rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 flex items-center gap-3 font-semibold text-lg"
+            >
+              <span className="text-2xl">💰</span>
+              Ajouter un versement
+            </button>
           </div>
         </div>
       </div>
@@ -342,11 +408,11 @@ export default function RecetteDetailPage() {
                       </td>
                       <td className="px-6 py-5 text-right">
                         <div className={`inline-flex items-center px-4 py-2 rounded-xl font-bold text-xl shadow-lg ${
-                          recette.soldeDisponible > 0 
+                          (recette.montant - totalDepense) > 0 
                             ? 'bg-green-400 text-green-900' 
                             : 'bg-red-400 text-red-900'
                         }`}>
-                          {formatCurrency(recette.soldeDisponible)}
+                          {formatCurrency(recette.montant - totalDepense)}
                         </div>
                       </td>
                     </tr>
@@ -374,6 +440,127 @@ export default function RecetteDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal Ajouter Versement */}
+      {showVersementModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white p-6 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold flex items-center gap-3">
+                    <span>💰</span>
+                    Ajouter un versement
+                  </h2>
+                  <p className="text-green-100 text-sm mt-1">Augmenter le montant de cette recette</p>
+                </div>
+                <button
+                  onClick={() => setShowVersementModal(false)}
+                  className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all hover:rotate-90 duration-300"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            
+            <form onSubmit={handleVersementSubmit} className="p-6 space-y-6">
+              {/* Montant du versement */}
+              <div className="group">
+                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
+                  <span className="text-xl">💵</span>
+                  Montant du versement
+                  <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={versementData.montant}
+                    onChange={(e) => setVersementData(prev => ({...prev, montant: e.target.value}))}
+                    className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-green-50 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all font-bold text-lg pr-20"
+                    placeholder="0"
+                    required
+                    min="1"
+                    step="0.01"
+                  />
+                  <span className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                    FCFA
+                  </span>
+                </div>
+              </div>
+
+              {/* Date du versement */}
+              <div className="group">
+                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
+                  <span className="text-xl">📅</span>
+                  Date du versement
+                </label>
+                <input
+                  type="date"
+                  value={versementData.date}
+                  onChange={(e) => setVersementData(prev => ({...prev, date: e.target.value}))}
+                  className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-green-50 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all font-medium"
+                  required
+                />
+              </div>
+
+              {/* Description */}
+              <div className="group">
+                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
+                  <span className="text-xl">📝</span>
+                  Description
+                  <span className="text-xs text-gray-500 font-normal ml-2">(Optionnel)</span>
+                </label>
+                <textarea
+                  value={versementData.description}
+                  onChange={(e) => setVersementData(prev => ({...prev, description: e.target.value}))}
+                  rows={3}
+                  className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-green-50 border-2 border-gray-200 rounded-2xl focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all resize-none"
+                  placeholder="Ex: Versement complémentaire, Bonus, Remboursement..."
+                />
+              </div>
+
+              {/* Résumé */}
+              {versementData.montant && parseFloat(versementData.montant) > 0 && (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl p-4">
+                  <h4 className="font-bold text-green-800 mb-2">Résumé du versement :</h4>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Montant actuel :</span>
+                      <span className="font-semibold">{formatCurrency(recette.montant)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Nouveau versement :</span>
+                      <span className="font-semibold text-green-600">+{formatCurrency(parseFloat(versementData.montant))}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-green-300 pt-2">
+                      <span className="text-gray-600 font-bold">Nouveau total :</span>
+                      <span className="font-bold text-green-700">{formatCurrency(recette.montant + parseFloat(versementData.montant))}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Boutons */}
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowVersementModal(false)}
+                  className="flex-1 px-6 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-2xl transition-all transform hover:scale-105 active:scale-95"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 active:scale-95"
+                >
+                  💰 Ajouter le versement
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -51,3 +51,6 @@ AND tablename = 'depenses';
 -- USING (auth.uid() = user_id);
 
 
+
+
+

@@ -88,3 +88,6 @@ ORDER BY (montant - solde_disponible) DESC;
 SELECT 'Diagnostic terminé. Vérifiez les résultats ci-dessus.' as message;
 
 
+
+
+
