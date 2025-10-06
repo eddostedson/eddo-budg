@@ -8,10 +8,10 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useToast } from '@/contexts/toast-context'
-import type { Income, Category, Budget } from '@/types'
+import type { Transaction, Category, Budget } from '@/types'
 
 export default function IncomesPage() {
-  const [incomes, setIncomes] = useState<Income[]>([])
+  const [incomes, setIncomes] = useState<Transaction[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [showForm, setShowForm] = useState(false)
