@@ -21,3 +21,9 @@ SELECT COUNT(*) as nombre_recettes FROM recettes;
 SELECT 'Utilisateur actuel:' as info;
 SELECT id, email FROM auth.users ORDER BY created_at DESC LIMIT 1;
 
+
+
+
+
+
+

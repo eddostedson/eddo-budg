@@ -8,6 +8,8 @@ import { useDepenses } from '@/contexts/depense-context'
 import { useNotifications } from '@/contexts/notification-context'
 import { useConfirm } from '@/components/modern-confirm'
 import TransfertModal from '@/components/transfer-modal'
+import RentalIncomeForm from '@/components/rental-income-form'
+import RentalEditModal from '@/components/rental-edit-modal'
 import { Recette } from '@/lib/shared-data'
 
 const COLORS = [
@@ -38,6 +40,12 @@ export default function RecettesPage() {
   // États pour le modal de transfert
   const [showTransfertModal, setShowTransfertModal] = useState(false)
   const [selectedRecetteForTransfert, setSelectedRecetteForTransfert] = useState<Recette | null>(null)
+  
+  // États pour le formulaire de loyers
+  const [showRentalModal, setShowRentalModal] = useState(false)
+  const [showRentalEditModal, setShowRentalEditModal] = useState(false)
+  const [selectedRentalRecette, setSelectedRentalRecette] = useState<Recette | null>(null)
+  
   const supabase = createClient()
   
   // Filtres de recherche
@@ -129,18 +137,24 @@ export default function RecettesPage() {
   }
 
   const handleEditClick = (recette: Recette) => {
-    setEditingRecette(recette)
-    setFormData({
-      libelle: recette.libelle,
-      description: recette.description,
-      montant: recette.montant.toString(),
-      source: recette.source,
-      periodicite: recette.periodicite,
-      dateReception: new Date(recette.dateReception).toISOString().split('T')[0],
-      categorie: recette.categorie,
-      statut: recette.statut
-    })
-    setShowModal(true)
+    // Vérifier si c'est une recette de loyers
+    if (recette.source === 'Loyers' && recette.description.includes('Détail des loyers:')) {
+      setSelectedRentalRecette(recette)
+      setShowRentalEditModal(true)
+    } else {
+      setEditingRecette(recette)
+      setFormData({
+        libelle: recette.libelle,
+        description: recette.description,
+        montant: recette.montant.toString(),
+        source: recette.source,
+        periodicite: recette.periodicite,
+        dateReception: new Date(recette.dateReception).toISOString().split('T')[0],
+        categorie: recette.categorie,
+        statut: recette.statut
+      })
+      setShowModal(true)
+    }
   }
 
   const resetForm = () => {
@@ -382,23 +396,31 @@ export default function RecettesPage() {
               </h1>
               <p className="text-blue-100 text-lg">Gérez vos sources de revenus</p>
             </div>
-            <button
-              onClick={() => {
-                resetForm()
-                setShowModal(true)
-              }}
-              className="bg-white text-blue-600 px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
-            >
-              <span className="text-2xl">+</span>
-              CRÉER UNE RECETTE
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  resetForm()
+                  setShowModal(true)
+                }}
+                className="bg-white text-blue-600 px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
+              >
+                <span className="text-2xl">+</span>
+                CRÉER UNE RECETTE
+              </button>
+              <button
+                onClick={() => setShowRentalModal(true)}
+                className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
+              >
+                <span className="text-2xl">🏠</span>
+                ENREGISTRER LOYERS
+              </button>
+            </div>
           </div>
 
           {/* Barre de Recherche */}
           <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl p-6 border border-white border-opacity-20 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>🔍</span>
                 Rechercher et Filtrer
               </h3>
               <div className="flex gap-2">
@@ -426,13 +448,27 @@ export default function RecettesPage() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
-              <input
-                type="text"
-                placeholder="Rechercher par libellé..."
-                value={searchFilters.libelle}
-                onChange={(e) => setSearchFilters({...searchFilters, libelle: e.target.value})}
-                className="px-4 py-2 rounded-lg bg-white bg-opacity-20 border border-white border-opacity-30 text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-white"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Rechercher par libellé..."
+                  value={searchFilters.libelle}
+                  onChange={(e) => setSearchFilters({...searchFilters, libelle: e.target.value})}
+                  className="w-full px-4 py-2 pl-10 rounded-lg bg-white bg-opacity-20 border border-white border-opacity-30 text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-white transition-all duration-200 hover:bg-opacity-30"
+                />
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-200">
+                  🔍
+                </div>
+                {searchFilters.libelle && (
+                  <button
+                    onClick={() => setSearchFilters({...searchFilters, libelle: ''})}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white hover:text-red-300 transition-colors"
+                    title="Effacer la recherche"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
               
               <input
                 type="text"
@@ -487,10 +523,39 @@ export default function RecettesPage() {
               />
             </div>
             
+            {/* Indicateur de résultats de recherche */}
             {filteredRecettesActives.length !== recettesActives.length && (
-              <p className="text-white text-sm mt-3">
-                📌 {filteredRecettesActives.length} résultat(s) sur {recettesActives.length} recette(s) actives
-              </p>
+              <div className="mt-4 p-3 bg-white bg-opacity-10 backdrop-blur-sm rounded-xl border border-white border-opacity-20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">🔍</span>
+                    <div>
+                      <p className="text-white font-semibold">
+                        {filteredRecettesActives.length} résultat(s) trouvé(s)
+                      </p>
+                      <p className="text-blue-100 text-sm">
+                        sur {recettesActives.length} recette(s) actives
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSearchFilters({
+                      libelle: '',
+                      montantMin: '',
+                      montantMax: '',
+                      source: '',
+                      dateDebut: '',
+                      dateFin: '',
+                      statut: ''
+                    })}
+                    className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg transition-all duration-200 flex items-center gap-2"
+                    title="Effacer tous les filtres"
+                  >
+                    <span>🗑️</span>
+                    <span>Effacer</span>
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
@@ -1036,18 +1101,56 @@ export default function RecettesPage() {
         }
       />
 
-      {/* Bouton flottant pour créer une recette */}
-      <button
-        onClick={() => {
-          resetForm()
-          setShowModal(true)
+      {/* Modal pour enregistrer les loyers */}
+      <RentalIncomeForm
+        isOpen={showRentalModal}
+        onClose={() => setShowRentalModal(false)}
+        onSuccess={() => {
+          refreshRecettes()
+          setShowRentalModal(false)
         }}
-        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-4 rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 flex items-center gap-3 font-semibold text-lg floating-button"
-        title="Créer une nouvelle recette"
-      >
-        <span className="text-2xl">+</span>
-        <span className="hidden sm:inline">Créer Recette</span>
-      </button>
+      />
+
+      {/* Modal pour modifier les loyers */}
+      <RentalEditModal
+        isOpen={showRentalEditModal}
+        onClose={() => {
+          setShowRentalEditModal(false)
+          setSelectedRentalRecette(null)
+        }}
+        recette={selectedRentalRecette}
+        onSuccess={() => {
+          refreshRecettes()
+          setShowRentalEditModal(false)
+          setSelectedRentalRecette(null)
+        }}
+      />
+
+      {/* Boutons flottants */}
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3">
+        {/* Bouton pour les loyers */}
+        <button
+          onClick={() => setShowRentalModal(true)}
+          className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white px-6 py-4 rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 flex items-center gap-3 font-semibold text-lg floating-button"
+          title="Enregistrer vos loyers"
+        >
+          <span className="text-2xl">🏠</span>
+          <span className="hidden sm:inline">Loyers</span>
+        </button>
+        
+        {/* Bouton pour créer une recette */}
+        <button
+          onClick={() => {
+            resetForm()
+            setShowModal(true)
+          }}
+          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-4 rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 flex items-center gap-3 font-semibold text-lg floating-button"
+          title="Créer une nouvelle recette"
+        >
+          <span className="text-2xl">+</span>
+          <span className="hidden sm:inline">Créer Recette</span>
+        </button>
+      </div>
 
       {/* Dialog de confirmation */}
       <ConfirmDialog />

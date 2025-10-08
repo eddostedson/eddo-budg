@@ -29,3 +29,9 @@ ORDER BY table_name;
 -- Message de confirmation
 SELECT 'Nettoyage terminé. Table expenses supprimée.' AS status;
 
+
+
+
+
+
+

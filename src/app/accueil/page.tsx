@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/browser'
 import { useRecettes } from '@/contexts/recette-context'
 import { useDepenses } from '@/contexts/depense-context'
 import { useNotes } from '@/contexts/notes-context'
+import { BackupStatus } from '@/components/backup-status'
 
 export default function AccueilPage() {
   const router = useRouter()
@@ -115,7 +116,7 @@ export default function AccueilPage() {
           <div className="text-center text-white">
             <div className="mb-6 flex justify-center">
               <div className="bg-white bg-opacity-20 backdrop-blur-lg rounded-3xl px-8 py-4 inline-flex items-center gap-3">
-                <span className="text-6xl">💎</span>
+                <span className="text-6xl">🏠</span>
                 <div className="text-left">
                   <div className="text-sm font-medium opacity-90">Bienvenue sur</div>
                   <div className="text-2xl font-bold">Eddo Budget</div>
@@ -123,6 +124,7 @@ export default function AccueilPage() {
               </div>
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold mb-6 leading-tight">
+              <span className="inline-block mr-4">🏠</span>
               Gérez votre argent<br />
               <span className="bg-gradient-to-r from-yellow-300 to-pink-300 bg-clip-text text-transparent">
                 en toute simplicité
@@ -133,7 +135,7 @@ export default function AccueilPage() {
             </p>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-7xl mx-auto">
               <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl p-6 border border-white border-opacity-20">
                 <div className="text-4xl mb-2">💰</div>
                 <div className="text-3xl font-bold mb-1">{formatCurrency(getTotalRecettes())}</div>
@@ -145,9 +147,23 @@ export default function AccueilPage() {
                 <div className="text-sm text-blue-100">Dépenses effectuées</div>
               </div>
               <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl p-6 border border-white border-opacity-20">
+                <div className="text-4xl mb-2">💎</div>
+                <div className="text-3xl font-bold mb-1">{formatCurrency(getTotalDisponible())}</div>
+                <div className="text-sm text-blue-100">Solde disponible</div>
+              </div>
+              <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl p-6 border border-white border-opacity-20">
                 <div className="text-4xl mb-2">📝</div>
                 <div className="text-3xl font-bold mb-1">{formatCurrency(getTotalNotes())}</div>
                 <div className="text-sm text-blue-100">Notes de dépenses</div>
+              </div>
+            </div>
+            
+            {/* Statut de sauvegarde */}
+            <div className="max-w-6xl mx-auto mt-8">
+              <div className="flex justify-center">
+                <div className="w-full max-w-md">
+                  <BackupStatus />
+                </div>
               </div>
             </div>
           </div>

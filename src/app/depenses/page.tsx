@@ -7,12 +7,13 @@ import { useDepenses } from '@/contexts/depense-context'
 import { useRecettes } from '@/contexts/recette-context'
 import { useNotifications } from '@/contexts/notification-context'
 import { useConfirm } from '@/components/modern-confirm'
+import { CategoryCombobox } from '@/components/ui/category-combobox'
 import { Depense } from '@/lib/shared-data'
 
 export default function DepensesPage() {
   const router = useRouter()
   const { depenses, addDepense, deleteDepense, refreshDepenses } = useDepenses()
-  const { recettes, refreshRecettes } = useRecettes()
+  const { recettes, refreshRecettes, updateRecette } = useRecettes()
   const { showSuccess, showError, showWarning } = useNotifications()
   const { confirm, ConfirmDialog } = useConfirm()
   const [loading, setLoading] = useState(true)
@@ -44,8 +45,7 @@ export default function DepensesPage() {
   // Filtres de recherche
   const [searchFilters, setSearchFilters] = useState({
     libelle: '',
-    montantMin: '',
-    montantMax: '',
+    montant: '',
     recetteId: '',
     dateDebut: '',
     dateFin: ''
@@ -55,8 +55,15 @@ export default function DepensesPage() {
     libelle: '',
     montant: '',
     date: new Date().toISOString().split('T')[0],
-    description: ''
+    description: '',
+    categorie: ''
   })
+
+  // États pour les montants multiples
+  const [expenseItems, setExpenseItems] = useState<Array<{id: string, libelle: string, montant: string}>>([
+    { id: '1', libelle: '', montant: '' }
+  ])
+  const [showTooltip, setShowTooltip] = useState(false)
 
   // États pour l'UX améliorée
   const [newlyAddedId, setNewlyAddedId] = useState<number | null>(null)
@@ -68,6 +75,12 @@ export default function DepensesPage() {
   
   // Récupérer les libellés uniques des dépenses existantes
   const uniqueLibelles = Array.from(new Set(depenses.map(d => d.libelle).filter(Boolean)))
+
+  // Calculer le total des montants
+  const totalExpenseAmount = expenseItems.reduce((total, item) => {
+    const montant = parseFloat(item.montant) || 0
+    return total + montant
+  }, 0)
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -83,14 +96,53 @@ export default function DepensesPage() {
 
   // Filtrer les dépenses selon les critères de recherche
   const filteredDepenses = depenses.filter(depense => {
-    const matchLibelle = !searchFilters.libelle || depense.libelle.toLowerCase().includes(searchFilters.libelle.toLowerCase())
-    const matchMontantMin = !searchFilters.montantMin || depense.montant >= parseFloat(searchFilters.montantMin)
-    const matchMontantMax = !searchFilters.montantMax || depense.montant <= parseFloat(searchFilters.montantMax)
+    // Recherche par libellé : inclut le libellé de la dépense ET le libellé de la recette associée
+    const matchLibelle = !searchFilters.libelle || (() => {
+      const searchValue = searchFilters.libelle.toLowerCase()
+      
+      // Recherche dans le libellé de la dépense
+      const matchDepenseLibelle = depense.libelle.toLowerCase().includes(searchValue)
+      
+      // Recherche dans le libellé de la recette associée
+      const recetteAssociee = recettes.find(r => r.id === depense.recetteId)
+      const matchRecetteLibelle = recetteAssociee ? 
+        recetteAssociee.libelle.toLowerCase().includes(searchValue) : false
+      
+      return matchDepenseLibelle || matchRecetteLibelle
+    })()
+    
+    // Recherche par montant : inclut le montant de la dépense, le montant initial et le solde disponible de la recette
+    const matchMontant = !searchFilters.montant || (() => {
+      const searchValue = searchFilters.montant
+      const searchNum = parseFloat(searchValue)
+      
+      // Recherche dans le montant de la dépense
+      const matchDepenseMontant = depense.montant.toString().includes(searchValue) ||
+        Math.abs(depense.montant - searchNum) < 0.01
+      
+      // Recherche dans la recette associée (montant initial et solde disponible)
+      const recetteAssociee = recettes.find(r => r.id === depense.recetteId)
+      let matchRecetteMontant = false
+      let matchSoldeDisponible = false
+      
+      if (recetteAssociee) {
+        // Recherche dans le montant initial de la recette
+        matchRecetteMontant = recetteAssociee.montant.toString().includes(searchValue) ||
+          Math.abs(recetteAssociee.montant - searchNum) < 0.01
+        
+        // Recherche dans le solde disponible de la recette
+        matchSoldeDisponible = recetteAssociee.soldeDisponible.toString().includes(searchValue) ||
+          Math.abs(recetteAssociee.soldeDisponible - searchNum) < 0.01
+      }
+      
+      return matchDepenseMontant || matchRecetteMontant || matchSoldeDisponible
+    })()
+    
     const matchRecette = !searchFilters.recetteId || depense.recetteId === searchFilters.recetteId
     const matchDateDebut = !searchFilters.dateDebut || new Date(depense.date) >= new Date(searchFilters.dateDebut)
     const matchDateFin = !searchFilters.dateFin || new Date(depense.date) <= new Date(searchFilters.dateFin)
     
-    return matchLibelle && matchMontantMin && matchMontantMax && matchRecette && matchDateDebut && matchDateFin
+    return matchLibelle && matchMontant && matchRecette && matchDateDebut && matchDateFin
   }).sort((a, b) => {
     // Trier par date croissante (plus anciennes en haut, plus récentes en bas)
     return new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -119,6 +171,11 @@ export default function DepensesPage() {
     }
   }, [newlyAddedId, filteredDepenses])
 
+  // Mettre à jour le montant total dans formData
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, montant: totalExpenseAmount.toString() }))
+  }, [totalExpenseAmount])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -136,6 +193,21 @@ export default function DepensesPage() {
     const depensesLiees = depenses.filter(d => d.recetteId === selectedRecette.id)
     const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
     const soldeCorrect = selectedRecette.montant - totalDepenses
+    
+    // Recalculer automatiquement le soldeDisponible si incohérent
+    if (Math.abs(selectedRecette.soldeDisponible - soldeCorrect) > 0.01) {
+      console.log('🔄 Recalcul automatique du solde:', {
+        soldeDisponible: selectedRecette.soldeDisponible,
+        soldeCorrect,
+        difference: selectedRecette.soldeDisponible - soldeCorrect
+      })
+      // Mettre à jour le soldeDisponible dans le contexte
+      updateRecette(selectedRecette.id, {
+        ...selectedRecette,
+        soldeDisponible: soldeCorrect
+      })
+    }
+    
     return soldeCorrect - parseFloat(formData.montant || '0')
   })() : 0
 
@@ -163,11 +235,13 @@ export default function DepensesPage() {
     setEditingDepense(depense)
     setSelectedRecetteId(depense.recetteId || '')
     setFormData({
-      libelle: depense.libelle,
+      libelle: '',
       montant: depense.montant.toString(),
       date: new Date(depense.date).toISOString().split('T')[0],
-      description: depense.description
+      description: ''
     })
+    // Créer un item de dépense avec le libellé de la dépense existante
+    setExpenseItems([{ id: '1', libelle: depense.libelle, montant: depense.montant.toString() }])
     setShowModal(true)
   }
 
@@ -178,8 +252,11 @@ export default function DepensesPage() {
       libelle: '',
       montant: '',
       date: new Date().toISOString().split('T')[0],
-      description: ''
+      description: '',
+      categorie: ''
     })
+    setExpenseItems([{ id: '1', libelle: '', montant: '' }])
+    setShowTooltip(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -194,13 +271,28 @@ export default function DepensesPage() {
       return
     }
 
+    // Vérifier qu'au moins un montant est saisi
+    if (totalExpenseAmount <= 0) {
+      showWarning(
+        "Montant requis",
+        "Veuillez saisir au moins un montant pour cette dépense."
+      )
+      return
+    }
+
     try {
+      // Créer une description détaillée des montants multiples
+      const detailMontants = expenseItems
+        .filter(item => item.montant && parseFloat(item.montant) > 0)
+        .map(item => `${item.libelle || 'Dépense'}: ${formatCurrency(parseFloat(item.montant))}`)
+        .join(' | ')
+      
       const depenseData = {
         recetteId: selectedRecetteId,
-        libelle: formData.libelle,
-        montant: parseFloat(formData.montant),
+        libelle: expenseItems.find(item => item.libelle && item.libelle.trim())?.libelle || 'Dépense',
+        montant: totalExpenseAmount,
         date: formData.date,
-        description: formData.description
+        description: detailMontants
       }
 
       console.log('📝 Envoi des données de dépense:', depenseData)
@@ -211,12 +303,20 @@ export default function DepensesPage() {
           "Dépense mise à jour",
           "Votre dépense a été modifiée avec succès !"
         )
+        
+        // Fermer le modal immédiatement après la notification
+        resetForm()
+        setShowModal(false)
       } else {
         await addDepense(depenseData)
         showSuccess(
           "Dépense créée",
           "Votre nouvelle dépense a été enregistrée avec succès !"
         )
+        
+        // Fermer le modal immédiatement après la notification
+        resetForm()
+        setShowModal(false)
         
         // Marquer la nouvelle dépense pour le scroll et le surlignage
         // On utilise un ID temporaire basé sur le timestamp
@@ -235,9 +335,6 @@ export default function DepensesPage() {
           detail: { recetteId: selectedRecetteId, montant: parseFloat(formData.montant) }
         }))
       }
-      
-      resetForm()
-      setShowModal(false)
     } catch (error) {
       console.error('❌ Erreur lors de la soumission:', error)
       showError(
@@ -246,6 +343,29 @@ export default function DepensesPage() {
       )
     }
   }
+
+  // Fonctions pour gérer les montants multiples
+  const addExpenseItem = () => {
+    const newId = (expenseItems.length + 1).toString()
+    setExpenseItems(prev => [...prev, { id: newId, libelle: '', montant: '' }])
+  }
+
+  const removeExpenseItem = (id: string) => {
+    if (expenseItems.length > 1) {
+      setExpenseItems(prev => prev.filter(item => item.id !== id))
+    } else {
+      // Si c'est le dernier item, le vider au lieu de le supprimer
+      setExpenseItems([{ id: '1', libelle: '', montant: '' }])
+    }
+  }
+
+  const updateExpenseItem = (id: string, field: 'libelle' | 'montant', value: string) => {
+    setExpenseItems(prev => prev.map(item => 
+      item.id === id ? { ...item, [field]: value } : item
+    ))
+  }
+
+
 
   const handleDelete = async (id: number) => {
     const confirmed = await confirm(
@@ -363,8 +483,7 @@ export default function DepensesPage() {
   const resetFilters = () => {
     setSearchFilters({
       libelle: '',
-      montantMin: '',
-      montantMax: '',
+      montant: '',
       recetteId: '',
       dateDebut: '',
       dateFin: ''
@@ -443,7 +562,7 @@ export default function DepensesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
               <input
                 type="text"
-                placeholder="Rechercher par libellé..."
+                placeholder="Rechercher par libellé (dépense ou recette)"
                 value={searchFilters.libelle}
                 onChange={(e) => setSearchFilters({...searchFilters, libelle: e.target.value})}
                 className="px-4 py-2 rounded-lg bg-white bg-opacity-20 border border-white border-opacity-30 text-white placeholder-red-200 focus:outline-none focus:ring-2 focus:ring-white"
@@ -463,18 +582,10 @@ export default function DepensesPage() {
               </select>
               
               <input
-                type="number"
-                placeholder="Montant min"
-                value={searchFilters.montantMin}
-                onChange={(e) => setSearchFilters({...searchFilters, montantMin: e.target.value})}
-                className="px-4 py-2 rounded-lg bg-white bg-opacity-20 border border-white border-opacity-30 text-white placeholder-red-200 focus:outline-none focus:ring-2 focus:ring-white"
-              />
-              
-              <input
-                type="number"
-                placeholder="Montant max"
-                value={searchFilters.montantMax}
-                onChange={(e) => setSearchFilters({...searchFilters, montantMax: e.target.value})}
+                type="text"
+                placeholder="Rechercher par montant (dépense, recette, solde)"
+                value={searchFilters.montant}
+                onChange={(e) => setSearchFilters({...searchFilters, montant: e.target.value})}
                 className="px-4 py-2 rounded-lg bg-white bg-opacity-20 border border-white border-opacity-30 text-white placeholder-red-200 focus:outline-none focus:ring-2 focus:ring-white"
               />
               
@@ -543,6 +654,7 @@ export default function DepensesPage() {
                   <tr>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Date</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Libellé</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Catégorie</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Recette Source</th>
                     <th className="text-right py-4 px-6 text-sm font-semibold text-gray-700">Solde Initial</th>
                     <th className="text-right py-4 px-6 text-sm font-semibold text-gray-700">Disponible</th>
@@ -572,6 +684,15 @@ export default function DepensesPage() {
                           <div className="text-sm font-medium text-gray-900">{depense.libelle}</div>
                           {depense.description && (
                             <div className="text-xs text-gray-500 mt-1">{depense.description}</div>
+                          )}
+                        </td>
+                        <td className="py-4 px-6 text-sm">
+                          {depense.categorie ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              🏷️ {depense.categorie}
+                            </span>
+                          ) : (
+                            <span className="italic text-gray-400">Non définie</span>
                           )}
                         </td>
                         <td className="py-4 px-6 text-sm">
@@ -653,7 +774,7 @@ export default function DepensesPage() {
       {/* Modal Ultra-Moderne */}
       {showModal && (
         <div className="fixed inset-0 bg-gradient-to-br from-black/80 via-red-900/30 to-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-white via-red-50/30 to-white rounded-3xl shadow-2xl w-full max-w-2xl border-2 border-red-100 overflow-hidden">
+          <div className="bg-gradient-to-br from-white via-red-50/30 to-white rounded-3xl shadow-2xl w-full max-w-2xl border-2 border-red-100 overflow-hidden max-h-[90vh] flex flex-col">
             {/* Header avec dégradé */}
             <div className="bg-gradient-to-r from-red-600 via-orange-500 to-red-600 px-8 py-6 relative overflow-hidden">
               <div className="absolute inset-0 opacity-10"></div>
@@ -679,7 +800,8 @@ export default function DepensesPage() {
               </div>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            <div className="flex-1 overflow-y-auto">
+              <form onSubmit={handleSubmit} className="p-8 space-y-6">
               {/* Sélection de la recette - Card moderne */}
               <div className="group">
                 <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
@@ -721,164 +843,197 @@ export default function DepensesPage() {
               {/* Solde disponible - Affichage élégant */}
               {selectedRecette && (
                 <div className="bg-gradient-to-r from-green-50 via-emerald-50 to-green-50 border-2 border-green-300 rounded-2xl p-5 shadow-lg">
-                  <div className="flex items-center justify-between">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Solde Initial */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <span className="text-2xl">💰</span>
+                      </div>
+                      <div>
+                        <p className="text-xs text-blue-700 font-medium uppercase tracking-wide">Solde Initial</p>
+                        <p className="text-xl font-bold text-blue-700">{formatCurrency(selectedRecette.montant)}</p>
+                      </div>
+                    </div>
+
+                    {/* Solde Disponible */}
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center shadow-lg">
                         <span className="text-2xl">💎</span>
                       </div>
                       <div>
                         <p className="text-xs text-green-700 font-medium uppercase tracking-wide">Solde Disponible</p>
-                        <p className="text-2xl font-bold text-green-700">{formatCurrency(selectedRecette.montant - depenses.filter(d => d.recetteId === selectedRecette.id).reduce((total, depense) => total + depense.montant, 0))}</p>
+                        <p className="text-xl font-bold text-green-700">{formatCurrency(selectedRecette.montant - depenses.filter(d => d.recetteId === selectedRecette.id).reduce((total, depense) => total + depense.montant, 0))}</p>
                       </div>
                     </div>
+
+                    {/* Après Dépense */}
                     {formData.montant && parseFloat(formData.montant) > 0 && (
-                      <div className="text-right">
-                        <p className="text-xs text-gray-600 font-medium">Après dépense</p>
-                        <p className={`text-xl font-bold ${
-                          soldeRestantCalcule >= 0 
-                            ? 'text-blue-600' 
-                            : 'text-red-600'
-                        }`}>
-                          {formatCurrency(soldeRestantCalcule)}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                          <span className="text-2xl">📊</span>
+                        </div>
+                        <div>
+                          <p className="text-xs text-orange-700 font-medium uppercase tracking-wide">Après Dépense</p>
+                          <p className={`text-xl font-bold ${
+                            soldeRestantCalcule >= 0 
+                              ? 'text-blue-600' 
+                              : 'text-red-600'
+                          }`}>
+                            {formatCurrency(soldeRestantCalcule)}
+                          </p>
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* Montant et Date - Grid moderne */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
-                <div className="group">
-                  <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
+              {/* Montants Multiples */}
+              <div className="group">
+                <div className="flex items-center justify-between mb-4">
+                  <label className="flex items-center gap-2 text-sm font-bold text-gray-700">
                     <span className="text-xl">💵</span>
-                    Montant
+                    Détail des Dépenses
                     <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      value={formData.montant}
-                      onChange={(e) => setFormData(prev => ({...prev, montant: e.target.value}))}
-                      className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-red-50 border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-4 focus:ring-red-100 transition-all font-bold text-lg pr-20"
-                      placeholder="0"
-                      required
-                    />
-                    <span className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
-                      FCFA
-                    </span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={addExpenseItem}
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                  >
+                    <span>+</span>
+                    Ajouter
+                  </button>
                 </div>
-
-                <div className="group">
-                  <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
-                    <span className="text-xl">📅</span>
-                    Date
-                    <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData(prev => ({...prev, date: e.target.value}))}
-                    className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-red-50 border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-4 focus:ring-red-100 transition-all font-medium"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Libellé - Input avec autocomplétion */}
-              <div className="group relative">
-                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
-                  <span className="text-xl">🏷️</span>
-                  Libellé
-                  <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.libelle}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    setFormData(prev => ({...prev, libelle: value}))
-                    
-                    // Filtrer les suggestions
-                    if (value.length > 0) {
-                      const filtered = uniqueLibelles.filter(lib => 
-                        lib.toLowerCase().includes(value.toLowerCase())
-                      )
-                      setLibelleSuggestions(filtered)
-                      setShowLibelleSuggestions(filtered.length > 0)
-                    } else {
-                      setShowLibelleSuggestions(false)
-                    }
-                  }}
-                  onFocus={() => {
-                    if (formData.libelle.length > 0 && libelleSuggestions.length > 0) {
-                      setShowLibelleSuggestions(true)
-                    }
-                  }}
-                  onBlur={() => {
-                    // Délai pour permettre le clic sur une suggestion
-                    setTimeout(() => setShowLibelleSuggestions(false), 200)
-                  }}
-                  className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-red-50 border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-4 focus:ring-red-100 transition-all font-medium"
-                  placeholder="Ex: Facture d'électricité, Loyer, Transport..."
-                  required
-                />
                 
-                {/* Liste des suggestions */}
-                {showLibelleSuggestions && libelleSuggestions.length > 0 && (
-                  <div className="absolute z-50 w-full mt-2 bg-white border-2 border-red-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
-                    {libelleSuggestions.map((suggestion, index) => (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {expenseItems.map((item, index) => (
+                    <div key={item.id} className="flex gap-2 items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={item.libelle}
+                          onChange={(e) => updateExpenseItem(item.id, 'libelle', e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all text-sm"
+                          placeholder={`Dépense ${index + 1}...`}
+                        />
+                      </div>
+                      <div className="w-28">
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={item.montant}
+                            onChange={(e) => updateExpenseItem(item.id, 'montant', e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all text-sm pr-8"
+                            placeholder="0"
+                            step="0.01"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                            FCFA
+                          </span>
+                        </div>
+                      </div>
                       <button
-                        key={index}
                         type="button"
-                        onClick={() => {
-                          setFormData(prev => ({...prev, libelle: suggestion}))
-                          setShowLibelleSuggestions(false)
-                        }}
-                        className="w-full px-5 py-3 text-left hover:bg-red-50 transition-colors border-b border-gray-100 last:border-b-0 flex items-center gap-3"
+                        onClick={() => removeExpenseItem(item.id)}
+                        className="w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-all flex items-center justify-center"
+                        title="Supprimer cette ligne"
+                        disabled={expenseItems.length === 1}
                       >
-                        <span className="text-red-500">🏷️</span>
-                        <span className="font-medium text-gray-700">{suggestion}</span>
+                        ✕
                       </button>
-                    ))}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total avec info-bulle */}
+                {totalExpenseAmount > 0 && (
+                  <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">💰</span>
+                        <span className="font-semibold text-gray-700">Total des dépenses:</span>
+                      </div>
+                      <div 
+                        className="relative"
+                        onMouseEnter={() => setShowTooltip(true)}
+                        onMouseLeave={() => setShowTooltip(false)}
+                      >
+                        <span className="text-2xl font-bold text-blue-600 cursor-help">
+                          {formatCurrency(totalExpenseAmount)}
+                        </span>
+                        {showTooltip && (
+                          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg shadow-lg z-10">
+                            <div className="text-center">
+                              <div className="font-semibold mb-1">Détail des montants:</div>
+                              {expenseItems.map((item, index) => (
+                                item.montant && parseFloat(item.montant) > 0 && (
+                                  <div key={item.id} className="text-xs">
+                                    {item.libelle || `Dépense ${index + 1}`}: {formatCurrency(parseFloat(item.montant))}
+                                  </div>
+                                )
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Description - Textarea moderne */}
+              {/* Date */}
               <div className="group">
                 <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
-                  <span className="text-xl">📝</span>
-                  Description
-                  <span className="text-xs text-gray-500 font-normal ml-2">(Optionnel)</span>
+                  <span className="text-xl">📅</span>
+                  Date
+                  <span className="text-red-500">*</span>
                 </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({...prev, description: e.target.value}))}
-                  rows={4}
-                  className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-red-50 border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-4 focus:ring-red-100 transition-all resize-none"
-                  placeholder="Ajoutez des détails supplémentaires..."
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData(prev => ({...prev, date: e.target.value}))}
+                  className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-red-50 border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-4 focus:ring-red-100 transition-all font-medium"
+                  required
                 />
               </div>
 
-              {/* Boutons - Design moderne */}
-              <div className="flex gap-4 pt-6 border-t-2 border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => { setShowModal(false); resetForm(); }}
-                  className="flex-1 px-6 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-2xl transition-all hover:shadow-lg transform hover:scale-105 active:scale-95"
-                >
-                  ❌ Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-6 py-4 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 hover:from-red-700 hover:via-orange-600 hover:to-red-700 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 active:scale-95"
-                >
-                  {editingDepense ? '💾 Enregistrer' : '✨ Créer la Dépense'}
-                </button>
+              {/* Catégorie */}
+              <div className="group">
+                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
+                  <span className="text-xl">🏷️</span>
+                  Catégorie
+                </label>
+                <CategoryCombobox
+                  value={formData.categorie}
+                  onChange={(value) => setFormData(prev => ({...prev, categorie: value}))}
+                  placeholder="Sélectionner ou créer une catégorie..."
+                  className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-red-50 border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-4 focus:ring-red-100 transition-all font-medium"
+                />
               </div>
-            </form>
+
+
+
+              {/* Boutons - Design moderne - Fixés en bas */}
+              <div className="sticky bottom-0 bg-white border-t-2 border-gray-100 pt-4 mt-6">
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => { setShowModal(false); resetForm(); }}
+                    className="flex-1 px-6 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-2xl transition-all hover:shadow-lg transform hover:scale-105 active:scale-95"
+                  >
+                    ❌ Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-6 py-4 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 hover:from-red-700 hover:via-orange-600 hover:to-red-700 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 active:scale-95"
+                  >
+                    {editingDepense ? '💾 Enregistrer' : '✨ Créer la Dépense'}
+                  </button>
+                </div>
+              </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

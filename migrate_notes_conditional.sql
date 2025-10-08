@@ -210,3 +210,9 @@ $$ LANGUAGE plpgsql;
 -- 9. Message de confirmation
 SELECT 'Migration conditionnelle des notes terminée avec succès.' AS status;
 
+
+
+
+
+
+

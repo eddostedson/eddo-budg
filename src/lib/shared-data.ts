@@ -65,6 +65,7 @@ export interface Depense {
   montant: number
   date: string
   description: string
+  categorie?: string
   createdAt: string
   updatedAt: string
 }

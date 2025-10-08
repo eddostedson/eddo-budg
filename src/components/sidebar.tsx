@@ -73,6 +73,18 @@ const sidebarItems = [
     icon: '🎯',
     description: ''
   },
+  { 
+    href: '/backup', 
+    label: 'Sauvegardes', 
+    icon: '🛡️',
+    description: 'Protection des données'
+  },
+  { 
+    href: '/backup-complete', 
+    label: 'Sauvegarde Complète', 
+    icon: '💾',
+    description: 'Toutes les tables'
+  },
 ]
 
 const bottomItems = [

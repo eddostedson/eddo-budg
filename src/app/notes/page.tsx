@@ -8,6 +8,7 @@ import { useNotifications } from '@/contexts/notification-context'
 import { useConfirm } from '@/components/modern-confirm'
 import { Note, NoteFormData, ConvertNoteToRecetteData, ConvertNoteToDepenseData } from '@/types/notes'
 import { formatCurrency } from '@/lib/utils'
+import '@/lib/debug-notes'
 
 export default function NotesPage() {
   const router = useRouter()
@@ -58,7 +59,12 @@ export default function NotesPage() {
 
   // Charger les données
   useEffect(() => {
-    refreshNotes()
+    const loadData = async () => {
+      console.log('🔄 Chargement des notes...')
+      await refreshNotes()
+      console.log('📝 Notes chargées:', notes.length)
+    }
+    loadData()
   }, [])
 
   // Filtrer les notes
@@ -70,7 +76,26 @@ export default function NotesPage() {
     const matchMontantMax = !searchFilters.montantMax || note.montant <= parseFloat(searchFilters.montantMax)
     const matchType = note.type === selectedType
     
+    console.log(`🔍 Filtrage note "${note.libelle}":`, {
+      matchLibelle,
+      matchPriorite,
+      matchStatut,
+      matchMontantMin,
+      matchMontantMax,
+      matchType,
+      noteType: note.type,
+      selectedType,
+      finalMatch: matchLibelle && matchPriorite && matchStatut && matchMontantMin && matchMontantMax && matchType
+    })
+    
     return matchLibelle && matchPriorite && matchStatut && matchMontantMin && matchMontantMax && matchType
+  })
+  
+  console.log('📊 État des notes:', {
+    totalNotes: notes.length,
+    selectedType,
+    filteredNotes: filteredNotes.length,
+    notesDetails: notes.map(n => ({ libelle: n.libelle, type: n.type, statut: n.statut }))
   })
 
   // Séparer les notes par statut et type
@@ -268,6 +293,51 @@ export default function NotesPage() {
               >
                 <span className="text-2xl">+</span>
                 NOUVELLE NOTE
+              </button>
+              <button
+                onClick={async () => {
+                  console.log('🔧 Exécution du diagnostic des notes...')
+                  try {
+                    const { debugNotes } = await import('@/lib/debug-notes')
+                    const result = await debugNotes()
+                    console.log('📊 Résultat du diagnostic:', result)
+                    if (result.success) {
+                      showSuccess("Diagnostic réussi", `Notes trouvées: ${result.notesCount}`)
+                      await refreshNotes()
+                    } else {
+                      showError("Erreur de diagnostic", result.error)
+                    }
+                  } catch (error) {
+                    console.error('❌ Erreur import debug:', error)
+                    showError("Erreur de diagnostic", "Impossible de charger le module de debug")
+                  }
+                }}
+                className="bg-yellow-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-all"
+              >
+                🔧 Debug
+              </button>
+              <button
+                onClick={async () => {
+                  console.log('🧪 Création d\'une note de test...')
+                  try {
+                    const testNote = {
+                      libelle: 'Note de Test Debug',
+                      montant: 100.00,
+                      description: 'Note créée pour tester l\'affichage',
+                      date_prevue: new Date().toISOString().split('T')[0],
+                      priorite: 'normale' as const,
+                      type: selectedType
+                    }
+                    await createNote(testNote)
+                    showSuccess("Note de test créée", "Une note de test a été créée pour vérifier l'affichage")
+                  } catch (error) {
+                    console.error('❌ Erreur création note test:', error)
+                    showError("Erreur", "Impossible de créer la note de test")
+                  }
+                }}
+                className="bg-green-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-600 transition-all"
+              >
+                🧪 Test
               </button>
             </div>
           </div>

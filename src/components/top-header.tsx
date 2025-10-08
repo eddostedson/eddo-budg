@@ -24,11 +24,26 @@ export function TopHeader() {
           
           {/* Navigation tabs */}
           <nav className="hidden md:flex items-center gap-6">
-            <Link href="/" className="text-white/80 hover:text-white text-sm">Budgets</Link>
-            <Link href="/ai-analysis" className="text-white/80 hover:text-white text-sm">Analytics</Link>
-            <Link href="/transactions" className="text-white/80 hover:text-white text-sm">Transactions</Link>
-            <Link href="/reports" className="text-white/80 hover:text-white text-sm">Rapports</Link>
-            <Link href="/settings" className="text-white/80 hover:text-white text-sm">Plus</Link>
+            <Link href="/accueil" className="text-white/80 hover:text-white text-sm flex items-center gap-1">
+              <span>🏠</span>
+              Accueil
+            </Link>
+            <Link href="/recettes" className="text-white/80 hover:text-white text-sm flex items-center gap-1">
+              <span>💰</span>
+              Recettes
+            </Link>
+            <Link href="/depenses" className="text-white/80 hover:text-white text-sm flex items-center gap-1">
+              <span>💸</span>
+              Dépenses
+            </Link>
+            <Link href="/notes" className="text-white/80 hover:text-white text-sm flex items-center gap-1">
+              <span>📝</span>
+              Notes
+            </Link>
+            <Link href="/rapports" className="text-white/80 hover:text-white text-sm flex items-center gap-1">
+              <span>📊</span>
+              Rapports
+            </Link>
           </nav>
         </div>
 
