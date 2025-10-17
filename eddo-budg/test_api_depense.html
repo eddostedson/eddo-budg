@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Dépense</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Test API Dépense</h1>
+    <button onclick="testCreateDepense()">Tester la création de dépense</button>
+    <div id="result"></div>
+
+    <script>
+        // Configuration Supabase (remplacer par vos vraies clés)
+        const SUPABASE_URL = 'VOTRE_SUPABASE_URL'
+        const SUPABASE_ANON_KEY = 'VOTRE_SUPABASE_ANON_KEY'
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+        async function testCreateDepense() {
+            const resultDiv = document.getElementById('result')
+            resultDiv.innerHTML = '<p>Test en cours...</p>'
+            
+            try {
+                console.log('🔐 Vérification de l\'authentification...')
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                
+                if (authError) {
+                    console.error('❌ Erreur d\'authentification:', authError)
+                    resultDiv.innerHTML = `<p style="color: red;">Erreur d'authentification: ${authError.message}</p>`
+                    return
+                }
+                
+                if (!user) {
+                    console.error('❌ Utilisateur non authentifié')
+                    resultDiv.innerHTML = '<p style="color: red;">Utilisateur non authentifié</p>'
+                    return
+                }
+                
+                console.log('✅ Utilisateur authentifié:', user.id)
+                
+                // Données de test
+                const depenseData = {
+                    user_id: user.id,
+                    libelle: 'Test dépense API',
+                    montant: 50.00,
+                    date: new Date().toISOString().split('T')[0],
+                    description: 'Test depuis API directe'
+                }
+                
+                console.log('📤 Envoi vers Supabase:', depenseData)
+                
+                const { data, error } = await supabase
+                    .from('depenses')
+                    .insert(depenseData)
+                    .select()
+                    .single()
+                
+                if (error) {
+                    console.error('❌ Erreur Supabase:', error)
+                    resultDiv.innerHTML = `<p style="color: red;">Erreur: ${error.message}</p>`
+                    return
+                }
+                
+                console.log('✅ Dépense créée:', data)
+                resultDiv.innerHTML = `<p style="color: green;">Succès! Dépense créée avec l'ID: ${data.id}</p>`
+                
+            } catch (error) {
+                console.error('❌ Erreur inattendue:', error)
+                resultDiv.innerHTML = `<p style="color: red;">Erreur: ${error.message}</p>`
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+

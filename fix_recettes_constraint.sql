@@ -16,3 +16,22 @@ WHERE conrelid = 'public.recettes'::regclass
 -- 3. Message de confirmation
 SELECT 'Contrainte recettes_solde_disponible_check supprimée avec succès!' AS status;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

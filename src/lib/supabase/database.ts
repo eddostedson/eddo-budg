@@ -191,6 +191,8 @@ export class RecetteService {
         return []
       }
 
+      console.log('🔄 Récupération des recettes depuis la base de données...')
+
       const { data, error } = await supabase
         .from('recettes')
         .select('*')
@@ -202,21 +204,42 @@ export class RecetteService {
         return []
       }
 
-      return (data || []).map(recette => ({
-        id: recette.id,
-        userId: recette.user_id,
-        libelle: recette.libelle,
-        description: recette.description || '',
-        montant: parseFloat(recette.montant),
-        soldeDisponible: parseFloat(recette.solde_disponible),
-        source: recette.source || '',
-        periodicite: recette.periodicite || 'unique',
-        dateReception: recette.date_reception,
-        categorie: recette.categorie || '',
-        statut: recette.statut || 'reçue',
-        createdAt: recette.created_at,
-        updatedAt: recette.updated_at
-      }))
+      const recettes = (data || []).map(recette => {
+        const recetteData = {
+          id: recette.id,
+          userId: recette.user_id,
+          libelle: recette.libelle,
+          description: recette.description || '',
+          montant: parseFloat(recette.montant),
+          soldeDisponible: parseFloat(recette.solde_disponible),
+          source: recette.source || '',
+          periodicite: recette.periodicite || 'unique',
+          dateReception: recette.date_reception,
+          categorie: recette.categorie || '',
+          statut: recette.statut || 'reçue',
+          validationBancaire: Boolean(recette.validation_bancaire),
+          dateValidationBancaire: recette.date_validation_bancaire || undefined,
+          createdAt: recette.created_at,
+          updatedAt: recette.updated_at
+        }
+        
+        // Log pour débogage
+        if (recette.libelle.includes('RELIQUAT PRET SUR REMISE')) {
+          console.log('🔍 Recette RELIQUAT trouvée:', {
+            id: recette.id,
+            libelle: recette.libelle,
+            montant: recette.montant,
+            solde_disponible: recette.solde_disponible,
+            validation_bancaire: recette.validation_bancaire,
+            date_validation_bancaire: recette.date_validation_bancaire
+          })
+        }
+        
+        return recetteData
+      })
+
+      console.log('✅ Recettes récupérées:', recettes.length)
+      return recettes
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
       return []
@@ -250,11 +273,11 @@ export class RecetteService {
         .single()
 
       if (error) {
-        console.error('❌ Erreur lors de la création de la recette:', error)
+        console.error('❌ Erreur création recette:', error.message)
         return null
       }
 
-      console.log('✅ Recette créée avec succès:', data.id)
+      console.log('✅ Recette créée:', data.id)
       return {
         id: data.id,
         userId: data.user_id,
@@ -339,6 +362,46 @@ export class RecetteService {
         return false
       }
 
+      // 1. Récupérer les informations de la recette pour supprimer le reçu
+      const { data: recette, error: fetchError } = await supabase
+        .from('recettes')
+        .select('receipt_url')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single()
+
+      if (fetchError) {
+        console.error('❌ Erreur lors de la récupération de la recette:', fetchError)
+        return false
+      }
+
+      // 2. Supprimer le fichier reçu du stockage si il existe
+      if (recette?.receipt_url) {
+        try {
+          // Extraire le chemin du fichier depuis l'URL
+          const urlParts = recette.receipt_url.split('/')
+          const fileName = urlParts[urlParts.length - 1]
+          const filePath = `${user.id}/${fileName}`
+
+          console.log('🗑️ Suppression du fichier reçu:', filePath)
+          
+          const { error: storageError } = await supabase.storage
+            .from('receipts')
+            .remove([filePath])
+
+          if (storageError) {
+            console.warn('⚠️ Erreur lors de la suppression du fichier reçu (peut être déjà supprimé):', storageError)
+            // On continue même si la suppression du fichier échoue
+          } else {
+            console.log('✅ Fichier reçu supprimé avec succès:', filePath)
+          }
+        } catch (storageError) {
+          console.warn('⚠️ Erreur lors de la suppression du fichier reçu:', storageError)
+          // On continue même si la suppression du fichier échoue
+        }
+      }
+
+      // 3. Supprimer l'enregistrement de la recette
       const { error } = await supabase
         .from('recettes')
         .delete()
@@ -355,6 +418,79 @@ export class RecetteService {
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
       return false
+    }
+  }
+
+  // Valider la conformité bancaire d'une recette
+  static async validateBankConformity(recetteId: string): Promise<boolean> {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        console.error('❌ Erreur d\'authentification:', authError)
+        return false
+      }
+
+      const { error } = await supabase
+        .from('recettes')
+        .update({
+          validation_bancaire: true,
+          date_validation_bancaire: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', recetteId)
+        .eq('user_id', user.id)
+
+      if (error) {
+        console.error('❌ Erreur lors de la validation bancaire:', error)
+        return false
+      }
+
+      console.log('✅ Validation bancaire activée pour la recette:', recetteId)
+      return true
+    } catch (error) {
+      console.error('❌ Erreur inattendue:', error)
+      return false
+    }
+  }
+
+  // Invalider la conformité bancaire d'une recette
+  static async invalidateBankConformity(recetteId: string): Promise<boolean> {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        console.error('❌ Erreur d\'authentification:', authError)
+        return false
+      }
+
+      const { error } = await supabase
+        .from('recettes')
+        .update({
+          validation_bancaire: false,
+          date_validation_bancaire: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', recetteId)
+        .eq('user_id', user.id)
+
+      if (error) {
+        console.error('❌ Erreur lors de l\'invalidation bancaire:', error)
+        return false
+      }
+
+      console.log('✅ Validation bancaire désactivée pour la recette:', recetteId)
+      return true
+    } catch (error) {
+      console.error('❌ Erreur inattendue:', error)
+      return false
+    }
+  }
+
+  // Toggle de la validation bancaire
+  static async toggleBankValidation(recetteId: string, isValidated: boolean): Promise<boolean> {
+    if (isValidated) {
+      return await this.validateBankConformity(recetteId)
+    } else {
+      return await this.invalidateBankConformity(recetteId)
     }
   }
 }
@@ -376,7 +512,7 @@ export class DepenseService {
         .from('depenses')
         .select('*')
         .eq('user_id', user.id)
-        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (error) {
         console.error('❌ Erreur lors de la récupération des dépenses:', error)
@@ -391,6 +527,9 @@ export class DepenseService {
         montant: parseFloat(depense.montant),
         date: depense.date,
         description: depense.description || '',
+        categorie: depense.categorie || undefined,
+        receiptUrl: depense.receipt_url || undefined,
+        receiptFileName: depense.receipt_file_name || undefined,
         createdAt: depense.created_at,
         updatedAt: depense.updated_at
       }))
@@ -424,10 +563,14 @@ export class DepenseService {
       return (data || []).map(depense => ({
         id: depense.id,
         userId: depense.user_id,
+        recetteId: depense.recette_id || undefined,
         libelle: depense.libelle,
         montant: parseFloat(depense.montant),
         date: depense.date,
         description: depense.description || '',
+        categorie: depense.categorie || undefined,
+        receiptUrl: depense.receipt_url || undefined,
+        receiptFileName: depense.receipt_file_name || undefined,
         createdAt: depense.created_at,
         updatedAt: depense.updated_at
       }))
@@ -455,15 +598,7 @@ export class DepenseService {
       }
       
       console.log('✅ Utilisateur authentifié:', user.id)
-      console.log('📦 Données reçues:', depense)
-      console.log('📦 Données à insérer:', {
-        user_id: user.id,
-        libelle: depense.libelle,
-        montant: depense.montant,
-        date: depense.date,
-        description: depense.description,
-        recette_id: depense.recetteId
-      })
+      console.log('📦 Création dépense:', depense.libelle)
 
       const insertData: Record<string, string | number> = {
         user_id: user.id,
@@ -476,13 +611,20 @@ export class DepenseService {
       // Ajouter recette_id si présent
       if (depense.recetteId) {
         insertData.recette_id = depense.recetteId
-        console.log('🔗 Recette liée:', depense.recetteId)
-      } else {
-        console.log('⚠️ Aucune recette liée')
       }
 
-      console.log('📤 Données finales à envoyer:', insertData)
-      console.log('📤 Tentative d\'insertion dans Supabase...')
+      // Ajouter catégorie si présente
+      if (depense.categorie) {
+        insertData.categorie = depense.categorie
+      }
+
+      // Ajouter les champs du reçu si présents
+      if (depense.receiptUrl) {
+        insertData.receipt_url = depense.receiptUrl
+      }
+      if (depense.receiptFileName) {
+        insertData.receipt_file_name = depense.receiptFileName
+      }
       
       const { data, error } = await supabase
         .from('depenses')
@@ -491,12 +633,7 @@ export class DepenseService {
         .single()
 
       if (error) {
-        console.error('❌ ERREUR SUPABASE DÉTECTÉE!')
-        console.error('❌ Message d\'erreur:', error.message)
-        console.error('❌ Code d\'erreur:', error.code)
-        console.error('❌ Détails:', error.details)
-        console.error('❌ Hint:', error.hint)
-        console.error('❌ Erreur complète:', JSON.stringify(error, null, 2))
+        console.error('❌ Erreur création dépense:', error.message)
         console.error('🔍 Données qui ont causé l\'erreur:', insertData)
         
         // Afficher l'erreur dans une alerte pour l'utilisateur
@@ -519,6 +656,9 @@ export class DepenseService {
         montant: parseFloat(data.montant),
         date: data.date,
         description: data.description || '',
+        categorie: data.categorie || undefined,
+        receiptUrl: data.receipt_url || undefined,
+        receiptFileName: data.receipt_file_name || undefined,
         createdAt: data.created_at,
         updatedAt: data.updated_at
       }
@@ -551,6 +691,9 @@ export class DepenseService {
       if (updates.montant !== undefined) updateData.montant = updates.montant
       if (updates.date !== undefined) updateData.date = updates.date
       if (updates.description !== undefined) updateData.description = updates.description
+      if (updates.categorie !== undefined) updateData.categorie = updates.categorie
+      if (updates.receiptUrl !== undefined) updateData.receipt_url = updates.receiptUrl
+      if (updates.receiptFileName !== undefined) updateData.receipt_file_name = updates.receiptFileName
 
       const { data, error } = await supabase
         .from('depenses')
@@ -569,10 +712,14 @@ export class DepenseService {
       return {
         id: data.id,
         userId: data.user_id,
+        recetteId: data.recette_id || undefined,
         libelle: data.libelle,
         montant: parseFloat(data.montant),
         date: data.date,
         description: data.description || '',
+        categorie: data.categorie || undefined,
+        receiptUrl: data.receipt_url || undefined,
+        receiptFileName: data.receipt_file_name || undefined,
         createdAt: data.created_at,
         updatedAt: data.updated_at
       }
@@ -591,6 +738,46 @@ export class DepenseService {
         return false
       }
 
+      // 1. Récupérer les informations de la dépense pour supprimer le reçu
+      const { data: depense, error: fetchError } = await supabase
+        .from('depenses')
+        .select('receipt_url')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single()
+
+      if (fetchError) {
+        console.error('❌ Erreur lors de la récupération de la dépense:', fetchError)
+        return false
+      }
+
+      // 2. Supprimer le fichier reçu du stockage si il existe
+      if (depense?.receipt_url) {
+        try {
+          // Extraire le chemin du fichier depuis l'URL
+          const urlParts = depense.receipt_url.split('/')
+          const fileName = urlParts[urlParts.length - 1]
+          const filePath = `${user.id}/${fileName}`
+
+          console.log('🗑️ Suppression du fichier reçu:', filePath)
+          
+          const { error: storageError } = await supabase.storage
+            .from('receipts')
+            .remove([filePath])
+
+          if (storageError) {
+            console.warn('⚠️ Erreur lors de la suppression du fichier reçu (peut être déjà supprimé):', storageError)
+            // On continue même si la suppression du fichier échoue
+          } else {
+            console.log('✅ Fichier reçu supprimé avec succès:', filePath)
+          }
+        } catch (storageError) {
+          console.warn('⚠️ Erreur lors de la suppression du fichier reçu:', storageError)
+          // On continue même si la suppression du fichier échoue
+        }
+      }
+
+      // 3. Supprimer l'enregistrement de la dépense
       const { error } = await supabase
         .from('depenses')
         .delete()

@@ -24,7 +24,41 @@ export class NotesService {
         throw error
       }
 
-      return data || []
+      // Debug: Afficher les données brutes de Supabase
+      console.log('🔍 Données brutes de Supabase:', data)
+      
+      // Mapper les données vers le format Note
+      const mappedNotes = (data || []).map(note => {
+        console.log('🔍 Mapping note:', {
+          id: note.id,
+          libelle: note.libelle,
+          montant: note.montant,
+          description: note.description,
+          date_prevue: note.date_prevue,
+          priorite: note.priorite,
+          type: note.type,
+          statut: note.statut,
+          created_at: note.created_at,
+          updated_at: note.updated_at
+        })
+        
+        return {
+          id: note.id,
+          libelle: note.libelle,
+          montant: parseFloat(note.montant || 0),
+          description: note.description || '',
+          date_prevue: note.date_prevue || '',
+          priorite: note.priorite || 'normale',
+          type: note.type || 'depense',
+          statut: note.statut || 'en_attente',
+          createdAt: note.created_at,
+          updatedAt: note.updated_at
+        }
+      })
+      
+      console.log('📝 Notes mappées depuis Supabase:', mappedNotes.length, 'notes')
+      console.log('📋 Notes mappées détaillées:', mappedNotes)
+      return mappedNotes
     } catch (error) {
       console.error('❌ Erreur inattendue lors de la récupération des notes:', error)
       return []
@@ -59,7 +93,22 @@ export class NotesService {
         throw error
       }
 
-      return data
+      // Mapper les données vers le format Note
+      const mappedNote = {
+        id: data.id,
+        libelle: data.libelle,
+        montant: parseFloat(data.montant),
+        description: data.description || '',
+        date_prevue: data.date_prevue || '',
+        priorite: data.priorite || 'normale',
+        type: data.type || 'depense',
+        statut: data.statut || 'en_attente',
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      }
+      
+      console.log('✅ Note créée et mappée:', mappedNote.id)
+      return mappedNote
     } catch (error) {
       console.error('❌ Erreur inattendue lors de la création de la note:', error)
       return null

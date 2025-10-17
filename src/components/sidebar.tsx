@@ -73,6 +73,18 @@ const sidebarItems = [
     icon: '🎯',
     description: ''
   },
+  { 
+    href: '/backup', 
+    label: 'Sauvegardes', 
+    icon: '🛡️',
+    description: 'Protection des données'
+  },
+  { 
+    href: '/backup-complete', 
+    label: 'Sauvegarde Complète', 
+    icon: '💾',
+    description: 'Toutes les tables'
+  },
 ]
 
 const bottomItems = [
@@ -112,18 +124,21 @@ export function Sidebar() {
             key={item.href}
             href={item.href}
             className={cn(
-              "w-10 h-10 rounded-lg flex items-center justify-center text-lg transition-all duration-200 relative group",
+              "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 relative group hover:scale-105",
               pathname === item.href
-                ? "bg-blue-500 text-white"
-                : "text-slate-400 hover:bg-slate-700 hover:text-white"
+                ? "bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg"
+                : "bg-white/10 backdrop-blur-lg hover:bg-white/20"
             )}
             title={item.label}
           >
-            <span>{item.icon}</span>
+            <span className="text-2xl">{item.icon}</span>
             
             {/* Tooltip */}
-            <div className="absolute left-14 bg-gray-800 text-white px-2 py-1 rounded text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
-              {item.label}
+            <div className="absolute left-14 bg-gray-800 text-white px-3 py-2 rounded-lg text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50 shadow-lg">
+              <div className="font-medium">{item.label}</div>
+              {item.description && (
+                <div className="text-xs text-gray-300">{item.description}</div>
+              )}
             </div>
           </Link>
         ))}
@@ -135,14 +150,17 @@ export function Sidebar() {
           <Link
             key={item.href}
             href={item.href}
-            className="w-10 h-10 rounded-lg flex items-center justify-center text-lg transition-all duration-200 text-slate-400 hover:bg-slate-700 hover:text-white relative group"
+            className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 text-slate-400 hover:text-white relative group hover:scale-105 bg-white/5 backdrop-blur-lg hover:bg-white/10"
             title={item.label}
           >
-            <span>{item.icon}</span>
+            <span className="text-2xl">{item.icon}</span>
             
             {/* Tooltip */}
-            <div className="absolute left-14 bg-gray-800 text-white px-2 py-1 rounded text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
-              {item.label}
+            <div className="absolute left-14 bg-gray-800 text-white px-3 py-2 rounded-lg text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50 shadow-lg">
+              <div className="font-medium">{item.label}</div>
+              {item.description && (
+                <div className="text-xs text-gray-300">{item.description}</div>
+              )}
             </div>
           </Link>
         ))}
@@ -150,7 +168,7 @@ export function Sidebar() {
 
       {/* User avatar */}
       <div className="group relative">
-        <div className="w-10 h-10 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm cursor-pointer">
+        <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center text-white font-semibold text-lg cursor-pointer shadow-lg hover:scale-105 transition-transform duration-300">
           {user.email?.[0]?.toUpperCase() || 'U'}
         </div>
         

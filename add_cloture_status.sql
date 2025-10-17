@@ -69,3 +69,22 @@ COMMENT ON FUNCTION reactiver_recette(UUID) IS 'Fonction pour réactiver une rec
 -- 8. Message de confirmation
 SELECT 'Migration de clôture des recettes terminée avec succès.' AS status;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

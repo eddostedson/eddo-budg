@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/browser'
 import { useRecettes } from '@/contexts/recette-context'
 import { useDepenses } from '@/contexts/depense-context'
 import { useNotes } from '@/contexts/notes-context'
+import { BackupStatus } from '@/components/backup-status'
 
 export default function AccueilPage() {
   const router = useRouter()
@@ -17,12 +18,27 @@ export default function AccueilPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser()
+        
+        if (error) {
+          console.error('Erreur lors de la vérification de l\'utilisateur:', error)
+          // En cas d'erreur réseau, on redirige vers l'auth pour permettre une nouvelle tentative
+          router.push('/auth')
+          return
+        }
+        
+        if (!user) {
+          router.push('/auth')
+          return
+        }
+        
+        setLoading(false)
+      } catch (err) {
+        console.error('Erreur réseau lors de la vérification de l\'authentification:', err)
+        // En cas d'erreur réseau, on redirige vers l'auth
         router.push('/auth')
-        return
       }
-      setLoading(false)
     }
     checkAuth()
   }, [router, supabase.auth])
@@ -111,43 +127,110 @@ export default function AccueilPage() {
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 opacity-90"></div>
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzRjMC0yLjIxLTEuNzktNC00LTRzLTQgMS43OS00IDQgMS43OSA0IDQgNCA0LTEuNzkgNC00em0wLTEyYzAtMi4yMS0xLjc5LTQtNC00cy00IDEuNzktNCA0IDEuNzkgNCA0IDQgNC0xLjc5IDQtNHptMTIgMTJjMC0yLjIxLTEuNzktNC00LTRzLTQgMS43OS00IDQgMS43OSA0IDQgNCA0LTEuNzkgNC00eiIvPjwvZz48L2c+PC9zdmc+')] opacity-20"></div>
         
-        <div className="relative max-w-7xl mx-auto px-6 py-20">
+        <div className="relative max-w-7xl mx-auto px-6 py-12">
           <div className="text-center text-white">
-            <div className="mb-6 flex justify-center">
-              <div className="bg-white bg-opacity-20 backdrop-blur-lg rounded-3xl px-8 py-4 inline-flex items-center gap-3">
-                <span className="text-6xl">💎</span>
-                <div className="text-left">
-                  <div className="text-sm font-medium opacity-90">Bienvenue sur</div>
-                  <div className="text-2xl font-bold">Eddo Budget</div>
+
+            {/* Stats Principales - Cartes 3D */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto mb-8">
+              {/* Recettes totales - Carte 3D */}
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-3xl transform rotate-2 group-hover:rotate-3 transition-all duration-300"></div>
+                <div className="relative bg-white rounded-3xl p-6 shadow-2xl transform -rotate-1 group-hover:-rotate-2 group-hover:scale-105 transition-all duration-300 border-4 border-yellow-200">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-xl transform rotate-12">
+                      <span className="text-3xl">💰</span>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600 font-bold uppercase tracking-wider">Recettes totales</div>
+                      <div className="text-xs text-gray-500">Toutes vos entrées</div>
+                    </div>
+                  </div>
+                  <div className="text-3xl font-black text-gray-800 tracking-tight">
+                    {formatCurrency(getTotalRecettes())}
+                  </div>
+                </div>
+              </div>
+
+              {/* Dépenses effectuées - Carte 3D */}
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-red-400 to-pink-500 rounded-3xl transform -rotate-1 group-hover:-rotate-2 transition-all duration-300"></div>
+                <div className="relative bg-white rounded-3xl p-6 shadow-2xl transform rotate-1 group-hover:rotate-2 group-hover:scale-105 transition-all duration-300 border-4 border-red-200">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-red-400 to-pink-500 rounded-2xl flex items-center justify-center shadow-xl transform -rotate-12">
+                      <span className="text-3xl">💸</span>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600 font-bold uppercase tracking-wider">Dépenses effectuées</div>
+                      <div className="text-xs text-gray-500">Sorties d'argent</div>
+                    </div>
+                  </div>
+                  <div className="text-3xl font-black text-gray-800 tracking-tight">
+                    {formatCurrency(getTotalDepenses())}
+                  </div>
+                </div>
+              </div>
+
+              {/* Solde disponible - Carte 3D */}
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-green-400 to-emerald-500 rounded-3xl transform rotate-1 group-hover:rotate-2 transition-all duration-300"></div>
+                <div className="relative bg-white rounded-3xl p-6 shadow-2xl transform -rotate-1 group-hover:-rotate-2 group-hover:scale-105 transition-all duration-300 border-4 border-green-200">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl flex items-center justify-center shadow-xl transform rotate-12">
+                      <span className="text-3xl">💎</span>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600 font-bold uppercase tracking-wider">Solde disponible</div>
+                      <div className="text-xs text-gray-500">Reste à utiliser</div>
+                    </div>
+                  </div>
+                  <div className="text-3xl font-black text-gray-800 tracking-tight">
+                    {formatCurrency(getTotalDisponible())}
+                  </div>
                 </div>
               </div>
             </div>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold mb-6 leading-tight">
-              Gérez votre argent<br />
-              <span className="bg-gradient-to-r from-yellow-300 to-pink-300 bg-clip-text text-transparent">
-                en toute simplicité
-              </span>
-            </h1>
-            <p className="text-lg md:text-xl text-blue-100 max-w-2xl mx-auto mb-8 md:mb-12 px-4">
-              Une application moderne pour suivre vos recettes, organiser vos budgets et contrôler vos dépenses
-            </p>
 
-            {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
-              <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl p-6 border border-white border-opacity-20">
-                <div className="text-4xl mb-2">💰</div>
-                <div className="text-3xl font-bold mb-1">{formatCurrency(getTotalRecettes())}</div>
-                <div className="text-sm text-blue-100">Recettes totales</div>
+            {/* Stats secondaires - Cartes 3D compactes */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+              {/* Notes de dépenses - Carte 3D compacte */}
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl transform rotate-1 group-hover:rotate-2 transition-all duration-300"></div>
+                <div className="relative bg-white rounded-2xl p-5 shadow-xl transform -rotate-1 group-hover:-rotate-2 group-hover:scale-105 transition-all duration-300 border-2 border-blue-200">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg transform rotate-6">
+                      <span className="text-xl">📝</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-lg font-black text-gray-800">{formatCurrency(getTotalNotes())}</div>
+                      <div className="text-xs text-gray-600 font-medium uppercase tracking-wide">Notes de dépenses</div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl p-6 border border-white border-opacity-20">
-                <div className="text-4xl mb-2">💸</div>
-                <div className="text-3xl font-bold mb-1">{formatCurrency(getTotalDepenses())}</div>
-                <div className="text-sm text-blue-100">Dépenses effectuées</div>
+              
+              {/* Transactions - Carte 3D compacte */}
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl transform -rotate-1 group-hover:-rotate-2 transition-all duration-300"></div>
+                <div className="relative bg-white rounded-2xl p-5 shadow-xl transform rotate-1 group-hover:rotate-2 group-hover:scale-105 transition-all duration-300 border-2 border-purple-200">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center shadow-lg transform -rotate-6">
+                      <span className="text-xl">📊</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-lg font-black text-gray-800">{depenses.length}</div>
+                      <div className="text-xs text-gray-600 font-medium uppercase tracking-wide">Transactions</div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl p-6 border border-white border-opacity-20">
-                <div className="text-4xl mb-2">📝</div>
-                <div className="text-3xl font-bold mb-1">{formatCurrency(getTotalNotes())}</div>
-                <div className="text-sm text-blue-100">Notes de dépenses</div>
+            </div>
+            
+            {/* Statut de sauvegarde */}
+            <div className="max-w-6xl mx-auto mt-8">
+              <div className="flex justify-center">
+                <div className="w-full max-w-md">
+                  <BackupStatus />
+                </div>
               </div>
             </div>
           </div>

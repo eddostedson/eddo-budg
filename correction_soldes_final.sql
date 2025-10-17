@@ -49,3 +49,22 @@ SELECT
     SUM(montant - solde_disponible) as total_depenses_calculees
 FROM recettes;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -34,10 +34,20 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     setError(null)
     try {
+      console.log('🔄 Rafraîchissement des notes...')
       const data = await NotesService.getNotes()
+      console.log('📝 Notes récupérées:', data.length, 'notes')
+      console.log('📋 Détails des notes:', data.map(n => ({ 
+        id: n.id, 
+        libelle: n.libelle, 
+        statut: n.statut, 
+        type: n.type,
+        createdAt: n.createdAt 
+      })))
+      console.log('🔍 Données brutes des notes:', data)
       setNotes(data)
     } catch (err) {
-      console.error("Failed to fetch notes:", err)
+      console.error("❌ Erreur lors du rafraîchissement des notes:", err)
       setError("Échec du chargement des notes.")
       showError("Erreur de chargement", "Impossible de charger les notes.")
     } finally {
@@ -55,18 +65,29 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     setError(null)
     try {
+      console.log('➕ Création d\'une nouvelle note:', note.libelle)
       const newNote = await NotesService.createNote(note)
       if (newNote) {
+        console.log('✅ Note créée avec succès:', newNote.id)
         const typeLabel = note.type === 'recette' ? 'recette' : 'dépense'
         showSuccess("Note créée", `Votre note de ${typeLabel} a été enregistrée avec succès !`)
-        await refreshNotes()
+        
+        // Ajouter immédiatement à l'état local pour un feedback instantané
+        setNotes(prev => [newNote, ...prev])
+        
+        // Rafraîchir en arrière-plan pour s'assurer de la cohérence
+        refreshNotes().catch(error => {
+          console.error('❌ Erreur lors du rafraîchissement en arrière-plan:', error)
+        })
+        
         return true
       } else {
+        console.error('❌ Échec de la création de la note - createNote a retourné null')
         showError("Erreur de création", "Une erreur est survenue lors de la création de la note.")
         return false
       }
     } catch (err: any) {
-      console.error("Failed to create note:", err)
+      console.error("❌ Erreur lors de la création de la note:", err)
       setError(err.message || "Échec de la création de la note.")
       showError("Erreur de création", err.message || "Une erreur est survenue lors de la création de la note.")
       return false

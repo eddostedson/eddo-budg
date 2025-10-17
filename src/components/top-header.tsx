@@ -5,10 +5,12 @@ import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ForgotPasswordModal } from './forgot-password-modal'
 
 export function TopHeader() {
   const { user, signOut } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false)
 
   if (!user) return null
 
@@ -23,12 +25,37 @@ export function TopHeader() {
           </div>
           
           {/* Navigation tabs */}
-          <nav className="hidden md:flex items-center gap-6">
-            <Link href="/" className="text-white/80 hover:text-white text-sm">Budgets</Link>
-            <Link href="/ai-analysis" className="text-white/80 hover:text-white text-sm">Analytics</Link>
-            <Link href="/transactions" className="text-white/80 hover:text-white text-sm">Transactions</Link>
-            <Link href="/reports" className="text-white/80 hover:text-white text-sm">Rapports</Link>
-            <Link href="/settings" className="text-white/80 hover:text-white text-sm">Plus</Link>
+          <nav className="hidden md:flex items-center gap-4">
+            <Link href="/accueil" className="text-white/80 hover:text-white text-sm flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 transition-all duration-300 group">
+              <div className="w-10 h-10 bg-white/20 backdrop-blur-lg rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
+                <span className="text-2xl">🏠</span>
+              </div>
+              <span className="font-medium">Accueil</span>
+            </Link>
+            <Link href="/recettes" className="text-white/80 hover:text-white text-sm flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 transition-all duration-300 group">
+              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
+                <span className="text-2xl">💰</span>
+              </div>
+              <span className="font-medium">Recettes</span>
+            </Link>
+            <Link href="/depenses" className="text-white/80 hover:text-white text-sm flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 transition-all duration-300 group">
+              <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-pink-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
+                <span className="text-2xl">💸</span>
+              </div>
+              <span className="font-medium">Dépenses</span>
+            </Link>
+            <Link href="/notes" className="text-white/80 hover:text-white text-sm flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 transition-all duration-300 group">
+              <div className="w-10 h-10 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
+                <span className="text-2xl">📝</span>
+              </div>
+              <span className="font-medium">Notes</span>
+            </Link>
+            <Link href="/rapports" className="text-white/80 hover:text-white text-sm flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 transition-all duration-300 group">
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
+                <span className="text-2xl">📊</span>
+              </div>
+              <span className="font-medium">Rapports</span>
+            </Link>
           </nav>
         </div>
 
@@ -85,8 +112,23 @@ export function TopHeader() {
             <span className="hidden sm:inline">Déconnexion</span>
             <span className="sm:hidden">×</span>
           </Button>
+
+          {/* Bouton mot de passe oublié */}
+          <button
+            onClick={() => setShowForgotPasswordModal(true)}
+            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            title="Mot de passe oublié"
+          >
+            Mot de passe oublié ?
+          </button>
         </div>
       </div>
+
+      {/* Modal de réinitialisation de mot de passe */}
+      <ForgotPasswordModal
+        isOpen={showForgotPasswordModal}
+        onClose={() => setShowForgotPasswordModal(false)}
+      />
     </header>
   )
 }

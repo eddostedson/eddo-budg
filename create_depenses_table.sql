@@ -119,3 +119,22 @@ WHERE table_name = 'depenses'
 AND table_schema = 'public'
 ORDER BY ordinal_position;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

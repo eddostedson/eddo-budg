@@ -54,3 +54,22 @@ AND tablename = 'depenses';
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

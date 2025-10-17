@@ -1,0 +1,220 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #1e293b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: #f8fafc;
+  color: #1e293b;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+}
+
+/* Dark sidebar style */
+.sidebar-dark {
+  background: #1e293b;
+  border-right: 1px solid #334155;
+}
+
+/* Main content area */
+.main-content {
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+/* Force text visibility */
+.main-content * {
+  color: inherit;
+}
+
+.main-content h1,
+.main-content h2,
+.main-content h3,
+.main-content h4,
+.main-content h5,
+.main-content h6 {
+  color: #1e293b;
+}
+
+.main-content p,
+.main-content span,
+.main-content div {
+  color: #1e293b;
+}
+
+/* Header style */
+.top-header {
+  background: #3b82f6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Card styles like the interface */
+.site-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.site-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+/* New site card with dashed border */
+.new-site-card {
+  background: #f1f5f9;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.new-site-card:hover {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+/* Button styles */
+.btn-primary {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+}
+
+.btn-secondary {
+  background: #6b7280;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: #4b5563;
+}
+
+/* Search input */
+.search-input {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: white;
+  placeholder-color: rgba(255, 255, 255, 0.7);
+}
+
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(30, 41, 59, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* Responsive improvements */
+@media (max-width: 640px) {
+  .main-content {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  
+  /* Améliorer l'espacement sur mobile */
+  .main-content > div {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Améliorer la lisibilité sur très petits écrans */
+@media (max-width: 480px) {
+  .main-content h1 {
+    font-size: 1.875rem; /* text-3xl */
+  }
+  
+  .main-content h2 {
+    font-size: 1.5rem; /* text-2xl */
+  }
+  
+  .main-content h3 {
+    font-size: 1.25rem; /* text-xl */
+  }
+}
+
+/* Optimiser les grilles pour mobile */
+@media (max-width: 768px) {
+  .grid-responsive {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+/* Améliorer les boutons sur mobile */
+@media (max-width: 640px) {
+  .btn-mobile {
+    min-height: 44px; /* Taille minimale recommandée pour le touch */
+    padding: 0.75rem 1rem;
+  }
+}
+
+/* Animation de surlignage pour les nouvelles dépenses */
+@keyframes highlightPulse {
+  0% {
+    background-color: #dcfce7; /* green-100 */
+    transform: scale(1);
+  }
+  50% {
+    background-color: #bbf7d0; /* green-200 */
+    transform: scale(1.02);
+  }
+  100% {
+    background-color: #dcfce7; /* green-100 */
+    transform: scale(1);
+  }
+}
+
+.highlight-new-item {
+  animation: highlightPulse 5s ease-in-out;
+}
+
+/* Bouton flottant amélioré */
+.floating-button {
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.floating-button:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}

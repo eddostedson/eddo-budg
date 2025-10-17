@@ -26,7 +26,7 @@ export function CategoryCombobox({
   const { categories, addCategory, searchCategories } = useCategories()
   
   // Filtrer les catégories basées sur la recherche
-  const filteredCategories = searchCategories(searchQuery)
+  const filteredCategories = searchCategories(searchQuery || '')
   
   // Vérifier si la valeur actuelle existe dans les catégories
   const currentCategory = categories.find(cat => cat.name === value)

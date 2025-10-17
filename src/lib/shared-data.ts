@@ -52,6 +52,10 @@ export interface Recette {
   dateReception: string
   categorie: string
   statut: 'attendue' | 'reçue' | 'retardée' | 'annulée'
+  receiptUrl?: string // URL du reçu uploadé
+  receiptFileName?: string // Nom du fichier reçu original
+  validationBancaire?: boolean // Nouveau: validation de conformité bancaire
+  dateValidationBancaire?: string // Nouveau: date de validation bancaire
   createdAt: string
   updatedAt: string
 }
@@ -65,6 +69,9 @@ export interface Depense {
   montant: number
   date: string
   description: string
+  categorie?: string
+  receiptUrl?: string // Nouveau: URL du reçu uploadé
+  receiptFileName?: string // Nouveau: nom du fichier reçu
   createdAt: string
   updatedAt: string
 }

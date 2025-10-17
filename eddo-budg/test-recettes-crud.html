@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test CRUD Recettes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-title {
+            color: #2563eb;
+            border-bottom: 2px solid #2563eb;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .test-step {
+            background: #f8fafc;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #10b981;
+            border-radius: 4px;
+        }
+        .test-step.error {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        .test-step.warning {
+            border-left-color: #f59e0b;
+            background: #fffbeb;
+        }
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .success { color: #10b981; font-weight: bold; }
+        .error { color: #ef4444; font-weight: bold; }
+        .warning { color: #f59e0b; font-weight: bold; }
+        .info { color: #3b82f6; font-weight: bold; }
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        .checklist li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .checklist li:before {
+            content: "☐ ";
+            color: #6b7280;
+            font-weight: bold;
+        }
+        .checklist li.checked:before {
+            content: "✅ ";
+            color: #10b981;
+        }
+        .checklist li.error:before {
+            content: "❌ ";
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test CRUD Recettes - Guide Complet</h1>
+    
+    <div class="test-section">
+        <h2 class="test-title">📋 Prérequis</h2>
+        <ul class="checklist">
+            <li>Application lancée sur localhost:3000</li>
+            <li>Utilisateur connecté</li>
+            <li>Base de données Supabase configurée</li>
+            <li>Tables recettes créées (migration 005)</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2 class="test-title">🔧 Test 1: Création de Recettes</h2>
+        <div class="test-step">
+            <strong>Étape 1.1:</strong> Aller sur la page Recettes (/recettes)
+            <div class="code-block">http://localhost:3000/recettes</div>
+        </div>
+        <div class="test-step">
+            <strong>Étape 1.2:</strong> Cliquer sur "Créer une recette"
+            <div class="code-block">Bouton: "+ Créer une recette"</div>
+        </div>
+        <div class="test-step">
+            <strong>Étape 1.3:</strong> Remplir le formulaire avec des données de test
+            <div class="code-block">
+Libellé: "Salaire Mensuel"
+Description: "Salaire de base"
+Montant: 500000
+Source: "Entreprise ABC"
+Date: [Date actuelle]
+Statut: "Reçue"
+            </div>
+        </div>
+        <div class="test-step">
+            <strong>Étape 1.4:</strong> Cliquer sur "Créer"
+            <div class="code-block">Vérifier que la recette apparaît dans la liste</div>
+        </div>
+        <div class="test-step">
+            <strong>Résultat attendu:</strong> <span class="success">✅ Recette créée et visible dans la liste</span>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2 class="test-title">✏️ Test 2: Modification de Recettes</h2>
+        <div class="test-step">
+            <strong>Étape 2.1:</strong> Survoler une carte de recette existante
+            <div class="code-block">Les boutons d'action doivent apparaître</div>
+        </div>
+        <div class="test-step">
+            <strong>Étape 2.2:</strong> Cliquer sur le bouton ✏️ (Modifier)
+            <div class="code-block">Le modal doit s'ouvrir avec les données pré-remplies</div>
+        </div>
+        <div class="test-step">
+            <strong>Étape 2.3:</strong> Modifier le libellé et le montant
+            <div class="code-block">
+Libellé: "Salaire Mensuel - Modifié"
+Montant: 600000
+            </div>
+        </div>
+        <div class="test-step">
+            <strong>Étape 2.4:</strong> Cliquer sur "Enregistrer"
+            <div class="code-block">Vérifier que les modifications sont sauvegardées</div>
+        </div>
+        <div class="test-step">
+            <strong>Résultat attendu:</strong> <span class="success">✅ Recette modifiée avec les nouvelles valeurs</span>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2 class="test-title">🗑️ Test 3: Suppression de Recettes</h2>
+        <div class="test-step">
+            <strong>Étape 3.1:</strong> Survoler une carte de recette
+            <div class="code-block">Les boutons d'action doivent être visibles</div>
+        </div>
+        <div class="test-step">
+            <strong>Étape 3.2:</strong> Cliquer sur le bouton 🗑️ (Supprimer)
+            <div class="code-block">La recette doit être supprimée immédiatement</div>
+        </div>
+        <div class="test-step">
+            <strong>Étape 3.3:</strong> Vérifier que la recette a disparu de la liste
+            <div class="code-block">La carte ne doit plus être visible</div>
+        </div>
+        <div class="test-step">
+            <strong>Résultat attendu:</strong> <span class="success">✅ Recette supprimée de la liste</span>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2 class="test-title">🔍 Test 4: Vérifications Backend</h2>
+        <div class="test-step">
+            <strong>Étape 4.1:</strong> Ouvrir la console du navigateur (F12)
+            <div class="code-block">Vérifier les logs de création/modification/suppression</div>
+        </div>
+        <div class="test-step">
+            <strong>Étape 4.2:</strong> Vérifier dans Supabase Dashboard
+            <div class="code-block">
+1. Aller sur Supabase Dashboard
+2. Table Editor > recettes
+3. Vérifier que les données sont bien sauvegardées
+            </div>
+        </div>
+        <div class="test-step">
+            <strong>Résultat attendu:</strong> <span class="success">✅ Données cohérentes entre l'interface et la base</span>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2 class="test-title">🚨 Dépannage</h2>
+        <div class="test-step error">
+            <strong>Problème:</strong> Boutons d'action non visibles
+            <div class="code-block">
+Solution: 
+1. Vérifier que vous êtes bien connecté
+2. Survoler complètement la carte (pas seulement le texte)
+3. Attendre l'animation d'apparition
+            </div>
+        </div>
+        <div class="test-step error">
+            <strong>Problème:</strong> Erreur lors de la modification
+            <div class="code-block">
+Solution:
+1. Vérifier la console pour les erreurs
+2. S'assurer que tous les champs requis sont remplis
+3. Vérifier la connexion à Supabase
+            </div>
+        </div>
+        <div class="test-step error">
+            <strong>Problème:</strong> Suppression ne fonctionne pas
+            <div class="code-block">
+Solution:
+1. Vérifier les permissions RLS dans Supabase
+2. S'assurer que l'utilisateur est bien authentifié
+3. Vérifier les logs dans la console
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2 class="test-title">✅ Checklist de Validation</h2>
+        <ul class="checklist">
+            <li>Création de recette fonctionne</li>
+            <li>Boutons d'édition et suppression visibles au survol</li>
+            <li>Modification sauvegarde les changements</li>
+            <li>Suppression retire la recette de la liste</li>
+            <li>Interface se met à jour en temps réel</li>
+            <li>Données cohérentes avec la base de données</li>
+            <li>Aucune erreur dans la console</li>
+            <li>Authentification fonctionne correctement</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2 class="test-title">📊 Tests de Performance</h2>
+        <div class="test-step">
+            <strong>Test de charge:</strong> Créer 10 recettes rapidement
+            <div class="code-block">Vérifier que l'interface reste réactive</div>
+        </div>
+        <div class="test-step">
+            <strong>Test de modification en masse:</strong> Modifier plusieurs recettes
+            <div class="code-block">Vérifier que les changements sont persistants</div>
+        </div>
+        <div class="test-step">
+            <strong>Test de suppression en masse:</strong> Supprimer plusieurs recettes
+            <div class="code-block">Vérifier que l'interface se met à jour correctement</div>
+        </div>
+    </div>
+
+    <script>
+        // Script de test automatique (optionnel)
+        console.log('🧪 Tests CRUD Recettes - Guide de test chargé');
+        console.log('📋 Suivez les étapes ci-dessus pour tester toutes les fonctionnalités');
+        
+        // Fonction pour vérifier si l'utilisateur est connecté
+        function checkAuth() {
+            const token = localStorage.getItem('sb-localhost-auth-token');
+            if (token) {
+                console.log('✅ Utilisateur authentifié');
+                return true;
+            } else {
+                console.log('❌ Utilisateur non authentifié - Connectez-vous d\'abord');
+                return false;
+            }
+        }
+        
+        // Vérification automatique au chargement
+        if (checkAuth()) {
+            console.log('🚀 Prêt pour les tests CRUD');
+        } else {
+            console.log('🔐 Veuillez vous connecter avant de commencer les tests');
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+

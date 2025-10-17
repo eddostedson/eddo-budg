@@ -8,7 +8,17 @@ import { useDepenses } from '@/contexts/depense-context'
 import { useNotifications } from '@/contexts/notification-context'
 import { useConfirm } from '@/components/modern-confirm'
 import TransfertModal from '@/components/transfer-modal'
+import RentalIncomeForm from '@/components/rental-income-form'
+import RentalEditModal from '@/components/rental-edit-modal'
 import { Recette } from '@/lib/shared-data'
+import { UnifiedPrintButton } from '@/components/UnifiedPrintButton'
+import { HighlightText, shouldHighlight } from '@/lib/highlight-utils'
+import { ReceiptPreview } from '@/components/receipt-preview'
+import { ReceiptUpload } from '@/components/receipt-upload'
+import { ReceiptSidebar } from '@/components/receipt-sidebar'
+import { BankValidationBadge } from '@/components/bank-validation-badge'
+import { CertifiedSummary } from '@/components/certified-summary'
+import { CertifiedDebug } from '@/components/certified-debug'
 
 const COLORS = [
   'bg-purple-500',
@@ -23,13 +33,14 @@ const COLORS = [
 
 export default function RecettesPage() {
   const router = useRouter()
-  const { recettes, addRecette, deleteRecette, updateRecette, getTotalRecettes, getTotalDisponible, refreshRecettes } = useRecettes()
+  const { recettes, addRecette, deleteRecette, updateRecette, getTotalRecettes, getTotalDisponible, getTotalCertified, getTotalCertifiedAmount, getCertifiedRecettes, refreshRecettes, toggleBankValidation } = useRecettes()
   const { depenses } = useDepenses()
   const { showSuccess, showError, showWarning } = useNotifications()
   const { confirm, ConfirmDialog } = useConfirm()
   const [showModal, setShowModal] = useState(false)
   const [editingRecette, setEditingRecette] = useState<Recette | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // États pour l'UX améliorée
   const [newlyAddedId, setNewlyAddedId] = useState<number | null>(null)
@@ -38,6 +49,12 @@ export default function RecettesPage() {
   // États pour le modal de transfert
   const [showTransfertModal, setShowTransfertModal] = useState(false)
   const [selectedRecetteForTransfert, setSelectedRecetteForTransfert] = useState<Recette | null>(null)
+  
+  // États pour le formulaire de loyers
+  const [showRentalModal, setShowRentalModal] = useState(false)
+  const [showRentalEditModal, setShowRentalEditModal] = useState(false)
+  const [selectedRentalRecette, setSelectedRentalRecette] = useState<Recette | null>(null)
+  
   const supabase = createClient()
   
   // Filtres de recherche
@@ -61,6 +78,15 @@ export default function RecettesPage() {
     categorie: '',
     statut: 'reçue' as Recette['statut']
   })
+
+  // États pour les reçus
+  const [receiptUrl, setReceiptUrl] = useState<string>('')
+  const [receiptFileName, setReceiptFileName] = useState<string>('')
+  
+  // États pour le panneau latéral d'aperçu
+  const [showReceiptSidebar, setShowReceiptSidebar] = useState(false)
+  const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string>('')
+  const [selectedReceiptFileName, setSelectedReceiptFileName] = useState<string>('')
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -129,18 +155,26 @@ export default function RecettesPage() {
   }
 
   const handleEditClick = (recette: Recette) => {
-    setEditingRecette(recette)
-    setFormData({
-      libelle: recette.libelle,
-      description: recette.description,
-      montant: recette.montant.toString(),
-      source: recette.source,
-      periodicite: recette.periodicite,
-      dateReception: new Date(recette.dateReception).toISOString().split('T')[0],
-      categorie: recette.categorie,
-      statut: recette.statut
-    })
-    setShowModal(true)
+    // Vérifier si c'est une recette de loyers
+    if (recette.source === 'Loyers' && recette.description.includes('Détail des loyers:')) {
+      setSelectedRentalRecette(recette)
+      setShowRentalEditModal(true)
+    } else {
+      setEditingRecette(recette)
+      setFormData({
+        libelle: recette.libelle,
+        description: recette.description,
+        montant: recette.montant.toString(),
+        source: recette.source,
+        periodicite: recette.periodicite,
+        dateReception: new Date(recette.dateReception).toISOString().split('T')[0],
+        categorie: recette.categorie,
+        statut: recette.statut
+      })
+      setReceiptUrl(recette.receiptUrl || '')
+      setReceiptFileName(recette.receiptFileName || '')
+      setShowModal(true)
+    }
   }
 
   const resetForm = () => {
@@ -155,14 +189,42 @@ export default function RecettesPage() {
       categorie: '',
       statut: 'reçue'
     })
+    setReceiptUrl('')
+    setReceiptFileName('')
+  }
+
+  // Fonction pour ouvrir l'aperçu du reçu dans le panneau latéral
+  const handleViewReceipt = (receiptUrl: string, fileName: string) => {
+    setSelectedReceiptUrl(receiptUrl)
+    setSelectedReceiptFileName(fileName)
+    setShowReceiptSidebar(true)
+  }
+
+  // Fonction pour gérer le survol instantané
+  const handleReceiptHover = (receiptUrl: string, fileName: string) => {
+    setSelectedReceiptUrl(receiptUrl)
+    setSelectedReceiptFileName(fileName)
+    setShowReceiptSidebar(true)
+  }
+
+  // Fonction pour gérer la sortie du survol
+  const handleReceiptLeave = () => {
+    setShowReceiptSidebar(false)
   }
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Empêcher les soumissions multiples
+    if (isSubmitting) return
+    
+    setIsSubmitting(true)
 
     const recetteData = {
       ...formData,
-      montant: parseFloat(formData.montant)
+      montant: parseFloat(formData.montant),
+      receiptUrl: receiptUrl || null,
+      receiptFileName: receiptFileName || null
     }
 
     try {
@@ -195,6 +257,8 @@ export default function RecettesPage() {
         "Erreur de création",
         "Une erreur est survenue lors de la création de la recette. Veuillez réessayer."
       )
+    } finally {
+      setIsSubmitting(false)
     }
   }
   
@@ -228,6 +292,47 @@ export default function RecettesPage() {
     return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA'
   }
 
+  // Fonction pour parser et afficher les détails des loyers
+  const parseRentalDetails = (description: string) => {
+    if (!description.includes('Détail des loyers:')) {
+      return null
+    }
+
+    const lines = description.split('\n')
+    const rentalDetails = []
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim()
+      
+      // Chercher les lignes qui contiennent les détails des villas
+      if (line.includes('Villa') && line.includes('FCFA')) {
+        const villaMatch = line.match(/(Villa \d+ Pièces[^:]*):\s*(\d+(?:\s*\d+)*)\s*FCFA/)
+        if (villaMatch) {
+          const villaName = villaMatch[1].trim()
+          const amount = villaMatch[2].replace(/\s/g, '')
+          
+          // Chercher le nom du locataire dans la ligne suivante
+          let tenantName = ''
+          if (i + 1 < lines.length) {
+            const nextLine = lines[i + 1].trim()
+            const tenantMatch = nextLine.match(/Locataire:\s*(.+)/)
+            if (tenantMatch) {
+              tenantName = tenantMatch[1].trim()
+            }
+          }
+          
+          rentalDetails.push({
+            villa: villaName,
+            amount: parseInt(amount),
+            tenant: tenantName
+          })
+        }
+      }
+    }
+    
+    return rentalDetails
+  }
+
   // Fonction pour ouvrir le modal de transfert
   const handleOpenTransfertModal = (recette: Recette) => {
     setSelectedRecetteForTransfert(recette)
@@ -256,8 +361,8 @@ export default function RecettesPage() {
     
     return matchLibelle && matchMontantMin && matchMontantMax && matchSource && matchDateDebut && matchDateFin && matchStatut
   }).sort((a, b) => {
-    // Trier par date croissante (plus anciennes en haut, plus récentes en bas)
-    return new Date(a.dateReception).getTime() - new Date(b.dateReception).getTime()
+    // Trier par date de création décroissante (plus récentes en haut, plus anciennes en bas)
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
 
   const handlePrint = (orientation: 'portrait' | 'landscape') => {
@@ -382,23 +487,31 @@ export default function RecettesPage() {
               </h1>
               <p className="text-blue-100 text-lg">Gérez vos sources de revenus</p>
             </div>
-            <button
-              onClick={() => {
-                resetForm()
-                setShowModal(true)
-              }}
-              className="bg-white text-blue-600 px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
-            >
-              <span className="text-2xl">+</span>
-              CRÉER UNE RECETTE
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  resetForm()
+                  setShowModal(true)
+                }}
+                className="bg-white text-blue-600 px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
+              >
+                <span className="text-2xl">+</span>
+                CRÉER UNE RECETTE
+              </button>
+              <button
+                onClick={() => setShowRentalModal(true)}
+                className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
+              >
+                <span className="text-2xl">🏠</span>
+                ENREGISTRER LOYERS
+              </button>
+            </div>
           </div>
 
           {/* Barre de Recherche */}
           <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl p-6 border border-white border-opacity-20 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>🔍</span>
                 Rechercher et Filtrer
               </h3>
               <div className="flex gap-2">
@@ -408,31 +521,35 @@ export default function RecettesPage() {
                 >
                   🔄 Réinitialiser
                 </button>
-                <button
-                  onClick={() => handlePrint('portrait')}
-                  className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                <UnifiedPrintButton
+                  onPrint={handlePrint}
                   disabled={filteredRecettesActives.length === 0}
-                >
-                  🖨️ Portrait
-                </button>
-                <button
-                  onClick={() => handlePrint('landscape')}
-                  className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-                  disabled={filteredRecettesActives.length === 0}
-                >
-                  🖨️ Paysage
-                </button>
+                />
               </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
-              <input
-                type="text"
-                placeholder="Rechercher par libellé..."
-                value={searchFilters.libelle}
-                onChange={(e) => setSearchFilters({...searchFilters, libelle: e.target.value})}
-                className="px-4 py-2 rounded-lg bg-white bg-opacity-20 border border-white border-opacity-30 text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-white"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Rechercher par libellé..."
+                  value={searchFilters.libelle}
+                  onChange={(e) => setSearchFilters({...searchFilters, libelle: e.target.value})}
+                  className="w-full px-4 py-2 pl-10 rounded-lg bg-white bg-opacity-20 border border-white border-opacity-30 text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-white transition-all duration-200 hover:bg-opacity-30"
+                />
+                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-200">
+                  🔍
+                </div>
+                {searchFilters.libelle && (
+                  <button
+                    onClick={() => setSearchFilters({...searchFilters, libelle: ''})}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white hover:text-red-300 transition-colors"
+                    title="Effacer la recherche"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
               
               <input
                 type="text"
@@ -487,10 +604,39 @@ export default function RecettesPage() {
               />
             </div>
             
+            {/* Indicateur de résultats de recherche */}
             {filteredRecettesActives.length !== recettesActives.length && (
-              <p className="text-white text-sm mt-3">
-                📌 {filteredRecettesActives.length} résultat(s) sur {recettesActives.length} recette(s) actives
-              </p>
+              <div className="mt-4 p-3 bg-white bg-opacity-10 backdrop-blur-sm rounded-xl border border-white border-opacity-20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">🔍</span>
+                    <div>
+                      <p className="text-white font-semibold">
+                        {filteredRecettesActives.length} résultat(s) trouvé(s)
+                      </p>
+                      <p className="text-blue-100 text-sm">
+                        sur {recettesActives.length} recette(s) actives
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSearchFilters({
+                      libelle: '',
+                      montantMin: '',
+                      montantMax: '',
+                      source: '',
+                      dateDebut: '',
+                      dateFin: '',
+                      statut: ''
+                    })}
+                    className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg transition-all duration-200 flex items-center gap-2"
+                    title="Effacer tous les filtres"
+                  >
+                    <span>🗑️</span>
+                    <span>Effacer</span>
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
@@ -544,6 +690,25 @@ export default function RecettesPage() {
               </div>
             </div>
 
+            {/* Recettes Certifiées */}
+            <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl shadow-2xl p-6 border-2 border-white border-opacity-30 hover:scale-105 transition-transform duration-300">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-12 h-12 bg-yellow-400 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-2xl">🏆</span>
+                </div>
+                <div>
+                  <p className="text-blue-100 text-xs font-medium">SOLDE CERTIFIÉ</p>
+                  <p className="text-[10px] text-blue-200">Disponible vérifié</p>
+                </div>
+              </div>
+              <div className="text-3xl font-extrabold text-white tracking-tight drop-shadow-lg">
+                {formatCurrency(getTotalCertified())}
+              </div>
+              <div className="text-xs text-yellow-200 mt-1">
+                {getCertifiedRecettes().length} recette(s) validée(s)
+              </div>
+            </div>
+
             {/* Nombre de Recettes */}
             <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl shadow-2xl p-6 border-2 border-white border-opacity-30 hover:scale-105 transition-transform duration-300">
               <div className="flex items-center gap-2 mb-3">
@@ -565,11 +730,81 @@ export default function RecettesPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
+        
+        {/* En-tête avec indicateur de tri */}
+        <div className="mb-8">
+          <div className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-blue-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">💰 Liste des Recettes</h2>
+                <p className="text-gray-600">Vos sources de revenus organisées</p>
+              </div>
+              <div className="text-sm text-blue-600 flex items-center">
+                <span className="mr-2">🕒</span>
+                Trié par date de création (plus récentes en haut)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Résumé des Recettes Certifiées */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-900">Résumé des Recettes Certifiées</h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  refreshRecettes()
+                  showSuccess("Données rafraîchies", "Les données ont été mises à jour")
+                }}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                🔄 Rafraîchir
+              </button>
+              <button
+                onClick={() => {
+                  console.log('🔍 Debug - Recettes actuelles:', recettes)
+                  console.log('🔍 Debug - Recettes certifiées:', getCertifiedRecettes())
+                  console.log('🔍 Debug - Total certifié:', getTotalCertified())
+                  showSuccess("Debug envoyé", "Vérifiez la console du navigateur (F12)")
+                }}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                🐛 Debug
+              </button>
+            </div>
+          </div>
+          <CertifiedSummary 
+            totalCertified={getTotalCertified()}
+            totalRecettes={getTotalRecettes()}
+            totalCertifiedAmount={getTotalCertifiedAmount()}
+            certifiedRecettes={getCertifiedRecettes()}
+          />
+        </div>
+
+
+        {/* Indicateur de correspondances */}
+        {searchFilters.libelle && (
+          <div className="mb-4 p-3 bg-green-100 border border-green-300 rounded-lg">
+            <div className="flex items-center gap-2">
+              <span className="text-green-600">🔍</span>
+              <span className="text-green-800 font-medium">
+                {filteredRecettesActives.filter(recette => 
+                  shouldHighlight(recette.libelle, searchFilters.libelle) || 
+                  (recette.description && shouldHighlight(recette.description, searchFilters.libelle))
+                ).length} correspondance(s) trouvée(s) pour "{searchFilters.libelle}"
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Recettes Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredRecettesActives.map((recette, index) => {
             const isHighlighted = highlightedRow === parseInt(recette.id)
+            const isLibelleMatch = shouldHighlight(recette.libelle, searchFilters.libelle)
+            const isDescriptionMatch = recette.description && shouldHighlight(recette.description, searchFilters.libelle)
+            const hasSearchMatch = isLibelleMatch || isDescriptionMatch
             
             // Calculer le solde correct en temps réel
             const depensesLiees = depenses.filter(d => d.recetteId === recette.id)
@@ -580,17 +815,28 @@ export default function RecettesPage() {
               <div
                 key={recette.id}
                 id={`recette-${recette.id}`}
-                onClick={() => router.push(`/recettes/${recette.id}`)}
-                className={`group relative bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-500 transform hover:-translate-y-1 border-l-4 border-blue-500 cursor-pointer ${
+                onClick={() => {
+                  // Précharger les données pour une navigation plus rapide
+                  router.prefetch(`/recettes/${recette.id}`)
+                  router.push(`/recettes/${recette.id}`)
+                }}
+                className={`group relative bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-500 transform hover:-translate-y-1 border-l-4 cursor-pointer ${
                   isHighlighted
                     ? 'bg-green-100 border-green-300 shadow-2xl transform scale-[1.02] highlight-new-item'
-                    : ''
+                    : hasSearchMatch
+                    ? 'border-green-500 bg-green-50'
+                    : 'border-blue-500'
                 }`}
               >
               <div className="p-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">{recette.libelle}</h3>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">
+                      <HighlightText 
+                        text={recette.libelle} 
+                        searchTerm={searchFilters.libelle} 
+                      />
+                    </h3>
                     <p className="text-2xl font-bold text-blue-600 mb-1">{formatCurrency(recette.montant)}</p>
                     <p className="text-xs text-gray-500 mb-3">Montant initial</p>
                   </div>
@@ -610,12 +856,73 @@ export default function RecettesPage() {
                   )}
                 </div>
                 
-                <p className="text-sm text-gray-600 mb-4 h-10">{recette.description}</p>
+                {/* Badge de validation bancaire */}
+                <div className="mb-4">
+                  <BankValidationBadge 
+                    recette={recette}
+                    onToggleValidation={toggleBankValidation}
+                    className="w-full"
+                  />
+                </div>
+
+                
+                {/* Affichage des détails des loyers ou description normale */}
+                {recette.source === 'Loyers' && parseRentalDetails(recette.description) ? (
+                  <div className="text-sm text-gray-600 mb-4">
+                    <div className="font-medium text-gray-800 mb-3">Détail des loyers:</div>
+                    {parseRentalDetails(recette.description)?.map((rental, index) => (
+                      <div key={index} className="mb-3">
+                        <div className="font-medium text-gray-700 mb-1">{rental.villa}:</div>
+                        <div className="ml-2">
+                          <input
+                            type="text"
+                            value={formatCurrency(rental.amount)}
+                            readOnly
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded bg-white text-gray-700"
+                          />
+                          {rental.tenant && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <span className="text-xs">👤</span>
+                              <span className="text-xs text-gray-600">Locataire: {rental.tenant}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-600 mb-4 h-10">
+                    <HighlightText 
+                      text={recette.description} 
+                      searchTerm={searchFilters.libelle} 
+                    />
+                  </p>
+                )}
                 
                 <div className="text-xs text-gray-500 space-y-2">
                   <div className="flex justify-between"><span className="font-medium">Source:</span> <span>{recette.source}</span></div>
                   <div className="flex justify-between"><span className="font-medium">Date:</span> <span>{new Date(recette.dateReception).toLocaleDateString('fr-FR')}</span></div>
+                  <div className="flex justify-between"><span className="font-medium">Créé le:</span> <span className="text-blue-600 font-medium">{new Date(recette.createdAt).toLocaleDateString('fr-FR')}</span></div>
                   <div className="flex justify-between"><span className="font-medium">Statut:</span> <span className="font-bold capitalize">{recette.statut}</span></div>
+                  
+                  {/* Reçu */}
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Reçu:</span>
+                    {recette.receiptUrl ? (
+                      <div
+                        onMouseEnter={() => handleReceiptHover(recette.receiptUrl!, recette.receiptFileName || '')}
+                        onMouseLeave={handleReceiptLeave}
+                        className="inline-flex items-center gap-1 text-green-600 hover:text-green-800 text-xs font-medium hover:bg-green-50 px-2 py-1 rounded transition-colors cursor-pointer"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Voir
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-xs">-</span>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Actions */}
@@ -726,12 +1033,57 @@ export default function RecettesPage() {
                         </p>
                       </div>
                       
-                      <p className="text-sm text-gray-600 mb-4 h-10">{recette.description}</p>
+                      {/* Affichage des détails des loyers ou description normale */}
+                      {recette.source === 'Loyers' && parseRentalDetails(recette.description) ? (
+                        <div className="text-sm text-gray-600 mb-4">
+                          <div className="font-medium text-gray-800 mb-3">Détail des loyers:</div>
+                          {parseRentalDetails(recette.description)?.map((rental, index) => (
+                            <div key={index} className="mb-3">
+                              <div className="font-medium text-gray-700 mb-1">{rental.villa}:</div>
+                              <div className="ml-2">
+                                <input
+                                  type="text"
+                                  value={formatCurrency(rental.amount)}
+                                  readOnly
+                                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded bg-white text-gray-700"
+                                />
+                                {rental.tenant && (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <span className="text-xs">👤</span>
+                                    <span className="text-xs text-gray-600">Locataire: {rental.tenant}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-600 mb-4 h-10">{recette.description}</p>
+                      )}
                       
                       <div className="text-xs text-gray-500 space-y-2">
                         <div className="flex justify-between"><span className="font-medium">Source:</span> <span>{recette.source}</span></div>
                         <div className="flex justify-between"><span className="font-medium">Date:</span> <span>{new Date(recette.dateReception).toLocaleDateString('fr-FR')}</span></div>
                         <div className="flex justify-between"><span className="font-medium">Statut:</span> <span className="font-bold text-orange-600">Clôturée</span></div>
+                        
+                        {/* Reçu */}
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">Reçu:</span>
+                          {recette.receiptUrl ? (
+                            <div
+                              onMouseEnter={() => handleReceiptHover(recette.receiptUrl!, recette.receiptFileName || '')}
+                              onMouseLeave={handleReceiptLeave}
+                              className="inline-flex items-center gap-1 text-green-600 hover:text-green-800 text-xs font-medium hover:bg-green-50 px-2 py-1 rounded transition-colors cursor-pointer"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Voir
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
+                        </div>
                       </div>
                       
                       {/* Actions pour recettes clôturées */}
@@ -1004,6 +1356,27 @@ export default function RecettesPage() {
                 </div>
               </div>
 
+              {/* Reçu */}
+              <div className="group">
+                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
+                  <span className="text-xl">📄</span>
+                  Reçu
+                  <span className="text-xs text-gray-500 font-normal ml-2">(Optionnel)</span>
+                </label>
+                <ReceiptUpload
+                  onReceiptUploaded={(url, fileName) => {
+                    setReceiptUrl(url)
+                    setReceiptFileName(fileName)
+                  }}
+                  onReceiptRemoved={() => {
+                    setReceiptUrl('')
+                    setReceiptFileName('')
+                  }}
+                  currentReceiptUrl={receiptUrl}
+                  currentFileName={receiptFileName}
+                />
+              </div>
+
               {/* Boutons - Design moderne */}
               <div className="flex gap-4 pt-6 border-t-2 border-gray-100">
                 <button
@@ -1015,9 +1388,24 @@ export default function RecettesPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-6 py-4 bg-gradient-to-r from-blue-600 via-purple-500 to-blue-600 hover:from-blue-700 hover:via-purple-600 hover:to-blue-700 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 active:scale-95"
+                  disabled={isSubmitting}
+                  className={`flex-1 px-6 py-4 font-bold rounded-2xl shadow-lg transition-all transform ${
+                    isSubmitting 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-gradient-to-r from-blue-600 via-purple-500 to-blue-600 hover:from-blue-700 hover:via-purple-600 hover:to-blue-700 hover:shadow-xl hover:scale-105 active:scale-95'
+                  }`}
                 >
-                  {editingRecette ? '💾 Enregistrer' : '✨ Créer la Recette'}
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Enregistrement...
+                    </span>
+                  ) : (
+                    editingRecette ? '💾 Enregistrer' : '✨ Créer la Recette'
+                  )}
                 </button>
               </div>
             </form>
@@ -1036,21 +1424,69 @@ export default function RecettesPage() {
         }
       />
 
-      {/* Bouton flottant pour créer une recette */}
-      <button
-        onClick={() => {
-          resetForm()
-          setShowModal(true)
+      {/* Modal pour enregistrer les loyers */}
+      <RentalIncomeForm
+        isOpen={showRentalModal}
+        onClose={() => setShowRentalModal(false)}
+        onSuccess={() => {
+          refreshRecettes()
+          setShowRentalModal(false)
         }}
-        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-4 rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 flex items-center gap-3 font-semibold text-lg floating-button"
-        title="Créer une nouvelle recette"
-      >
-        <span className="text-2xl">+</span>
-        <span className="hidden sm:inline">Créer Recette</span>
-      </button>
+      />
+
+      {/* Modal pour modifier les loyers */}
+      <RentalEditModal
+        isOpen={showRentalEditModal}
+        onClose={() => {
+          setShowRentalEditModal(false)
+          setSelectedRentalRecette(null)
+        }}
+        recette={selectedRentalRecette}
+        onSuccess={() => {
+          refreshRecettes()
+          setShowRentalEditModal(false)
+          setSelectedRentalRecette(null)
+        }}
+      />
+
+      {/* Boutons flottants */}
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3">
+        {/* Bouton pour les loyers */}
+        <button
+          onClick={() => setShowRentalModal(true)}
+          className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white px-6 py-4 rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 flex items-center gap-3 font-semibold text-lg floating-button"
+          title="Enregistrer vos loyers"
+        >
+          <span className="text-2xl">🏠</span>
+          <span className="hidden sm:inline">Loyers</span>
+        </button>
+        
+        {/* Bouton pour créer une recette */}
+        <button
+          onClick={() => {
+            resetForm()
+            setShowModal(true)
+          }}
+          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-4 rounded-2xl shadow-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 flex items-center gap-3 font-semibold text-lg floating-button"
+          title="Créer une nouvelle recette"
+        >
+          <span className="text-2xl">+</span>
+          <span className="hidden sm:inline">Créer Recette</span>
+        </button>
+      </div>
 
       {/* Dialog de confirmation */}
       <ConfirmDialog />
+
+      {/* Panneau latéral pour l'aperçu des reçus */}
+      <ReceiptSidebar
+        isOpen={showReceiptSidebar}
+        onClose={() => setShowReceiptSidebar(false)}
+        receiptUrl={selectedReceiptUrl}
+        fileName={selectedReceiptFileName}
+        autoClose={false}
+      />
+
     </div>
   )
 }

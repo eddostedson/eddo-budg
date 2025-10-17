@@ -65,7 +65,15 @@ export function DepenseProvider({ children }: { children: ReactNode }) {
       
       if (newDepense) {
         console.log('✅ Dépense créée avec succès:', newDepense.id)
-        await refreshDepenses()
+        
+        // Ajouter immédiatement à l'état local pour un feedback instantané
+        setDepenses(prev => [newDepense, ...prev])
+        
+        // Rafraîchir en arrière-plan pour s'assurer de la cohérence
+        refreshDepenses().catch(error => {
+          console.error('❌ Erreur lors du rafraîchissement en arrière-plan:', error)
+        })
+        
         return newDepense
       } else {
         console.error('❌ Échec de la création de la dépense - createDepense a retourné null')

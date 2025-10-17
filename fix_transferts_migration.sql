@@ -125,3 +125,22 @@ COMMENT ON COLUMN transferts.date_transfert IS 'Date du transfert';
 -- 13. Message de confirmation
 SELECT 'Table transferts créée avec succès avec toutes les contraintes et politiques RLS.' AS status;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

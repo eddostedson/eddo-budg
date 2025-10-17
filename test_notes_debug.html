@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Notes Debug</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Test Notes Debug</h1>
+    <div id="status">Chargement...</div>
+    <div id="results"></div>
+    
+    <script>
+        // Configuration Supabase (remplacez par vos vraies valeurs)
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL'
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+        
+        async function testNotes() {
+            const statusDiv = document.getElementById('status')
+            const resultsDiv = document.getElementById('results')
+            
+            try {
+                statusDiv.innerHTML = '🔍 Vérification de l\'authentification...'
+                
+                // 1. Vérifier l'authentification
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                
+                if (authError || !user) {
+                    statusDiv.innerHTML = '❌ Utilisateur non authentifié'
+                    resultsDiv.innerHTML = `
+                        <p><strong>Erreur d'authentification:</strong> ${authError?.message || 'Aucun utilisateur connecté'}</p>
+                        <p>Veuillez vous connecter à l'application d'abord.</p>
+                    `
+                    return
+                }
+                
+                statusDiv.innerHTML = '✅ Utilisateur authentifié: ' + user.email
+                
+                // 2. Tester la table notes_depenses
+                statusDiv.innerHTML = '🔍 Test de la table notes_depenses...'
+                
+                const { data: notes, error: notesError } = await supabase
+                    .from('notes_depenses')
+                    .select('*')
+                    .eq('user_id', user.id)
+                
+                if (notesError) {
+                    statusDiv.innerHTML = '❌ Erreur lors de la récupération des notes'
+                    resultsDiv.innerHTML = `
+                        <p><strong>Erreur de la table notes_depenses:</strong></p>
+                        <pre>${JSON.stringify(notesError, null, 2)}</pre>
+                        <p><strong>Solution:</strong> La table notes_depenses n'existe probablement pas. Il faut créer la migration.</p>
+                    `
+                    return
+                }
+                
+                statusDiv.innerHTML = '✅ Table notes_depenses accessible'
+                resultsDiv.innerHTML = `
+                    <h3>Notes trouvées: ${notes.length}</h3>
+                    <pre>${JSON.stringify(notes, null, 2)}</pre>
+                `
+                
+                // 3. Créer une note de test si aucune note n'existe
+                if (notes.length === 0) {
+                    statusDiv.innerHTML = '🔍 Création d\'une note de test...'
+                    
+                    const { data: newNote, error: createError } = await supabase
+                        .from('notes_depenses')
+                        .insert({
+                            user_id: user.id,
+                            libelle: 'Test Note',
+                            montant: 100.00,
+                            description: 'Note de test créée automatiquement',
+                            date_prevue: new Date().toISOString().split('T')[0],
+                            priorite: 'normale',
+                            type: 'depense',
+                            statut: 'en_attente'
+                        })
+                        .select()
+                    
+                    if (createError) {
+                        resultsDiv.innerHTML += `
+                            <h3>❌ Erreur lors de la création de la note de test:</h3>
+                            <pre>${JSON.stringify(createError, null, 2)}</pre>
+                        `
+                    } else {
+                        resultsDiv.innerHTML += `
+                            <h3>✅ Note de test créée avec succès:</h3>
+                            <pre>${JSON.stringify(newNote, null, 2)}</pre>
+                        `
+                    }
+                }
+                
+            } catch (error) {
+                statusDiv.innerHTML = '❌ Erreur inattendue'
+                resultsDiv.innerHTML = `
+                    <p><strong>Erreur:</strong> ${error.message}</p>
+                    <pre>${JSON.stringify(error, null, 2)}</pre>
+                `
+            }
+        }
+        
+        // Lancer le test
+        testNotes()
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

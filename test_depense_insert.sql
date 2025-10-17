@@ -60,3 +60,22 @@ JOIN information_schema.key_column_usage kcu
 WHERE tc.table_name = 'depenses'
 ORDER BY tc.constraint_name;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

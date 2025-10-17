@@ -82,7 +82,7 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
   }
 
   const searchCategories = (query: string): Category[] => {
-    if (!query.trim()) return categories
+    if (!query || !query.trim()) return categories
     
     return categories.filter(category =>
       category.name.toLowerCase().includes(query.toLowerCase())

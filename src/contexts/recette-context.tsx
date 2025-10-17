@@ -12,6 +12,10 @@ interface RecetteContextType {
   refreshRecettes: () => Promise<void>
   getTotalRecettes: () => number
   getTotalDisponible: () => number
+  getTotalCertified: () => number
+  getTotalCertifiedAmount: () => number
+  getCertifiedRecettes: () => Recette[]
+  toggleBankValidation: (recetteId: string, isValidated: boolean) => Promise<void>
 }
 
 const RecetteContext = createContext<RecetteContextType | undefined>(undefined)
@@ -32,13 +36,24 @@ export function RecetteProvider({ children }: { children: ReactNode }) {
         soldeDisponible: r.soldeDisponible
       })))
       
-      setRecettes(supabaseRecettes)
+      // S'assurer que les recettes sont triées par date de création (plus récentes en haut)
+      const sortedRecettes = supabaseRecettes.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      
+      // Debug: Afficher les dates de création pour vérifier le tri
+      console.log('🔍 Tri des recettes par date de création:')
+      sortedRecettes.forEach((recette, index) => {
+        console.log(`${index + 1}. ${recette.libelle} - Créé le: ${new Date(recette.createdAt).toLocaleString('fr-FR')}`)
+      })
+      
+      setRecettes(sortedRecettes)
       
       // Mettre à jour localStorage avec les nouvelles données
       if (typeof window !== 'undefined') {
-        if (supabaseRecettes.length > 0) {
-          localStorage.setItem('recettes', JSON.stringify(supabaseRecettes))
-          console.log('💾 localStorage mis à jour avec les nouvelles recettes')
+        if (sortedRecettes.length > 0) {
+          localStorage.setItem('recettes', JSON.stringify(sortedRecettes))
+          console.log('💾 localStorage mis à jour avec les nouvelles recettes triées')
         } else {
           localStorage.removeItem('recettes')
         }
@@ -58,9 +73,33 @@ export function RecetteProvider({ children }: { children: ReactNode }) {
 
   // Ajouter une recette
   const addRecette = async (recetteData: Omit<Recette, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newRecette = await RecetteService.createRecette(recetteData)
-    if (newRecette) {
-      setRecettes(prev => [newRecette, ...prev])
+    try {
+      console.log('➕ Ajout d\'une nouvelle recette:', recetteData.libelle)
+      const newRecette = await RecetteService.createRecette(recetteData)
+      
+      if (newRecette) {
+        console.log('✅ Recette créée avec succès:', newRecette.id)
+        
+        // Ajouter immédiatement à l'état local pour un feedback instantané
+        setRecettes(prev => {
+          const updated = [newRecette, ...prev]
+          // S'assurer que le tri par date de création est maintenu
+          return updated.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        })
+        
+        // Rafraîchir en arrière-plan pour s'assurer de la cohérence
+        refreshRecettes().catch(error => {
+          console.error('❌ Erreur lors du rafraîchissement en arrière-plan:', error)
+        })
+        
+        return newRecette
+      } else {
+        console.error('❌ Échec de la création de la recette - createRecette a retourné null')
+        throw new Error('Échec de la création de la recette en base de données')
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'ajout de la recette:', error)
+      throw error
     }
   }
   
@@ -88,6 +127,52 @@ export function RecetteProvider({ children }: { children: ReactNode }) {
     return recettes.reduce((total, recette) => total + recette.soldeDisponible, 0)
   }
 
+  // Calculer le solde disponible des recettes certifiées
+  const getTotalCertified = () => {
+    return recettes
+      .filter(recette => recette.validationBancaire === true)
+      .reduce((total, recette) => total + recette.soldeDisponible, 0)
+  }
+
+  // Obtenir les recettes certifiées
+  const getCertifiedRecettes = () => {
+    return recettes.filter(recette => recette.validationBancaire === true)
+  }
+
+  // Calculer le montant total des recettes certifiées (pour les statistiques)
+  const getTotalCertifiedAmount = () => {
+    return recettes
+      .filter(recette => recette.validationBancaire === true)
+      .reduce((total, recette) => total + recette.montant, 0)
+  }
+
+  // Toggle de la validation bancaire
+  const toggleBankValidation = async (recetteId: string, isValidated: boolean) => {
+    try {
+      const success = await RecetteService.toggleBankValidation(recetteId, isValidated)
+      if (success) {
+        // Mettre à jour l'état local
+        setRecettes(prev => prev.map(recette => 
+          recette.id === recetteId 
+            ? { 
+                ...recette, 
+                validationBancaire: isValidated,
+                dateValidationBancaire: isValidated ? new Date().toISOString() : undefined
+              }
+            : recette
+        ))
+        
+        // Forcer un rafraîchissement complet pour s'assurer de la cohérence
+        setTimeout(() => {
+          refreshRecettes()
+        }, 500)
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors du toggle de validation bancaire:', error)
+      throw error
+    }
+  }
+
   return (
     <RecetteContext.Provider
       value={{
@@ -97,7 +182,11 @@ export function RecetteProvider({ children }: { children: ReactNode }) {
         deleteRecette,
         refreshRecettes,
         getTotalRecettes,
-        getTotalDisponible
+        getTotalDisponible,
+        getTotalCertified,
+        getTotalCertifiedAmount,
+        getCertifiedRecettes,
+        toggleBankValidation
       }}
     >
       {children}
