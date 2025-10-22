@@ -73,3 +73,10 @@ AND tablename = 'depenses';
 
 
 
+
+
+
+
+
+
+

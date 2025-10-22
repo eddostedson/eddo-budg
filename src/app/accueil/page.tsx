@@ -7,6 +7,7 @@ import { useRecettes } from '@/contexts/recette-context'
 import { useDepenses } from '@/contexts/depense-context'
 import { useNotes } from '@/contexts/notes-context'
 import { BackupStatus } from '@/components/backup-status'
+import Link from 'next/link'
 
 export default function AccueilPage() {
   const router = useRouter()
@@ -246,6 +247,17 @@ export default function AccueilPage() {
           <p className="text-xl text-gray-600">
             Choisissez une action pour commencer
           </p>
+        </div>
+
+        {/* Bouton d'export temporaire */}
+        <div className="mb-8 flex justify-center">
+          <Link 
+            href="/export"
+            className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+          >
+            <span className="text-2xl">📥</span>
+            Exporter toutes les données (CSV)
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">

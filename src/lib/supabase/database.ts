@@ -147,17 +147,33 @@ export class CategoryService {
   // Créer une nouvelle catégorie
   static async createCategory(category: Omit<Category, 'id' | 'createdAt'>): Promise<Category | null> {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError || !user) {
+        console.error('❌ Erreur d\'authentification lors de la création de catégorie:', authError)
+        return null
+      }
+      
       const { data, error } = await supabase
         .from('categories')
-        .insert({ ...category, user_id: user?.id })
+        .insert({ ...category, user_id: user.id })
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Erreur Supabase lors de la création de catégorie:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        })
+        return null
+      }
+      
+      console.log('✅ Catégorie créée avec succès:', data.id)
       return data
     } catch (error) {
-      console.error('Erreur lors de la création de la catégorie:', error)
+      console.error('❌ Erreur inattendue lors de la création de la catégorie:', error)
       return null
     }
   }
@@ -204,37 +220,45 @@ export class RecetteService {
         return []
       }
 
+      // Debug: Afficher la structure des données reçues
+      console.log('🔍 Structure des données reçues de Supabase:', data?.[0])
+      console.log('🔍 Colonnes disponibles:', data?.[0] ? Object.keys(data[0]) : 'Aucune donnée')
+      
       const recettes = (data || []).map(recette => {
+        // Debug: Afficher les données de chaque recette
+        console.log('🔍 Recette brute de Supabase:', recette)
+        
+        // Utiliser les nouvelles colonnes de la table
         const recetteData = {
           id: recette.id,
           userId: recette.user_id,
-          libelle: recette.libelle,
+          libelle: recette.description || '', // description -> libelle (correction)
           description: recette.description || '',
-          montant: parseFloat(recette.montant),
-          soldeDisponible: parseFloat(recette.solde_disponible),
-          source: recette.source || '',
-          periodicite: recette.periodicite || 'unique',
-          dateReception: recette.date_reception,
-          categorie: recette.categorie || '',
-          statut: recette.statut || 'reçue',
-          validationBancaire: Boolean(recette.validation_bancaire),
-          dateValidationBancaire: recette.date_validation_bancaire || undefined,
+          montant: parseFloat(recette.amount || 0), // amount -> montant (correction)
+          soldeDisponible: parseFloat(recette.amount || 0), // amount -> soldeDisponible (correction)
+          source: '', // Colonne n'existe pas dans la nouvelle structure
+          periodicite: 'unique', // Colonne n'existe pas dans la nouvelle structure
+          dateReception: recette.receipt_date, // receipt_date -> dateReception (correction)
+          categorie: '', // Colonne n'existe pas dans la nouvelle structure
+          statut: 'reçue', // Colonne n'existe pas dans la nouvelle structure
+          validationBancaire: false, // Colonne n'existe pas dans la nouvelle structure
+          dateValidationBancaire: undefined, // Colonne n'existe pas dans la nouvelle structure
           createdAt: recette.created_at,
           updatedAt: recette.updated_at
         }
-        
-        // Log pour débogage
-        if (recette.libelle.includes('RELIQUAT PRET SUR REMISE')) {
+
+        // Log pour débogage ciblé
+        if (recetteData.libelle.includes('RELIQUAT PRET SUR REMISE')) {
           console.log('🔍 Recette RELIQUAT trouvée:', {
             id: recette.id,
-            libelle: recette.libelle,
-            montant: recette.montant,
-            solde_disponible: recette.solde_disponible,
-            validation_bancaire: recette.validation_bancaire,
-            date_validation_bancaire: recette.date_validation_bancaire
+            libelle: recetteData.libelle,
+            montant: recetteData.montant,
+            solde_disponible: recetteData.soldeDisponible,
+            validation_bancaire: recetteData.validationBancaire,
+            date_validation_bancaire: recetteData.dateValidationBancaire
           })
         }
-        
+
         return recetteData
       })
 
@@ -259,15 +283,9 @@ export class RecetteService {
         .from('recettes')
         .insert({
           user_id: user.id,
-          libelle: recette.libelle,
-          description: recette.description,
-          montant: recette.montant,
-          solde_disponible: recette.montant, // Initialement, tout le montant est disponible
-          source: recette.source,
-          periodicite: recette.periodicite || 'unique',
-          date_reception: recette.dateReception || new Date().toISOString().split('T')[0],
-          categorie: recette.categorie || '',
-          statut: recette.statut || 'reçue'
+          description: recette.libelle, // libelle -> description (correction)
+          amount: recette.montant, // montant -> amount (correction)
+          receipt_date: recette.dateReception || new Date().toISOString().split('T')[0] // dateReception -> receipt_date (correction)
         })
         .select()
         .single()
@@ -281,15 +299,15 @@ export class RecetteService {
       return {
         id: data.id,
         userId: data.user_id,
-        libelle: data.libelle,
+        libelle: data.description || '', // description -> libelle (correction)
         description: data.description || '',
-        montant: parseFloat(data.montant),
-        soldeDisponible: parseFloat(data.solde_disponible),
-        source: data.source || '',
-        periodicite: data.periodicite || 'unique',
-        dateReception: data.date_reception,
-        categorie: data.categorie || '',
-        statut: data.statut || 'reçue',
+        montant: parseFloat(data.amount || 0), // amount -> montant (correction)
+        soldeDisponible: parseFloat(data.amount || 0), // amount -> soldeDisponible (correction)
+        source: '', // Colonne n'existe pas dans la nouvelle structure
+        periodicite: 'unique', // Colonne n'existe pas dans la nouvelle structure
+        dateReception: data.receipt_date, // receipt_date -> dateReception (correction)
+        categorie: '', // Colonne n'existe pas dans la nouvelle structure
+        statut: 'reçue', // Colonne n'existe pas dans la nouvelle structure
         createdAt: data.created_at,
         updatedAt: data.updated_at
       }
@@ -309,14 +327,10 @@ export class RecetteService {
       }
 
       const updateData: Record<string, string | number> = {}
-      if (updates.libelle !== undefined) updateData.libelle = updates.libelle
+      if (updates.libelle !== undefined) updateData.description = updates.libelle // libelle -> description (correction)
       if (updates.description !== undefined) updateData.description = updates.description
-      if (updates.montant !== undefined) updateData.montant = updates.montant
-      if (updates.source !== undefined) updateData.source = updates.source
-      if (updates.periodicite !== undefined) updateData.periodicite = updates.periodicite
-      if (updates.dateReception !== undefined) updateData.date_reception = updates.dateReception
-      if (updates.categorie !== undefined) updateData.categorie = updates.categorie
-      if (updates.statut !== undefined) updateData.statut = updates.statut
+      if (updates.montant !== undefined) updateData.amount = updates.montant // montant -> amount (correction)
+      if (updates.dateReception !== undefined) updateData.receipt_date = updates.dateReception // dateReception -> receipt_date (correction)
 
       const { data, error } = await supabase
         .from('recettes')
@@ -335,15 +349,15 @@ export class RecetteService {
       return {
         id: data.id,
         userId: data.user_id,
-        libelle: data.libelle,
+        libelle: data.description || '', // description -> libelle (correction)
         description: data.description || '',
-        montant: parseFloat(data.montant),
-        soldeDisponible: parseFloat(data.solde_disponible),
-        source: data.source || '',
-        periodicite: data.periodicite || 'unique',
-        dateReception: data.date_reception,
-        categorie: data.categorie || '',
-        statut: data.statut || 'reçue',
+        montant: parseFloat(data.amount || 0), // amount -> montant (correction)
+        soldeDisponible: parseFloat(data.amount || 0), // amount -> soldeDisponible (correction)
+        source: '', // Colonne n'existe pas dans la nouvelle structure
+        periodicite: 'unique', // Colonne n'existe pas dans la nouvelle structure
+        dateReception: data.receipt_date, // receipt_date -> dateReception (correction)
+        categorie: '', // Colonne n'existe pas dans la nouvelle structure
+        statut: 'reçue', // Colonne n'existe pas dans la nouvelle structure
         createdAt: data.created_at,
         updatedAt: data.updated_at
       }
@@ -581,24 +595,30 @@ export class DepenseService {
   }
 
   // Créer une nouvelle dépense
-  static async createDepense(depense: Omit<Depense, 'id' | 'createdAt' | 'updatedAt'>): Promise<Depense | null> {
-    try {
-      console.log('🚀 === DÉBUT CRÉATION DÉPENSE ===')
-      console.log('🔐 Vérification de l\'authentification...')
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      
-      if (authError) {
-        console.error('❌ Erreur d\'authentification:', authError)
-        throw new Error("Erreur d'authentification: " + authError.message)
-      }
-      
-      if (!user) {
-        console.error('❌ Utilisateur non authentifié')
-        throw new Error("Utilisateur non authentifié")
-      }
-      
-      console.log('✅ Utilisateur authentifié:', user.id)
-      console.log('📦 Création dépense:', depense.libelle)
+      static async createDepense(depense: Omit<Depense, 'id' | 'createdAt' | 'updatedAt'>): Promise<Depense | null> {
+        try {
+          const startTime = performance.now()
+          console.log('⏱️ [1/4] Début création dépense...')
+          
+          const authStart = performance.now()
+          const { data: { user }, error: authError } = await supabase.auth.getUser()
+          const authTime = Math.round(performance.now() - authStart)
+          
+          if (authTime > 5000) {
+            console.error('🚨 PROBLÈME AUTH: L\'authentification a pris plus de 5 secondes!')
+          }
+          
+          if (authError) {
+            console.error('❌ Erreur d\'authentification:', authError)
+            throw new Error("Erreur d'authentification: " + authError.message)
+          }
+          
+          if (!user) {
+            console.error('❌ Utilisateur non authentifié')
+            throw new Error("Utilisateur non authentifié")
+          }
+          
+          console.log(`⏱️ [2/4] Auth OK (${authTime}ms)`)
 
       const insertData: Record<string, string | number> = {
         user_id: user.id,
@@ -626,29 +646,41 @@ export class DepenseService {
         insertData.receipt_file_name = depense.receiptFileName
       }
       
-      const { data, error } = await supabase
-        .from('depenses')
-        .insert(insertData)
-        .select()
-        .single()
+          console.log(`⏱️ [3/4] Insertion dans Supabase...`)
+          console.log('📦 Données à insérer:', insertData)
+          const insertStart = performance.now()
+          
+          // Test simple sans mise à jour du solde
+          console.log('🧪 Test d\'insertion simple sans mise à jour du solde...')
+          
+          const { data, error } = await supabase
+            .from('depenses_test')  // Utiliser la table de test sans triggers
+            .insert(insertData)
+            .select()
+            .single()
+          
+          const insertTime = Math.round(performance.now() - insertStart)
+          const totalTime = Math.round(performance.now() - startTime)
+          
+          console.log(`⏱️ [4/4] Insertion terminée en ${insertTime}ms`)
+          console.log(`⏱️ 🎯 TOTAL: ${totalTime}ms`)
+          
+          if (insertTime > 5000) {
+            console.error('🚨 PROBLÈME INSERTION: L\'insertion a pris plus de 5 secondes!')
+            console.error('💡 Cause probable: Problème réseau ou configuration Supabase')
+          } else if (insertTime > 2000) {
+            console.warn('⚠️ L\'insertion est lente (>2s) mais acceptable')
+          } else {
+            console.log('✅ Insertion rapide!')
+          }
 
       if (error) {
         console.error('❌ Erreur création dépense:', error.message)
-        console.error('🔍 Données qui ont causé l\'erreur:', insertData)
-        
-        // Afficher l'erreur dans une alerte pour l'utilisateur
-        alert(`Erreur Supabase: ${error.message}\nCode: ${error.code}\nDétails: ${error.details}`)
-        
         throw error
       }
       
-      console.log('✅ Dépense créée dans Supabase avec succès!')
-      console.log('✅ Données retournées:', data)
-      console.log('🔍 ID de la dépense créée:', data.id)
-      console.log('🚀 === FIN CRÉATION DÉPENSE ===')
-      
       // Mapper les données pour le format de l'application
-      const result = {
+      return {
         id: data.id,
         userId: data.user_id,
         recetteId: data.recette_id || undefined,
@@ -662,17 +694,8 @@ export class DepenseService {
         createdAt: data.created_at,
         updatedAt: data.updated_at
       }
-      
-      console.log('✅ Dépense mappée:', result)
-      return result
     } catch (error) {
-      console.error('❌ ERREUR INATTENDUE DANS createDepense:', error)
-      console.error('❌ Type d\'erreur:', typeof error)
-      console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'Pas de stack trace')
-      
-      // Afficher l'erreur dans une alerte pour l'utilisateur
-      alert(`Erreur inattendue: ${error instanceof Error ? error.message : String(error)}`)
-      
+      console.error('❌ Erreur createDepense:', error)
       return null
     }
   }
@@ -732,19 +755,25 @@ export class DepenseService {
   // Supprimer une dépense
   static async deleteDepense(id: number): Promise<boolean> {
     try {
+      const deleteStart = performance.now()
+      console.log('⏱️ [DELETE] Début suppression dépense', id)
+      
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
         console.error('❌ Erreur d\'authentification:', authError)
         return false
       }
+      console.log(`⏱️ [DELETE] Auth OK (${Math.round(performance.now() - deleteStart)}ms)`)
 
       // 1. Récupérer les informations de la dépense pour supprimer le reçu
+      const fetchStart = performance.now()
       const { data: depense, error: fetchError } = await supabase
         .from('depenses')
         .select('receipt_url')
         .eq('id', id)
         .eq('user_id', user.id)
         .single()
+      console.log(`⏱️ [DELETE] Fetch info (${Math.round(performance.now() - fetchStart)}ms)`)
 
       if (fetchError) {
         console.error('❌ Erreur lors de la récupération de la dépense:', fetchError)
@@ -753,43 +782,53 @@ export class DepenseService {
 
       // 2. Supprimer le fichier reçu du stockage si il existe
       if (depense?.receipt_url) {
+        const storageStart = performance.now()
         try {
-          // Extraire le chemin du fichier depuis l'URL
           const urlParts = depense.receipt_url.split('/')
           const fileName = urlParts[urlParts.length - 1]
           const filePath = `${user.id}/${fileName}`
-
-          console.log('🗑️ Suppression du fichier reçu:', filePath)
           
           const { error: storageError } = await supabase.storage
             .from('receipts')
             .remove([filePath])
 
+          console.log(`⏱️ [DELETE] Suppression fichier (${Math.round(performance.now() - storageStart)}ms)`)
+          
           if (storageError) {
-            console.warn('⚠️ Erreur lors de la suppression du fichier reçu (peut être déjà supprimé):', storageError)
-            // On continue même si la suppression du fichier échoue
-          } else {
-            console.log('✅ Fichier reçu supprimé avec succès:', filePath)
+            console.warn('⚠️ Erreur suppression fichier (continué):', storageError)
           }
         } catch (storageError) {
-          console.warn('⚠️ Erreur lors de la suppression du fichier reçu:', storageError)
-          // On continue même si la suppression du fichier échoue
+          console.warn('⚠️ Erreur suppression fichier:', storageError)
         }
       }
 
       // 3. Supprimer l'enregistrement de la dépense
+      console.log('⏱️ [DELETE] Suppression en BDD...')
+      const dbDeleteStart = performance.now()
+      
       const { error } = await supabase
         .from('depenses')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
+      
+      const dbDeleteTime = Math.round(performance.now() - dbDeleteStart)
+      const totalTime = Math.round(performance.now() - deleteStart)
+      
+      console.log(`⏱️ [DELETE] Suppression BDD terminée en ${dbDeleteTime}ms`)
+      console.log(`⏱️ [DELETE] 🎯 TOTAL: ${totalTime}ms`)
+      
+      if (dbDeleteTime > 5000) {
+        console.error('🚨 PROBLÈME: La suppression BDD a pris plus de 5 secondes!')
+        console.error('💡 Cause probable: Trigger en base de données')
+      }
 
       if (error) {
         console.error('❌ Erreur lors de la suppression de la dépense:', error)
         return false
       }
 
-      console.log('✅ Dépense supprimée avec succès:', id)
+      console.log('✅ Dépense supprimée avec succès')
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)

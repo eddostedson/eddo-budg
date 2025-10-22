@@ -8,17 +8,92 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/supabase/browser'
 import { useToast } from '@/contexts/toast-context'
-// Composants de remplacement simples
+// Composant de réinitialisation de mot de passe
 const ResetPasswordModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+  const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const supabase = createClient()
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setMessage(null)
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`
+      })
+
+      if (error) {
+        setMessage({ type: 'error', text: error.message })
+      } else {
+        setMessage({ 
+          type: 'success', 
+          text: 'Email de réinitialisation envoyé ! Vérifiez votre boîte mail.' 
+        })
+        setEmail('')
+      }
+    } catch (error) {
+      setMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Une erreur est survenue'
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!isOpen) return null
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-lg">
+      <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
         <h3 className="text-lg font-semibold mb-4">Réinitialiser le mot de passe</h3>
-        <p className="text-gray-600 mb-4">Fonctionnalité en cours de développement&hellip;</p>
-        <button onClick={onClose} className="bg-blue-500 text-white px-4 py-2 rounded">
-          Fermer
-        </button>
+        
+        {message && (
+          <div className={`p-4 rounded-lg mb-4 ${
+            message.type === 'success' 
+              ? 'bg-green-100 border border-green-400 text-green-700'
+              : 'bg-red-100 border border-red-400 text-red-700'
+          }`}>
+            {message.text}
+          </div>
+        )}
+
+        <form onSubmit={handleResetPassword} className="space-y-4">
+          <div>
+            <label htmlFor="reset-email" className="block text-sm font-medium text-gray-700 mb-2">
+              Adresse email
+            </label>
+            <input
+              id="reset-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="votre@email.com"
+              required
+              disabled={loading}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Envoi...' : 'Envoyer le lien'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )

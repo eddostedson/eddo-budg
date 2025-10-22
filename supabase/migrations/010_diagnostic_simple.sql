@@ -110,3 +110,10 @@ SELECT 'Diagnostic terminé. Vérifiez les résultats ci-dessus.' as message;
 
 
 
+
+
+
+
+
+
+

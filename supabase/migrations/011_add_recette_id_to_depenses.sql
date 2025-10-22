@@ -101,3 +101,10 @@ SELECT 'Migration terminée : recette_id ajouté et trigger de déduction créé
 
 
 
+
+
+
+
+
+
+

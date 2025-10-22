@@ -193,3 +193,10 @@ AND table_name IN ('budgets', 'recettes');
 **Besoin d'aide ?** Partagez les messages d'erreur exacts que vous voyez dans la console Supabase.
 
 
+
+
+
+
+
+
+

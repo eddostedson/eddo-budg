@@ -72,3 +72,10 @@ COMMENT ON COLUMN notes_depenses.statut IS 'Statut de la note (en_attente, conve
 
 
 
+
+
+
+
+
+
+

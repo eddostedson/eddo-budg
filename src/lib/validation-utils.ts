@@ -67,7 +67,8 @@ function levenshteinDistance(str1: string, str2: string): number {
 }
 
 /**
- * Valide une dépense pour éviter les doublons
+ * Valide une dépense (sans vérification de doublons)
+ * Affiche les dépenses similaires comme aide à la navigation
  */
 export function validateDepense(
   libelle: string, 
@@ -84,42 +85,29 @@ export function validateDepense(
     return { isValid: false, errors, warnings }
   }
   
-  // 2. Vérifier les doublons avec les dépenses existantes
+  // 2. Trouver les dépenses similaires pour aide à la navigation
   const normalizedLibelle = normalizeText(libelle)
+  const similarDepenses: string[] = []
   
   for (const existing of existingDepenses) {
     const existingLibelle = normalizeText(existing.libelle)
     
-    // Vérifier si le libellé est identique ou très similaire
-    if (isSimilarText(libelle, existing.libelle, 0.9)) {
-      // Gestion intelligente selon la date
-      if (currentDate && existing.date) {
-        const isSameDay = currentDate === existing.date
-        
-        if (isSameDay) {
-          errors.push(`Une dépense identique existe déjà pour cette date : "${existing.libelle}" (${existing.date})`)
-          warnings.push(`💡 Suggestion : Modifiez la dépense existante ou utilisez un libellé différent (ex: "Achat bananes - 2ème fois")`)
-        } else {
-          warnings.push(`⚠️ Une dépense similaire existe pour une autre date : "${existing.libelle}" (${existing.date})`)
-          warnings.push(`✅ Autorisé car date différente - Le système comprend que c'est un nouvel achat`)
-        }
-      } else {
-        errors.push(`Ce libellé est très similaire à une dépense existante : "${existing.libelle}"`)
-      }
-    }
-    
-    // Vérifier si la description est identique au libellé
-    if (description && isSimilarText(description, libelle, 0.8)) {
-      warnings.push('La description est très similaire au libellé. Considérez la supprimer pour éviter la duplication.')
-    }
-    
-    // Vérifier si la description est identique à une description existante
-    if (description && existing.description && isSimilarText(description, existing.description, 0.9)) {
-      warnings.push('Cette description est très similaire à une dépense existante.')
+    // Vérifier si le libellé est similaire (pour aide à la navigation)
+    if (isSimilarText(libelle, existing.libelle, 0.7)) {
+      similarDepenses.push(`"${existing.libelle}"${existing.date ? ` (${existing.date})` : ''}`)
     }
   }
   
-  // 3. Vérifier si la description contient le libellé (redondance)
+  // 3. Afficher les dépenses similaires comme aide (pas d'erreur)
+  if (similarDepenses.length > 0) {
+    warnings.push(`💡 Dépenses similaires trouvées (pour vous aider à vous retrouver) :`)
+    similarDepenses.forEach(depense => {
+      warnings.push(`   • ${depense}`)
+    })
+    warnings.push(`✅ Vous pouvez continuer - aucune restriction sur les doublons`)
+  }
+  
+  // 4. Vérifier si la description contient le libellé (redondance)
   if (description && normalizeText(description).includes(normalizeText(libelle))) {
     warnings.push('La description contient le libellé. Cela peut créer de la duplication à l\'affichage.')
   }

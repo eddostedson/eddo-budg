@@ -15,6 +15,9 @@ import { HighlightText, shouldHighlight } from '@/lib/highlight-utils'
 import { validateDepense, cleanDescription, suggestAlternativeLabels } from '@/lib/validation-utils'
 import { ReceiptPreview } from '@/components/receipt-preview'
 import { ReceiptSidebar } from '@/components/receipt-sidebar'
+import { SimilarExpensesHelper } from '@/components/similar-expenses-helper'
+import { smartAmountSearch } from '@/lib/search-utils'
+import { isRecetteUtilisable } from '@/lib/shared-data'
 
 export default function DepensesPage() {
   const router = useRouter()
@@ -32,9 +35,20 @@ export default function DepensesPage() {
   // Rafraîchir les recettes quand le modal s'ouvre
   useEffect(() => {
     if (showModal) {
+      console.log('🔄 Rafraîchissement des recettes pour le modal de dépense...')
       refreshRecettes()
     }
   }, [showModal, refreshRecettes])
+
+  // Debug: Afficher les recettes disponibles (désactivé pour optimisation)
+  // useEffect(() => {
+  //   console.log('📊 Recettes disponibles pour les dépenses:', recettes.length)
+  // }, [recettes])
+
+  // Debug: Afficher les dépenses et leurs recetteId (désactivé pour optimisation)
+  // useEffect(() => {
+  //   console.log('💰 Dépenses:', depenses.length)
+  // }, [depenses])
 
   // Écouter les mises à jour de recettes depuis d'autres pages
   useEffect(() => {
@@ -77,6 +91,8 @@ export default function DepensesPage() {
   const [showReceiptSidebar, setShowReceiptSidebar] = useState(false)
   const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string>('')
   const [selectedReceiptFileName, setSelectedReceiptFileName] = useState<string>('')
+  const [similarExpenses, setSimilarExpenses] = useState<Array<{libelle: string, date?: string, montant?: number}>>([])
+  const [showSimilarHelper, setShowSimilarHelper] = useState(false)
 
   // États pour les montants multiples
   const [expenseItems, setExpenseItems] = useState<Array<{id: string, libelle: string, montant: string}>>([
@@ -134,14 +150,12 @@ export default function DepensesPage() {
       return matchDepenseLibelle || matchRecetteLibelle
     })()
     
-    // Recherche par montant : inclut le montant de la dépense, le montant initial et le solde disponible de la recette
+    // Recherche par montant : recherche intelligente
     const matchMontant = !searchFilters.montant || (() => {
       const searchValue = searchFilters.montant
-      const searchNum = parseFloat(searchValue)
       
-      // Recherche dans le montant de la dépense
-      const matchDepenseMontant = depense.montant.toString().includes(searchValue) ||
-        Math.abs(depense.montant - searchNum) < 0.01
+      // Recherche intelligente dans le montant de la dépense
+      const matchDepenseMontant = smartAmountSearch(depense.montant, searchValue)
       
       // Recherche dans la recette associée (montant initial et solde disponible)
       const recetteAssociee = recettes.find(r => r.id === depense.recetteId)
@@ -149,13 +163,8 @@ export default function DepensesPage() {
       let matchSoldeDisponible = false
       
       if (recetteAssociee) {
-        // Recherche dans le montant initial de la recette
-        matchRecetteMontant = recetteAssociee.montant.toString().includes(searchValue) ||
-          Math.abs(recetteAssociee.montant - searchNum) < 0.01
-        
-        // Recherche dans le solde disponible de la recette
-        matchSoldeDisponible = recetteAssociee.soldeDisponible.toString().includes(searchValue) ||
-          Math.abs(recetteAssociee.soldeDisponible - searchNum) < 0.01
+        matchRecetteMontant = smartAmountSearch(recetteAssociee.montant, searchValue)
+        matchSoldeDisponible = smartAmountSearch(recetteAssociee.soldeDisponible, searchValue)
       }
       
       return matchDepenseMontant || matchRecetteMontant || matchSoldeDisponible
@@ -182,26 +191,28 @@ export default function DepensesPage() {
     setCurrentPage(1)
   }, [searchFilters])
 
-  // Auto-scroll vers la nouvelle dépense et surlignage
+  // Auto-scroll vers la nouvelle dépense et surlignage (optimisé)
   useEffect(() => {
     if (newlyAddedId && filteredDepenses.length > 0) {
-      // Attendre que le DOM soit mis à jour
-      setTimeout(() => {
+      // Attendre que le DOM soit mis à jour (réduit de 100ms à 50ms)
+      const scrollTimeout = setTimeout(() => {
         const element = document.getElementById(`depense-${newlyAddedId}`)
         if (element) {
-          // Scroll vers l'élément
+          // Scroll instantané au lieu de smooth pour plus de rapidité
           element.scrollIntoView({ 
-            behavior: 'smooth', 
+            behavior: 'instant', 
             block: 'center' 
           })
           
-          // Supprimer le surlignage après 5 secondes
+          // Supprimer le surlignage après 3 secondes au lieu de 5
           setTimeout(() => {
             setHighlightedRow(null)
             setNewlyAddedId(null)
-          }, 5000)
+          }, 3000)
         }
-      }, 100)
+      }, 50)
+      
+      return () => clearTimeout(scrollTimeout)
     }
   }, [newlyAddedId, filteredDepenses])
 
@@ -218,14 +229,14 @@ export default function DepensesPage() {
     // Vérifier qu'au moins un montant est saisi
     if (totalExpenseAmount <= 0) return false
     
-    // Vérifier qu'une catégorie est sélectionnée
-    if (!formData.categorie || formData.categorie.trim() === '') return false
+    // Catégorie désactivée pour optimisation
+    // if (!formData.categorie || formData.categorie.trim() === '') return false
     
     // Vérifier qu'une date est saisie
     if (!formData.date) return false
     
     return true
-  }, [selectedRecetteId, totalExpenseAmount, formData.categorie, formData.date])
+  }, [selectedRecetteId, totalExpenseAmount, formData.date])
 
   if (loading) {
     return (
@@ -424,7 +435,7 @@ export default function DepensesPage() {
       
       const libellePrincipal = expenseItems.find(item => item.libelle && item.libelle.trim())?.libelle || 'Dépense'
       
-      // Validation anti-doublons avec gestion intelligente des dates
+      // Validation avec aide à la navigation (plus de blocage sur les doublons)
       const validation = validateDepense(libellePrincipal, detailMontants, depenses, formData.date)
       
       if (!validation.isValid) {
@@ -433,9 +444,26 @@ export default function DepensesPage() {
         return
       }
       
-      // Afficher les avertissements si nécessaire
+      // Collecter les dépenses similaires pour affichage d'aide
       if (validation.warnings.length > 0) {
-        showWarning('Avertissements', validation.warnings.join('\n'))
+        const similarExpensesData = depenses
+          .filter(depense => {
+            const normalizedLibelle = libellePrincipal.toLowerCase().trim()
+            const normalizedExisting = depense.libelle.toLowerCase().trim()
+            return normalizedLibelle !== normalizedExisting && 
+                   (normalizedLibelle.includes(normalizedExisting) || 
+                    normalizedExisting.includes(normalizedLibelle))
+          })
+          .map(depense => ({
+            libelle: depense.libelle,
+            date: depense.date,
+            montant: depense.montant
+          }))
+        
+        if (similarExpensesData.length > 0) {
+          setSimilarExpenses(similarExpensesData)
+          setShowSimilarHelper(true)
+        }
       }
       
       // Nettoyer la description pour éviter les redondances
@@ -447,48 +475,64 @@ export default function DepensesPage() {
         montant: totalExpenseAmount,
         date: formData.date,
         description: descriptionFinale,
-        categorie: formData.categorie,
+        // Catégorie désactivée pour optimisation
+        // categorie: formData.categorie,
         receiptUrl: receiptUrl || undefined,
         receiptFileName: receiptFileName || undefined
       }
 
-      console.log('📝 Envoi des données de dépense:', depenseData)
+      const pageStart = performance.now()
+      console.log('⏱️ [PAGE] Début handleSubmit...')
 
-      if (editingDepense) {
-        // Mise à jour de la dépense existante
-        console.log('🔄 Mise à jour de la dépense:', editingDepense.id)
-        await updateDepense(editingDepense.id, depenseData)
-        showSuccess(
-          "Dépense mise à jour",
-          "Votre dépense a été modifiée avec succès !"
+      try {
+        if (editingDepense) {
+          // Mise à jour de la dépense existante
+          await updateDepense(editingDepense.id, depenseData)
+          
+          // Fermer le modal et afficher le succès
+          resetForm()
+          setShowModal(false)
+          showSuccess(
+            "✅ Dépense mise à jour",
+            "Votre dépense a été modifiée avec succès !"
+          )
+          
+          // Rafraîchir en arrière-plan
+          Promise.all([refreshDepenses(), refreshRecettes()])
+        } else {
+          // Création d'une nouvelle dépense
+          const addStart = performance.now()
+          const newDepense = await addDepense(depenseData)
+          console.log(`⏱️ [PAGE] addDepense terminé (${Math.round(performance.now() - addStart)}ms)`)
+          
+          // Fermer le modal IMMÉDIATEMENT
+          resetForm()
+          setShowModal(false)
+          
+          if (newDepense) {
+            showSuccess(
+              "✅ Dépense créée",
+              "Votre nouvelle dépense a été enregistrée avec succès !"
+            )
+            
+            // Marquer pour le scroll et le surlignage (sans attendre)
+            setTimeout(() => {
+              setNewlyAddedId(newDepense.id)
+              setHighlightedRow(newDepense.id)
+            }, 100)
+          }
+          
+          console.log(`⏱️ [PAGE] 🎯 TOTAL: ${Math.round(performance.now() - pageStart)}ms`)
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors de l\'enregistrement:', error)
+        showError(
+          "Erreur d'enregistrement",
+          "Une erreur est survenue. Veuillez réessayer."
         )
-        
-        // Fermer le modal immédiatement après la notification
-        resetForm()
-        setShowModal(false)
-      } else {
-        await addDepense(depenseData)
-        showSuccess(
-          "Dépense créée",
-          "Votre nouvelle dépense a été enregistrée avec succès !"
-        )
-        
-        // Fermer le modal immédiatement après la notification
-        resetForm()
-        setShowModal(false)
-        
-        // Marquer la nouvelle dépense pour le scroll et le surlignage
-        // On utilise un ID temporaire basé sur le timestamp
-        const tempId = Date.now()
-        setNewlyAddedId(tempId)
-        setHighlightedRow(tempId)
+        setIsSubmitting(false)
+        return
       }
-
-      // Rafraîchir les données en parallèle pour optimiser les performances
-      await Promise.all([
-        refreshDepenses(),
-        refreshRecettes()
-      ])
       
       // Notifier les autres composants qu'une dépense a été ajoutée
       if (typeof window !== 'undefined') {
@@ -830,12 +874,24 @@ export default function DepensesPage() {
               <div className="text-8xl mb-6">💸</div>
               <h3 className="text-2xl font-bold text-gray-900 mb-3">Aucune dépense</h3>
               <p className="text-gray-600 mb-6">Commencez par créer votre première dépense</p>
-              <button
-                onClick={handleOpenModal}
-                className="bg-gradient-to-r from-red-600 to-orange-600 text-white px-8 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
-              >
-                + Créer une dépense
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    console.log('🔄 Rechargement forcé des données...')
+                    refreshRecettes()
+                    refreshDepenses()
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                  🔄 Debug
+                </button>
+                <button
+                  onClick={handleOpenModal}
+                  className="bg-gradient-to-r from-red-600 to-orange-600 text-white px-8 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
+                >
+                  + Créer une dépense
+                </button>
+              </div>
             </div>
           ) : (
             <>
@@ -863,7 +919,7 @@ export default function DepensesPage() {
                         <span className="ml-2 text-xs text-gray-500">(trié par création)</span>
                       </th>
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Libellé</th>
-                      <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Catégorie</th>
+                      {/* <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Catégorie</th> */}
                       <th className="text-left py-4 px-6 text-sm font-semibold text-gray-700">Recette Source</th>
                       <th className="text-right py-4 px-6 text-sm font-semibold text-gray-700">Solde Initial</th>
                       <th className="text-right py-4 px-6 text-sm font-semibold text-gray-700">Disponible</th>
@@ -875,6 +931,7 @@ export default function DepensesPage() {
                   <tbody>
                     {paginatedDepenses.map((depense) => {
                     const recetteLiee = recettes.find(r => r.id === depense.recetteId)
+                    
                     const isHighlighted = highlightedRow === depense.id
                     const isLibelleMatch = shouldHighlight(depense.libelle, searchFilters.libelle)
                     const isDescriptionMatch = depense.description && shouldHighlight(depense.description, searchFilters.libelle)
@@ -917,7 +974,8 @@ export default function DepensesPage() {
                             </div>
                           )}
                         </td>
-                        <td className="py-4 px-6 text-sm">
+                        {/* Catégorie désactivée pour optimisation */}
+                        {/* <td className="py-4 px-6 text-sm">
                           {depense.categorie ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                               🏷️ {depense.categorie}
@@ -925,7 +983,7 @@ export default function DepensesPage() {
                           ) : (
                             <span className="italic text-gray-400">Non définie</span>
                           )}
-                        </td>
+                        </td> */}
                         <td className="py-4 px-6 text-sm">
                           {recetteLiee ? (
                             <button
@@ -936,10 +994,17 @@ export default function DepensesPage() {
                               className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium hover:underline"
                             >
                               <span>💰</span>
-                              {recetteLiee.libelle}
+                              {recetteLiee.libelle || `Recette ${recetteLiee.id.substring(0, 8)}`}
                             </button>
                           ) : (
-                            <span className="italic text-gray-400">Aucune</span>
+                            <div className="italic text-gray-400">
+                              Aucune
+                              {depense.recetteId && (
+                                <div className="text-xs text-red-500 mt-1">
+                                  ID: {depense.recetteId.substring(0, 8)}...
+                                </div>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="py-4 px-6 text-right">
@@ -1106,6 +1171,16 @@ export default function DepensesPage() {
             </div>
             
             <div className="flex-1 overflow-y-auto">
+              {/* Aide pour les dépenses similaires */}
+              {showSimilarHelper && (
+                <div className="p-6">
+                  <SimilarExpensesHelper 
+                    similarExpenses={similarExpenses}
+                    onClose={() => setShowSimilarHelper(false)}
+                  />
+                </div>
+              )}
+              
               <form onSubmit={handleSubmit} className="p-8 space-y-6">
               {/* Sélection de la recette - Card moderne */}
               <div className="group">
@@ -1126,7 +1201,7 @@ export default function DepensesPage() {
                     required
                   >
                     <option value="">-- Choisissez la source --</option>
-                    {recettes.filter(recette => recette.statutCloture !== 'cloturee').map(recette => {
+                    {recettes.filter(recette => isRecetteUtilisable(recette)).map(recette => {
                       // Calculer le solde correct en temps réel
                       const depensesLiees = depenses.filter(d => d.recetteId === recette.id)
                       const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
@@ -1360,8 +1435,8 @@ export default function DepensesPage() {
                 />
               </div>
 
-              {/* Catégorie */}
-              <div className="group">
+              {/* Catégorie - DÉSACTIVÉE pour optimisation des performances */}
+              {/* <div className="group">
                 <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
                   <span className="text-xl">🏷️</span>
                   Catégorie
@@ -1372,7 +1447,7 @@ export default function DepensesPage() {
                   placeholder="Sélectionner ou créer une catégorie..."
                   className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-red-50 border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-4 focus:ring-red-100 transition-all font-medium"
                 />
-              </div>
+              </div> */}
 
               {/* Bouton pour afficher/masquer le champ reçu */}
               <div className="group">

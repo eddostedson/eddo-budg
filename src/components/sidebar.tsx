@@ -85,6 +85,18 @@ const sidebarItems = [
     icon: '💾',
     description: 'Toutes les tables'
   },
+  { 
+    href: '/export', 
+    label: 'Export CSV', 
+    icon: '📥',
+    description: 'Exporter les données'
+  },
+  { 
+    href: '/restore', 
+    label: 'Restaurer', 
+    icon: '🔄',
+    description: 'Restaurer depuis JSON'
+  },
 ]
 
 const bottomItems = [

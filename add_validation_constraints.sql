@@ -208,3 +208,10 @@ ON recettes (user_id, lower(trim(libelle)));
 
 
 
+
+
+
+
+
+
+

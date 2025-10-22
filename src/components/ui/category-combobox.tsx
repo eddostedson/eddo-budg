@@ -107,12 +107,18 @@ export function CategoryCombobox({
     inputRef.current?.blur()
   }
 
-  const handleCreateNewCategory = () => {
+  const handleCreateNewCategory = async () => {
     if (value.trim()) {
-      addCategory(value.trim())
-      setIsOpen(false)
-      setHighlightedIndex(-1)
-      inputRef.current?.blur()
+      try {
+        const newCategory = await addCategory(value.trim())
+        if (newCategory) {
+          setIsOpen(false)
+          setHighlightedIndex(-1)
+          inputRef.current?.blur()
+        }
+      } catch (error) {
+        console.error('Erreur lors de la création de la catégorie:', error)
+      }
     }
   }
 

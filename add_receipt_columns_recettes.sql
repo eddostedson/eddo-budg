@@ -35,3 +35,10 @@ SELECT 'Colonnes pour les reçus ajoutées avec succès à la table recettes' as
 
 
 
+
+
+
+
+
+
+

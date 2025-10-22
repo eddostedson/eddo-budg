@@ -13,13 +13,10 @@ export class TransfertService {
         return []
       }
 
+      // On évite les jointures implicites qui peuvent échouer si les noms de FK diffèrent.
       const { data, error } = await supabase
         .from('transferts')
-        .select(`
-          *,
-          recette_source:recettes!transferts_recette_source_id_fkey(libelle),
-          recette_destination:recettes!transferts_recette_destination_id_fkey(libelle)
-        `)
+        .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
@@ -33,7 +30,7 @@ export class TransfertService {
         userId: transfert.user_id,
         recetteSourceId: transfert.recette_source_id,
         recetteDestinationId: transfert.recette_destination_id,
-        montant: parseFloat(transfert.montant),
+        montant: transfert.montant != null ? parseFloat(transfert.montant) : 0,
         description: transfert.description || '',
         dateTransfert: transfert.date_transfert,
         createdAt: transfert.created_at,
@@ -188,6 +185,11 @@ export class TransfertService {
     }
   }
 }
+
+
+
+
+
 
 
 

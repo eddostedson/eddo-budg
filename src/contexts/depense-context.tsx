@@ -59,29 +59,29 @@ export function DepenseProvider({ children }: { children: ReactNode }) {
 
   // Ajouter une dépense
   const addDepense = async (depense: Omit<Depense, 'id' | 'createdAt' | 'updatedAt'>) => {
-    try {
-      console.log('➕ Ajout d\'une nouvelle dépense:', depense.libelle)
-      const newDepense = await DepenseService.createDepense(depense)
+    const contextStart = performance.now()
+    console.log('⏱️ [CONTEXT] Début addDepense...')
+    
+    const serviceStart = performance.now()
+    const newDepense = await DepenseService.createDepense(depense)
+    console.log(`⏱️ [CONTEXT] DepenseService.createDepense terminé (${Math.round(performance.now() - serviceStart)}ms)`)
+    
+    if (newDepense) {
+      // Ajouter immédiatement à l'état local pour un feedback instantané
+      setDepenses(prev => [newDepense, ...prev])
+      console.log(`⏱️ [CONTEXT] ✅ addDepense terminé (${Math.round(performance.now() - contextStart)}ms)`)
       
-      if (newDepense) {
-        console.log('✅ Dépense créée avec succès:', newDepense.id)
-        
-        // Ajouter immédiatement à l'état local pour un feedback instantané
-        setDepenses(prev => [newDepense, ...prev])
-        
-        // Rafraîchir en arrière-plan pour s'assurer de la cohérence
+      // Rafraîchir en arrière-plan (ne pas attendre)
+      setTimeout(() => {
         refreshDepenses().catch(error => {
           console.error('❌ Erreur lors du rafraîchissement en arrière-plan:', error)
         })
-        
-        return newDepense
-      } else {
-        console.error('❌ Échec de la création de la dépense - createDepense a retourné null')
-        throw new Error('Échec de la création de la dépense en base de données')
-      }
-    } catch (error) {
-      console.error('❌ Erreur lors de l\'ajout de la dépense:', error)
-      throw error
+      }, 500)
+      
+      return newDepense
+    } else {
+      console.error('❌ Échec de la création de la dépense')
+      throw new Error('Échec de la création de la dépense en base de données')
     }
   }
 

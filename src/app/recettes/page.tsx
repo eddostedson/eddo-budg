@@ -19,6 +19,8 @@ import { ReceiptSidebar } from '@/components/receipt-sidebar'
 import { BankValidationBadge } from '@/components/bank-validation-badge'
 import { CertifiedSummary } from '@/components/certified-summary'
 import { CertifiedDebug } from '@/components/certified-debug'
+import { RecetteStatusBadge } from '@/components/recette-status-badge'
+import { isRecetteEpuisee, isRecetteUtilisable } from '@/lib/shared-data'
 
 const COLORS = [
   'bg-purple-500',
@@ -348,6 +350,10 @@ export default function RecettesPage() {
   // Séparer les recettes actives et clôturées
   const recettesActives = recettes.filter(recette => recette.statutCloture === 'active' || !recette.statutCloture)
   const recettesCloturees = recettes.filter(recette => recette.statutCloture === 'cloturee')
+
+  // Séparer les recettes actives en utilisables et épuisées
+  const recettesUtilisables = recettesActives.filter(recette => isRecetteUtilisable(recette))
+  const recettesEpuisees = recettesActives.filter(recette => isRecetteEpuisee(recette))
 
   // Filtrer les recettes selon les critères de recherche
   const filteredRecettesActives = recettesActives.filter(recette => {
@@ -856,6 +862,14 @@ export default function RecettesPage() {
                   )}
                 </div>
                 
+                {/* Badge de statut de la recette */}
+                <div className="mb-3">
+                  <RecetteStatusBadge 
+                    recette={recette}
+                    showDetails={true}
+                  />
+                </div>
+                
                 {/* Badge de validation bancaire */}
                 <div className="mb-4">
                   <BankValidationBadge 
@@ -983,6 +997,145 @@ export default function RecettesPage() {
           </div>
         )}
 
+        {/* Section des Recettes Épuisées */}
+        {recettesEpuisees.length > 0 && (
+          <div className="mt-12">
+            <div className="bg-gradient-to-r from-red-600 via-orange-500 to-red-600 rounded-2xl p-6 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-bold text-white flex items-center gap-3">
+                    <span className="text-4xl">⚠️</span>
+                    Recettes Épuisées
+                  </h2>
+                  <p className="text-red-100 text-lg mt-2">Recettes avec solde disponible = 0 (mais toujours visibles pour l'historique)</p>
+                </div>
+                <div className="bg-white/20 backdrop-blur-lg rounded-xl px-4 py-2">
+                  <span className="text-2xl font-bold text-white">{recettesEpuisees.length}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {recettesEpuisees.map((recette, index) => {
+                const isHighlighted = highlightedRow === parseInt(recette.id)
+                const isLibelleMatch = shouldHighlight(recette.libelle, searchFilters.libelle)
+                const isDescriptionMatch = recette.description && shouldHighlight(recette.description, searchFilters.libelle)
+                const hasSearchMatch = isLibelleMatch || isDescriptionMatch
+                
+                // Calculer le solde correct en temps réel
+                const depensesLiees = depenses.filter(d => d.recetteId === recette.id)
+                const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
+                const soldeCorrect = recette.montant - totalDepenses
+                
+                return (
+                  <div
+                    key={recette.id}
+                    className={`relative bg-white/60 backdrop-blur-sm rounded-2xl p-6 border-2 transition-all duration-300 hover:shadow-xl hover:scale-105 ${
+                      isHighlighted 
+                        ? 'border-yellow-400 shadow-lg scale-105' 
+                        : 'border-gray-200 hover:border-gray-300'
+                    } ${hasSearchMatch ? 'ring-2 ring-yellow-400' : ''}`}
+                    style={{
+                      animationDelay: `${index * 100}ms`,
+                      animation: isHighlighted ? 'pulse 2s infinite' : 'none'
+                    }}
+                  >
+                    {/* Indicateur de correspondance de recherche */}
+                    {hasSearchMatch && (
+                      <div className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full text-xs font-bold shadow-lg">
+                        🔍
+                      </div>
+                    )}
+
+                    {/* En-tête avec couleur et source */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-full ${COLORS[index % COLORS.length]}`}></div>
+                        <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+                          {recette.source}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(recette.dateReception).toLocaleDateString('fr-FR')}
+                      </div>
+                    </div>
+
+                    {/* Libellé avec mise en surbrillance */}
+                    <div className="mb-4">
+                      <h3 className="text-lg font-bold text-gray-900 mb-2">
+                        {isLibelleMatch ? (
+                          <HighlightText text={recette.libelle} searchTerm={searchFilters.libelle} />
+                        ) : (
+                          recette.libelle
+                        )}
+                      </h3>
+                      {recette.description && (
+                        <p className="text-sm text-gray-600">
+                          {isDescriptionMatch ? (
+                            <HighlightText text={recette.description} searchTerm={searchFilters.libelle} />
+                          ) : (
+                            recette.description
+                          )}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Montant et solde */}
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-gray-700">💰 Montant Initial</span>
+                        <span className="text-lg font-bold text-gray-800">{formatCurrency(recette.montant)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-red-700">⚠️ Solde Disponible</span>
+                        <span className="text-xl font-bold text-red-600">{formatCurrency(soldeCorrect)}</span>
+                      </div>
+                      {totalDepenses > 0 && (
+                        <p className="text-xs text-red-600 mt-1">
+                          Dépensé : {formatCurrency(totalDepenses)}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Badge de statut de la recette */}
+                    <div className="mb-3">
+                      <RecetteStatusBadge 
+                        recette={recette}
+                        showDetails={true}
+                      />
+                    </div>
+                    
+                    {/* Badge de validation bancaire */}
+                    <div className="mb-4">
+                      <BankValidationBadge 
+                        recette={recette}
+                        onToggleValidation={toggleBankValidation}
+                        className="w-full"
+                      />
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => router.push(`/recettes/${recette.id}`)}
+                        className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        👁️ Voir
+                      </button>
+                      <button
+                        onClick={() => setEditingRecette(recette)}
+                        className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        ✏️ Modifier
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Section des Recettes Clôturées */}
         {recettesCloturees.length > 0 && (
           <div className="mt-12">
@@ -993,7 +1146,7 @@ export default function RecettesPage() {
                     <span className="text-4xl">🔒</span>
                     Recettes Clôturées
                   </h2>
-                  <p className="text-orange-100 text-lg mt-2">Recettes avec solde épuisé (solde = 0)</p>
+                  <p className="text-orange-100 text-lg mt-2">Recettes manuellement clôturées</p>
                 </div>
                 <div className="bg-white/20 backdrop-blur-lg rounded-xl px-4 py-2">
                   <span className="text-2xl font-bold text-white">{recettesCloturees.length}</span>

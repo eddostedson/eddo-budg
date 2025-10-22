@@ -46,7 +46,6 @@ export interface Recette {
   description: string
   montant: number
   soldeDisponible: number
-  statutCloture: 'active' | 'cloturee' // Nouveau: statut de clôture
   source: string // Salaire, Prime, Freelance, etc.
   periodicite: 'unique' | 'mensuelle' | 'hebdomadaire' | 'annuelle'
   dateReception: string
@@ -58,6 +57,16 @@ export interface Recette {
   dateValidationBancaire?: string // Nouveau: date de validation bancaire
   createdAt: string
   updatedAt: string
+}
+
+// Fonction utilitaire pour vérifier si une recette est épuisée
+export function isRecetteEpuisee(recette: Recette): boolean {
+  return recette.soldeDisponible <= 0
+}
+
+// Fonction utilitaire pour vérifier si une recette est utilisable pour des dépenses
+export function isRecetteUtilisable(recette: Recette): boolean {
+  return recette.soldeDisponible > 0 && recette.statut !== 'annulée'
 }
 
 // ✅ Interface pour les DÉPENSES

@@ -1,19 +1,24 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
-import { useNotifications } from '@/contexts/notification-context'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 export default function ResetPasswordPage() {
-  const router = useRouter()
-  const supabase = createClient()
-  const { showSuccess, showError } = useNotifications()
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [isValidSession, setIsValidSession] = useState(false)
-  const [isCheckingSession, setIsCheckingSession] = useState(true)
+  const [checkingSession, setCheckingSession] = useState(true)
+  
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const supabase = createClient()
 
   useEffect(() => {
     const checkSession = async () => {
@@ -22,61 +27,75 @@ export default function ResetPasswordPage() {
         
         if (error) {
           console.error('Erreur lors de la vérification de la session:', error)
-          showError('Erreur', 'Session invalide. Veuillez demander un nouveau lien de réinitialisation.')
-          router.push('/')
+          setMessage({ type: 'error', text: 'Session invalide. Veuillez demander un nouveau lien de réinitialisation.' })
+          setCheckingSession(false)
           return
         }
 
         if (!session) {
-          showError('Erreur', 'Aucune session active. Veuillez demander un nouveau lien de réinitialisation.')
-          router.push('/')
+          setMessage({ type: 'error', text: 'Session expirée. Veuillez demander un nouveau lien de réinitialisation.' })
+          setCheckingSession(false)
           return
         }
 
         setIsValidSession(true)
+        setCheckingSession(false)
       } catch (error) {
-        console.error('Erreur inattendue:', error)
-        showError('Erreur', 'Une erreur inattendue s\'est produite.')
-        router.push('/')
-      } finally {
-        setIsCheckingSession(false)
+        console.error('Erreur lors de la vérification de la session:', error)
+        setMessage({ type: 'error', text: 'Erreur lors de la vérification de la session.' })
+        setCheckingSession(false)
       }
     }
 
     checkSession()
-  }, [supabase.auth, router, showError])
+  }, [supabase.auth])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+    setLoading(true)
+    setMessage(null)
+
     if (password !== confirmPassword) {
-      showError('Erreur', 'Les mots de passe ne correspondent pas')
+      setMessage({ type: 'error', text: 'Les mots de passe ne correspondent pas' })
+      setLoading(false)
       return
     }
 
     if (password.length < 6) {
-      showError('Erreur', 'Le mot de passe doit contenir au moins 6 caractères')
+      setMessage({ type: 'error', text: 'Le mot de passe doit contenir au moins 6 caractères' })
+      setLoading(false)
       return
     }
 
     try {
-      setIsLoading(true)
       const { error } = await supabase.auth.updateUser({
         password: password
       })
 
-      if (error) throw error
-
-      showSuccess('Succès', 'Votre mot de passe a été mis à jour avec succès')
-      router.push('/')
-    } catch (error: any) {
-      showError('Erreur', error.message || 'Impossible de mettre à jour le mot de passe')
+      if (error) {
+        setMessage({ type: 'error', text: error.message })
+      } else {
+        setMessage({ 
+          type: 'success', 
+          text: 'Mot de passe mis à jour avec succès ! Redirection vers la page de connexion...' 
+        })
+        
+        // Rediriger vers la page de connexion après 2 secondes
+        setTimeout(() => {
+          router.push('/auth?message=password-updated')
+        }, 2000)
+      }
+    } catch (error) {
+      setMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Une erreur est survenue'
+      })
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  if (isCheckingSession) {
+  if (checkingSession) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -89,95 +108,101 @@ export default function ResetPasswordPage() {
 
   if (!isValidSession) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Session invalide</h2>
-          <p className="text-gray-600 mb-4">Veuillez demander un nouveau lien de réinitialisation.</p>
-          <button
-            onClick={() => router.push('/')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Retour à l'accueil
-          </button>
-        </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl text-red-600">Session Invalide</CardTitle>
+            <CardDescription>
+              Votre lien de réinitialisation est expiré ou invalide
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {message && (
+              <div className={`p-4 rounded-lg ${
+                message.type === 'success' 
+                  ? 'bg-green-100 border border-green-400 text-green-700'
+                  : 'bg-red-100 border border-red-400 text-red-700'
+              }`}>
+                {message.text}
+              </div>
+            )}
+            
+            <div className="text-center space-y-4">
+              <p className="text-gray-600">
+                Veuillez demander un nouveau lien de réinitialisation depuis la page de connexion.
+              </p>
+              <Button 
+                onClick={() => router.push('/auth')}
+                className="w-full"
+              >
+                Retour à la connexion
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Nouveau mot de passe
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Nouveau mot de passe</CardTitle>
+          <CardDescription>
             Entrez votre nouveau mot de passe
-          </p>
-        </div>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {message && (
+            <div className={`p-4 rounded-lg mb-6 ${
+              message.type === 'success' 
+                ? 'bg-green-100 border border-green-400 text-green-700'
+                : 'bg-red-100 border border-red-400 text-red-700'
+            }`}>
+              {message.text}
+            </div>
+          )}
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Nouveau mot de passe
-              </label>
-              <input
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="password">Nouveau mot de passe</Label>
+              <Input
                 id="password"
-                name="password"
                 type="password"
-                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Votre nouveau mot de passe"
+                placeholder="••••••••"
+                required
+                disabled={loading}
+                className="w-full"
               />
             </div>
 
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirmer le mot de passe
-              </label>
-              <input
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
+              <Input
                 id="confirmPassword"
-                name="confirmPassword"
                 type="password"
-                required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Confirmez votre nouveau mot de passe"
+                placeholder="••••••••"
+                required
+                disabled={loading}
+                className="w-full"
               />
             </div>
-          </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            <Button 
+              type="submit" 
+              disabled={loading}
+              className="w-full"
             >
-              {isLoading ? 'Mise à jour...' : 'Mettre à jour le mot de passe'}
-            </button>
-          </div>
-        </form>
-      </div>
+              {loading ? 'Mise à jour...' : 'Mettre à jour le mot de passe'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }
-
-
-
-
-
-
