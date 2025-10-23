@@ -7,7 +7,7 @@ import { formatCurrency } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { EditIcon, Trash2Icon, EyeIcon } from 'lucide-react'
+import { EditIcon, Trash2Icon, EyeIcon, DollarSignIcon, AlertTriangleIcon, XCircleIcon } from 'lucide-react'
 import SoldeDisponibleEnhanced from './solde-disponible-enhanced'
 
 interface RecetteCardEnhancedProps {
@@ -25,6 +25,29 @@ const RecetteCardEnhanced: React.FC<RecetteCardEnhancedProps> = ({
 }) => {
   const totalDepenses = recette.montant - recette.soldeDisponible
   const pourcentageUtilise = (totalDepenses / recette.montant) * 100
+
+  // Fonction pour déterminer la couleur de la bande latérale
+  const getAvailabilityColorClass = (recette: Recette) => {
+    const pourcentageDisponible = (recette.soldeDisponible / recette.montant) * 100
+    if (recette.soldeDisponible === 0) {
+      return 'from-red-700 to-red-800' // Rouge - Épuisé
+    } else if (pourcentageDisponible >= 50) {
+      return 'from-green-700 to-green-800' // Vert - Élevé
+    } else if (pourcentageDisponible >= 15) {
+      return 'from-orange-600 to-orange-700' // Orange - Moyen
+    } else {
+      return 'from-red-600 to-red-700' // Rouge - Faible
+    }
+  }
+
+  // Fonction pour l'icône de statut
+  const getStatusIcon = (recette: Recette) => {
+    const pourcentageDisponible = (recette.soldeDisponible / recette.montant) * 100
+    if (recette.soldeDisponible === 0) return <XCircleIcon className="h-4 w-4 text-red-100" />
+    if (pourcentageDisponible < 15) return <AlertTriangleIcon className="h-4 w-4 text-red-100" />
+    if (pourcentageDisponible < 50) return <AlertTriangleIcon className="h-4 w-4 text-orange-100" />
+    return <DollarSignIcon className="h-4 w-4 text-green-100" />
+  }
   
   return (
     <motion.div
@@ -32,117 +55,76 @@ const RecetteCardEnhanced: React.FC<RecetteCardEnhancedProps> = ({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2, scale: 1.01 }}
       transition={{ duration: 0.3 }}
-      className="relative bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 h-32"
+      className="relative bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 flex"
     >
-      {/* Layout horizontal - En-tête à gauche, contenu à droite */}
-      <div className="flex h-full">
-        {/* Section gauche - En-tête avec dégradé */}
-        <div className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-600 w-1/3 text-white flex flex-col justify-between p-4">
-          {/* Effet de brillance */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-10 transform -skew-x-12" />
-          
-          <div className="relative z-10 flex flex-col justify-between h-full">
-            {/* En-tête */}
+      {/* Bande latérale gauche colorée */}
+      <div className={`w-3 bg-gradient-to-b ${getAvailabilityColorClass(recette)} rounded-l-xl flex items-center justify-center`}>
+        <motion.div
+          animate={{ rotate: [0, 360] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          className="text-white"
+        >
+          {getStatusIcon(recette)}
+        </motion.div>
+      </div>
+
+      {/* Contenu principal */}
+      <div className="flex-1 p-4 flex flex-col justify-between">
+        {/* En-tête */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-3">
             <div>
-              <div className="flex items-center space-x-2 mb-2">
-                <motion.div
-                  animate={{ rotate: [0, 360] }}
-                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                  className="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center"
-                >
-                  <span className="text-sm">💰</span>
-                </motion.div>
-                <Badge 
-                  variant="secondary" 
-                  className="bg-white text-blue-600 font-semibold px-2 py-1 text-xs"
-                >
-                  {recette.statut}
-                </Badge>
-              </div>
-              
-              <h3 className="text-sm font-bold leading-tight">{recette.libelle}</h3>
-              <p className="text-blue-100 text-xs mt-1">Initial: {formatCurrency(recette.montant)}</p>
-            </div>
-            
-            {/* Barre de progression */}
-            <div className="mt-2">
-              <div className="flex justify-between text-xs mb-1">
-                <span>Utilisation</span>
-                <span>{pourcentageUtilise.toFixed(1)}%</span>
-              </div>
-              <div className="w-full bg-white bg-opacity-20 rounded-full h-1.5">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${pourcentageUtilise}%` }}
-                  transition={{ duration: 1.5, delay: 0.5 }}
-                  className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full"
-                />
-              </div>
+              <h3 className="text-lg font-bold text-gray-800">{recette.libelle}</h3>
+              <p className="text-sm text-gray-500">Initial: {formatCurrency(recette.montant)}</p>
             </div>
           </div>
+          <Badge variant="secondary" className="text-xs px-2 py-1">
+            {recette.statut}
+          </Badge>
         </div>
-        
-        {/* Section droite - Contenu principal */}
-        <div className="flex-1 p-4 flex flex-col justify-between">
-          {/* Solde Disponible compact */}
-          <div className="mb-3">
-            <SoldeDisponibleEnhanced
-              montant={recette.soldeDisponible}
-              montantInitial={recette.montant}
-              className="h-16"
-            />
-          </div>
-          
-          {/* Informations compactes */}
-          <div className="flex justify-between items-center text-xs text-gray-600 mb-3">
-            <div className="flex space-x-4">
-              <span className="text-red-600 font-semibold">
-                Dépensé: {formatCurrency(totalDepenses)}
-              </span>
-              <span className="text-green-600 font-semibold">
-                Restant: {formatCurrency(recette.soldeDisponible)}
-              </span>
+
+        {/* Solde Disponible compact */}
+        <div className="mb-3">
+          <SoldeDisponibleEnhanced
+            montant={recette.soldeDisponible}
+            montantInitial={recette.montant}
+            className="!p-2"
+          />
+        </div>
+
+        {/* Informations et actions */}
+        <div className="flex justify-between items-end">
+          {/* Statistiques */}
+          <div className="flex-1 grid grid-cols-2 gap-3 text-xs">
+            <div className="bg-gray-50 rounded-lg p-2">
+              <div className="text-gray-600 mb-1">Dépensé</div>
+              <div className="font-bold text-red-600">
+                {formatCurrency(totalDepenses)}
+              </div>
             </div>
-            <div className="text-gray-500">
-              {new Date(recette.createdAt).toLocaleDateString('fr-FR')}
+            <div className="bg-gray-50 rounded-lg p-2">
+              <div className="text-gray-600 mb-1">Restant</div>
+              <div className="font-bold text-green-600">
+                {formatCurrency(recette.soldeDisponible)}
+              </div>
             </div>
           </div>
-          
-          {/* Actions compactes */}
-          <div className="flex space-x-1">
+
+          {/* Actions */}
+          <div className="flex space-x-1 ml-4">
             {onView && (
-              <Button
-                onClick={() => onView(recette)}
-                variant="outline"
-                size="sm"
-                className="bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200 text-xs px-2 py-1 h-6"
-              >
-                <EyeIcon className="h-3 w-3 mr-1" />
-                Voir
+              <Button size="icon" variant="ghost" onClick={() => onView(recette)} className="h-8 w-8">
+                <EyeIcon className="h-4 w-4" />
               </Button>
             )}
-            
             {onEdit && (
-              <Button
-                onClick={() => onEdit(recette)}
-                variant="outline"
-                size="sm"
-                className="bg-green-50 hover:bg-green-100 text-green-600 border-green-200 text-xs px-2 py-1 h-6"
-              >
-                <EditIcon className="h-3 w-3 mr-1" />
-                Modifier
+              <Button size="icon" variant="ghost" onClick={() => onEdit(recette)} className="h-8 w-8">
+                <EditIcon className="h-4 w-4" />
               </Button>
             )}
-            
             {onDelete && (
-              <Button
-                onClick={() => onDelete(recette.id)}
-                variant="outline"
-                size="sm"
-                className="bg-red-50 hover:bg-red-100 text-red-600 border-red-200 text-xs px-2 py-1 h-6"
-              >
-                <Trash2Icon className="h-3 w-3 mr-1" />
-                Supprimer
+              <Button size="icon" variant="ghost" onClick={() => onDelete(recette.id)} className="h-8 w-8 text-red-500 hover:text-red-700">
+                <Trash2Icon className="h-4 w-4" />
               </Button>
             )}
           </div>
