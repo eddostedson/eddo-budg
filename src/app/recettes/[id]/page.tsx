@@ -235,14 +235,14 @@ const RecetteDetailsPage: React.FC = () => {
           </Card>
         </motion.div>
 
-        {/* Liste des opérations */}
+        {/* Tableau des opérations */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
         >
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-800">Opérations ({depensesLiees.length})</h2>
+            <h2 className="text-2xl font-bold text-gray-800">Tableau des Opérations</h2>
             <Button
               onClick={handleAddDepense}
               className="bg-blue-600 hover:bg-blue-700"
@@ -252,82 +252,124 @@ const RecetteDetailsPage: React.FC = () => {
             </Button>
           </div>
 
-          {depensesLiees.length === 0 ? (
-            <Card className="bg-white shadow-lg">
-              <CardContent className="p-8 text-center">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <ReceiptIcon className="h-8 w-8 text-gray-400" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-600 mb-2">Aucune dépense</h3>
-                <p className="text-gray-500 mb-6">Cette recette n'a pas encore de dépenses associées</p>
-                <Button
-                  onClick={handleAddDepense}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <PlusIcon className="h-4 w-4 mr-2" />
-                  Créer la Première Dépense
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {depensesLiees.map((depense, index) => (
-                <motion.div
-                  key={depense.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 * index }}
-                >
-                  <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg font-semibold text-gray-800">
-                          {depense.libelle}
-                        </CardTitle>
-                        {depense.receiptUrl && (
-                          <Badge variant="secondary" className="bg-green-100 text-green-600">
-                            <ReceiptIcon className="h-3 w-3 mr-1" />
-                            Reçu
-                          </Badge>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {/* Montant avec design remarquable */}
-                        <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-xl p-4 text-white">
-                          <div className="text-sm font-medium opacity-90 mb-1">Montant</div>
-                          <div className="text-2xl font-black">{formatCurrency(depense.montant)}</div>
-              </div>
+          <Card className="bg-white shadow-lg">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Type</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Libellé</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date</th>
+                      <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">Montant</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {/* Montant initial de la recette */}
+                    <tr className="bg-green-50 hover:bg-green-100 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mr-3">
+                            <span className="text-white font-bold text-sm">+</span>
+                          </div>
+                          <span className="text-sm font-medium text-green-700">Recette</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-900">{recette.libelle}</div>
+                        <div className="text-sm text-gray-500">{recette.description || 'Aucune description'}</div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {new Date(recette.createdAt).toLocaleDateString('fr-FR')}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="text-lg font-bold text-green-600">
+                          +{formatCurrency(recette.montant)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge variant="secondary" className="bg-green-100 text-green-700">
+                          {recette.statut}
+                        </Badge>
+                      </td>
+                    </tr>
 
-                        {/* Informations détaillées */}
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Date:</span>
-                            <span className="font-medium">{new Date(depense.date).toLocaleDateString('fr-FR')}</span>
+                    {/* Dépenses */}
+                    {depensesLiees.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-12 text-center">
+                          <div className="flex flex-col items-center">
+                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                              <ReceiptIcon className="h-8 w-8 text-gray-400" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-600 mb-2">Aucune dépense</h3>
+                            <p className="text-gray-500 mb-4">Cette recette n'a pas encore de dépenses associées</p>
+                            <Button
+                              onClick={handleAddDepense}
+                              className="bg-blue-600 hover:bg-blue-700"
+                            >
+                              <PlusIcon className="h-4 w-4 mr-2" />
+                              Créer la Première Dépense
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      depensesLiees.map((depense, index) => (
+                        <motion.tr
+                          key={depense.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.1 * index }}
+                          className="bg-red-50 hover:bg-red-100 transition-colors"
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center">
+                              <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center mr-3">
+                                <span className="text-white font-bold text-sm">-</span>
+                              </div>
+                              <span className="text-sm font-medium text-red-700">Dépense</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm font-medium text-gray-900">{depense.libelle}</div>
+                            {depense.description && (
+                              <div className="text-sm text-gray-500">{depense.description}</div>
+                            )}
+                            {depense.categorie && (
+                              <div className="text-xs text-gray-400 mt-1">Catégorie: {depense.categorie}</div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {new Date(depense.date).toLocaleDateString('fr-FR')}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-lg font-bold text-red-600">
+                              -{formatCurrency(depense.montant)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center space-x-2">
+                              {depense.receiptUrl && (
+                                <Badge variant="secondary" className="bg-green-100 text-green-600">
+                                  <ReceiptIcon className="h-3 w-3 mr-1" />
+                                  Reçu
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className="text-red-600 border-red-300">
+                                Dépense
+                              </Badge>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-
-                          {depense.categorie && (
-                            <div className="flex justify-between text-sm">
-                              <span className="text-gray-600">Catégorie:</span>
-                              <span className="font-medium">{depense.categorie}</span>
-                </div>
-              )}
-
-                          {depense.description && (
-                            <div className="text-sm text-gray-600">
-                              <span className="font-medium">Description:</span>
-                              <p className="mt-1">{depense.description}</p>
-              </div>
-                          )}
-          </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-        </div>
-      )}
+            </CardContent>
+          </Card>
         </motion.div>
       </div>
     </div>
