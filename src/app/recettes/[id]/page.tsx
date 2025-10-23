@@ -11,7 +11,7 @@ import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, ArrowLeftIcon, PlusIcon, ReceiptIcon, CalendarIcon, DollarSignIcon, TrendingDownIcon, EditIcon, TrashIcon, EyeIcon } from 'lucide-react'
+import { Loader2, ArrowLeftIcon, PlusIcon, ReceiptIcon, CalendarIcon, DollarSignIcon, TrendingDownIcon, EditIcon, TrashIcon, EyeIcon, AlertTriangleIcon, CheckCircleIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 const RecetteDetailsPage: React.FC = () => {
@@ -23,6 +23,8 @@ const RecetteDetailsPage: React.FC = () => {
   const [recette, setRecette] = useState<Recette | null>(null)
   const [depensesLiees, setDepensesLiees] = useState<Depense[]>([])
   const [loading, setLoading] = useState(true)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [depenseToDelete, setDepenseToDelete] = useState<Depense | null>(null)
 
   useEffect(() => {
     if (!recettesLoading && !depensesLoading) {
@@ -54,17 +56,24 @@ const RecetteDetailsPage: React.FC = () => {
     router.push(`/depenses?edit=${depense.id}`)
   }
 
-  const handleDeleteDepense = async (depense: Depense) => {
-    if (confirm(`Êtes-vous sûr de vouloir supprimer la dépense "${depense.libelle}" ?`)) {
-      try {
-        // Ici vous pouvez appeler votre service de suppression
-        // await DepenseService.deleteDepense(depense.id)
-        toast.success("Dépense supprimée avec succès !")
-        // Recharger les données
-        window.location.reload()
-      } catch (error) {
-        toast.error("Erreur lors de la suppression de la dépense")
-      }
+  const handleDeleteDepense = (depense: Depense) => {
+    setDepenseToDelete(depense)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDeleteDepense = async () => {
+    if (!depenseToDelete) return
+    
+    try {
+      // Ici vous pouvez appeler votre service de suppression
+      // await DepenseService.deleteDepense(depenseToDelete.id)
+      toast.success("Dépense supprimée avec succès !")
+      setShowDeleteModal(false)
+      setDepenseToDelete(null)
+      // Recharger les données
+      window.location.reload()
+    } catch (error) {
+      toast.error("Erreur lors de la suppression de la dépense")
     }
   }
 
@@ -449,6 +458,80 @@ const RecetteDetailsPage: React.FC = () => {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Modale moderne de confirmation de suppression */}
+        {showDeleteModal && depenseToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowDeleteModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* En-tête avec icône d'alerte */}
+              <div className="flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mx-auto mb-4">
+                <AlertTriangleIcon className="h-8 w-8 text-red-600" />
+              </div>
+
+              {/* Titre et message */}
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  Confirmer la suppression
+                </h3>
+                <p className="text-gray-600">
+                  Êtes-vous sûr de vouloir supprimer la dépense
+                </p>
+                <p className="text-lg font-semibold text-red-600 mt-2">
+                  "{depenseToDelete.libelle}" ?
+                </p>
+                <p className="text-sm text-gray-500 mt-2">
+                  Cette action est irréversible.
+                </p>
+              </div>
+
+              {/* Informations de la dépense */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Montant:</span>
+                  <span className="font-bold text-red-600">
+                    -{formatCurrency(depenseToDelete.montant)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-sm text-gray-600">Date:</span>
+                  <span className="text-sm text-gray-800">
+                    {new Date(depenseToDelete.date).toLocaleDateString('fr-FR')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Boutons d'action */}
+              <div className="flex space-x-3">
+                <Button
+                  variant="outline"
+                  className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
+                  onClick={() => setShowDeleteModal(false)}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  onClick={confirmDeleteDepense}
+                >
+                  <TrashIcon className="h-4 w-4 mr-2" />
+                  Supprimer
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </div>
     </div>
   )
