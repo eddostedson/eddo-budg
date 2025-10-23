@@ -168,7 +168,7 @@ const RecettesByAvailability: React.FC<RecettesByAvailabilityProps> = ({
               </Badge>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
             {groupedRecettes.high.map((recette, index) => (
               <motion.div
                 key={recette.id}
@@ -204,7 +204,7 @@ const RecettesByAvailability: React.FC<RecettesByAvailabilityProps> = ({
               </Badge>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
             {groupedRecettes.medium.map((recette, index) => (
               <motion.div
                 key={recette.id}
@@ -240,7 +240,7 @@ const RecettesByAvailability: React.FC<RecettesByAvailabilityProps> = ({
               </Badge>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
             {groupedRecettes.low.map((recette, index) => (
               <motion.div
                 key={recette.id}
