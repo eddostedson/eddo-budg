@@ -31,8 +31,8 @@ const RecetteDetailsPage: React.FC = () => {
       
       if (foundRecette) {
         setRecette(foundRecette)
-        const depenses = depenses.filter(d => d.recetteId === recetteId)
-        setDepensesLiees(depenses)
+        const depensesLiees = depenses.filter(d => d.recetteId === recetteId)
+        setDepensesLiees(depensesLiees)
       } else {
         toast.error("Recette non trouvée")
         router.push('/recettes')
