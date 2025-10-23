@@ -269,21 +269,54 @@ const RecettesPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {recettes.map((recette, index) => (
-              <motion.div
-                key={recette.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 * index }}
-              >
-                <RecetteCardEnhanced
-                  recette={recette}
-                  onView={handleViewRecette}
-                  onEdit={handleEditRecette}
-                  onDelete={handleDeleteRecette}
-                />
-              </motion.div>
-            ))}
+            {recettes
+              .sort((a, b) => {
+                // Calculer le pourcentage de solde disponible pour chaque recette
+                const pourcentageA = a.montant > 0 ? (a.soldeDisponible / a.montant) * 100 : 0
+                const pourcentageB = b.montant > 0 ? (b.soldeDisponible / b.montant) * 100 : 0
+                
+                // Trier par pourcentage décroissant (plus haut pourcentage en premier)
+                return pourcentageB - pourcentageA
+              })
+              .map((recette, index) => {
+                // Calculer le pourcentage pour l'affichage
+                const pourcentageDisponible = recette.montant > 0 
+                  ? Math.round((recette.soldeDisponible / recette.montant) * 100) 
+                  : 0
+                
+                return (
+                  <motion.div
+                    key={recette.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 * index }}
+                  >
+                    <RecetteCardEnhanced
+                      recette={recette}
+                      onView={handleViewRecette}
+                      onEdit={handleEditRecette}
+                      onDelete={handleDeleteRecette}
+                    />
+                    {/* Indicateur de pourcentage */}
+                    <div className="mt-2 text-center">
+                      <Badge 
+                        variant="outline" 
+                        className={`text-xs ${
+                          pourcentageDisponible >= 80 
+                            ? 'bg-green-100 text-green-700 border-green-300' 
+                            : pourcentageDisponible >= 50 
+                            ? 'bg-blue-100 text-blue-700 border-blue-300'
+                            : pourcentageDisponible >= 20 
+                            ? 'bg-orange-100 text-orange-700 border-orange-300'
+                            : 'bg-red-100 text-red-700 border-red-300'
+                        }`}
+                      >
+                        {pourcentageDisponible}% disponible
+                      </Badge>
+                    </div>
+                  </motion.div>
+                )
+              })}
           </div>
         </motion.div>
       </div>
