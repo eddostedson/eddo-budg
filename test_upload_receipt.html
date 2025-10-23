@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Upload Reçu</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Test Upload Reçu</h1>
+    
+    <div>
+        <input type="file" id="fileInput" accept="image/*,.pdf">
+        <button onclick="testUpload()">Tester Upload</button>
+    </div>
+    
+    <div id="result"></div>
+
+    <script>
+        // Configuration Supabase (remplacez par vos vraies clés)
+        const supabaseUrl = 'VOTRE_SUPABASE_URL'
+        const supabaseKey = 'VOTRE_SUPABASE_ANON_KEY'
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+        
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput')
+            const file = fileInput.files[0]
+            
+            if (!file) {
+                alert('Sélectionnez un fichier')
+                return
+            }
+            
+            try {
+                // Test d'authentification
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                
+                if (authError || !user) {
+                    document.getElementById('result').innerHTML = '❌ Erreur d\'authentification: ' + (authError?.message || 'Non connecté')
+                    return
+                }
+                
+                document.getElementById('result').innerHTML = '✅ Utilisateur connecté: ' + user.email
+                
+                // Test d'upload
+                const fileName = `test-${Date.now()}.${file.name.split('.').pop()}`
+                const filePath = `${user.id}/${fileName}`
+                
+                const { data, error } = await supabase.storage
+                    .from('receipts')
+                    .upload(filePath, file)
+                
+                if (error) {
+                    document.getElementById('result').innerHTML = '❌ Erreur upload: ' + error.message
+                    return
+                }
+                
+                // Obtenir l'URL publique
+                const { data: { publicUrl } } = supabase.storage
+                    .from('receipts')
+                    .getPublicUrl(filePath)
+                
+                document.getElementById('result').innerHTML = 
+                    '✅ Upload réussi!<br>' +
+                    'Fichier: ' + fileName + '<br>' +
+                    'URL: <a href="' + publicUrl + '" target="_blank">' + publicUrl + '</a>'
+                
+            } catch (error) {
+                document.getElementById('result').innerHTML = '❌ Erreur: ' + error.message
+            }
+        }
+    </script>
+</body>
+</html>

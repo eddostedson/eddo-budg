@@ -127,3 +127,4 @@ SELECT 'Script de diagnostic terminé. Vérifiez les résultats ci-dessus.' AS m
 
 
 
+

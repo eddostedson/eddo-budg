@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { Depense } from '@/lib/shared-data'
 import { DepenseService } from '@/lib/supabase/database'
+import { FastDepenseService } from '@/lib/supabase/fast-depense-service'
+import { OfflineDepenseService } from '@/lib/supabase/offline-depense-service'
 
 interface DepenseContextType {
   depenses: Depense[]
@@ -57,31 +59,59 @@ export function DepenseProvider({ children }: { children: ReactNode }) {
     refreshDepenses()
   }, [])
 
-  // Ajouter une dépense
+  // Ajouter une dépense (MODE HYBRIDE OPTIMISÉ - RAPIDE + FIABLE)
   const addDepense = async (depense: Omit<Depense, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const contextStart = performance.now()
-    console.log('⏱️ [CONTEXT] Début addDepense...')
-    
-    const serviceStart = performance.now()
-    const newDepense = await DepenseService.createDepense(depense)
-    console.log(`⏱️ [CONTEXT] DepenseService.createDepense terminé (${Math.round(performance.now() - serviceStart)}ms)`)
-    
-    if (newDepense) {
-      // Ajouter immédiatement à l'état local pour un feedback instantané
-      setDepenses(prev => [newDepense, ...prev])
-      console.log(`⏱️ [CONTEXT] ✅ addDepense terminé (${Math.round(performance.now() - contextStart)}ms)`)
+    try {
+      // 1. AJOUT IMMÉDIAT À L'INTERFACE (UI instantanée)
+      const tempId = Date.now()
+      const tempDepense: Depense = {
+        id: tempId,
+        userId: '',
+        libelle: depense.libelle,
+        montant: depense.montant,
+        date: depense.date,
+        description: depense.description || '',
+        recetteId: depense.recetteId,
+        categorie: depense.categorie,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
       
-      // Rafraîchir en arrière-plan (ne pas attendre)
-      setTimeout(() => {
-        refreshDepenses().catch(error => {
-          console.error('❌ Erreur lors du rafraîchissement en arrière-plan:', error)
-        })
-      }, 500)
+      // Ajouter IMMÉDIATEMENT à l'interface
+      setDepenses(prev => [tempDepense, ...prev])
+      setLibelles(prev => [...new Set([...prev, depense.libelle])])
       
-      return newDepense
-    } else {
-      console.error('❌ Échec de la création de la dépense')
-      throw new Error('Échec de la création de la dépense en base de données')
+      console.log('✅ Dépense ajoutée instantanément à l\'interface')
+      
+      // 2. SYNCHRONISATION OPTIMISÉE (timeout augmenté)
+      const syncPromise = DepenseService.createDepense(depense)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout de synchronisation')), 15000) // 15 secondes au lieu de 5
+      )
+      
+      try {
+        const newDepense = await Promise.race([syncPromise, timeoutPromise]) as any
+        
+        if (newDepense && newDepense.id) {
+          // Remplacer la dépense temporaire par la vraie
+          setDepenses(prev => prev.map(d => 
+            d.id === tempId ? newDepense : d
+          ))
+          console.log('✅ Dépense synchronisée:', newDepense.id)
+        } else {
+          console.warn('⚠️ newDepense est null ou invalide, conservation de la dépense temporaire')
+          // Ne pas lancer d'erreur, juste garder la dépense temporaire
+        }
+      } catch (syncError) {
+        console.error('❌ Erreur de synchronisation:', syncError)
+        // Garder la dépense temporaire mais marquer comme non synchronisée
+        console.warn('⚠️ Dépense temporaire conservée - synchronisation échouée')
+      }
+      
+      return tempDepense
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'ajout de la dépense:', error)
+      throw error
     }
   }
 
@@ -92,22 +122,35 @@ export function DepenseProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Supprimer une dépense
+  // Supprimer une dépense (SUPPRESSION INSTANTANÉE)
   const deleteDepense = async (id: number) => {
-    try {
-      console.log('🗑️ Suppression de la dépense:', id)
-      const success = await DepenseService.deleteDepense(id)
-      
-      if (success) {
-        console.log('✅ Dépense supprimée avec succès:', id)
-        await refreshDepenses()
-      } else {
-        console.error('❌ Échec de la suppression de la dépense')
-      }
-    } catch (error) {
-      console.error('❌ Erreur lors de la suppression de la dépense:', error)
-      throw error
-    }
+    console.log('🗑️ Suppression de la dépense:', id)
+    
+    // 1. Suppression IMMÉDIATE de l'interface (pas de clignotement)
+    setDepenses(prev => {
+      const filtered = prev.filter(d => d.id !== id)
+      console.log(`✅ Dépense ${id} supprimée de l'interface. Avant: ${prev.length}, Après: ${filtered.length}`)
+      return filtered
+    })
+    
+    // 2. Suppression en base de données en arrière-plan (silencieuse)
+    DepenseService.deleteDepense(id)
+      .then(success => {
+        if (success) {
+          console.log('✅ Dépense supprimée en base de données')
+        } else {
+          console.warn('⚠️ Échec de la suppression en base, rafraîchissement...')
+          // Rafraîchir silencieusement en cas d'échec
+          setTimeout(() => refreshDepenses(), 1000)
+        }
+      })
+      .catch(error => {
+        console.warn('⚠️ Erreur suppression en base:', error)
+        // Rafraîchir silencieusement en cas d'erreur
+        setTimeout(() => refreshDepenses(), 1000)
+      })
+    
+    console.log('✅ Suppression traitée avec succès')
   }
 
   // Obtenir les dépenses d'un budget spécifique

@@ -10,6 +10,7 @@ import { useConfirm } from '@/components/modern-confirm'
 import { CategoryCombobox } from '@/components/ui/category-combobox'
 import { Depense } from '@/lib/shared-data'
 import { UnifiedPrintButton } from '@/components/UnifiedPrintButton'
+import SyncIndicator from '@/components/sync-indicator'
 import { ReceiptUpload } from '@/components/receipt-upload'
 import { HighlightText, shouldHighlight } from '@/lib/highlight-utils'
 import { validateDepense, cleanDescription, suggestAlternativeLabels } from '@/lib/validation-utils'
@@ -250,37 +251,32 @@ export default function DepensesPage() {
   }
 
   const selectedRecette = recettes.find(r => r.id === selectedRecetteId)
+  
+  // Calcul du solde restant (recalculé en temps réel)
   const soldeRestantCalcule = selectedRecette ? (() => {
-    // Calculer le solde correct en temps réel
+    // Recalculer le solde correct en temps réel
     const depensesLiees = depenses.filter(d => d.recetteId === selectedRecette.id)
     const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
     const soldeCorrect = selectedRecette.montant - totalDepenses
     
-    // Recalculer automatiquement le soldeDisponible si incohérent
-    if (Math.abs(selectedRecette.soldeDisponible - soldeCorrect) > 0.01) {
-      console.log('🔄 Recalcul automatique du solde:', {
-        soldeDisponible: selectedRecette.soldeDisponible,
-        soldeCorrect,
-        difference: selectedRecette.soldeDisponible - soldeCorrect
-      })
-      // Mettre à jour le soldeDisponible dans le contexte
-      updateRecette(selectedRecette.id, {
-        ...selectedRecette,
-        soldeDisponible: soldeCorrect
-      })
-    }
+    console.log('🔍 Calcul solde pour', selectedRecette.libelle, {
+      montantInitial: selectedRecette.montant,
+      totalDepenses,
+      soldeCorrect,
+      montantSaisi: parseFloat(formData.montant || '0')
+    })
     
     return soldeCorrect - parseFloat(formData.montant || '0')
   })() : 0
 
   const handleOpenModal = async () => {
-    // Rafraîchir les recettes avant d'ouvrir le modal
+    console.log('🔄 Ouverture du modal - Rafraîchissement des recettes...')
+    
+    // TOUJOURS rafraîchir les recettes pour avoir les données les plus récentes
     await refreshRecettes()
     
-    // Attendre un peu pour s'assurer que les données sont bien chargées
-    setTimeout(async () => {
-      await refreshRecettes()
-    }, 100)
+    // Attendre un peu pour que le contexte se mette à jour
+    await new Promise(resolve => setTimeout(resolve, 100))
     
     if (recettes.length === 0) {
       showWarning(
@@ -289,6 +285,14 @@ export default function DepensesPage() {
       )
       return
     }
+    
+    console.log('✅ Recettes rafraîchies:', recettes.length)
+    console.log('📊 Détails des recettes:', recettes.map(r => ({
+      libelle: r.libelle,
+      montant: r.montant,
+      soldeDisponible: r.soldeDisponible
+    })))
+    
     resetForm()
     setShowModal(true)
   }
@@ -482,8 +486,6 @@ export default function DepensesPage() {
       }
 
       const pageStart = performance.now()
-      console.log('⏱️ [PAGE] Début handleSubmit...')
-
       try {
         if (editingDepense) {
           // Mise à jour de la dépense existante
@@ -497,13 +499,10 @@ export default function DepensesPage() {
             "Votre dépense a été modifiée avec succès !"
           )
           
-          // Rafraîchir en arrière-plan
-          Promise.all([refreshDepenses(), refreshRecettes()])
+          // Pas de rafraîchissement - l'état local est déjà à jour
         } else {
           // Création d'une nouvelle dépense
-          const addStart = performance.now()
           const newDepense = await addDepense(depenseData)
-          console.log(`⏱️ [PAGE] addDepense terminé (${Math.round(performance.now() - addStart)}ms)`)
           
           // Fermer le modal IMMÉDIATEMENT
           resetForm()
@@ -521,8 +520,6 @@ export default function DepensesPage() {
               setHighlightedRow(newDepense.id)
             }, 100)
           }
-          
-          console.log(`⏱️ [PAGE] 🎯 TOTAL: ${Math.round(performance.now() - pageStart)}ms`)
         }
       } catch (error) {
         console.error('❌ Erreur lors de l\'enregistrement:', error)
@@ -599,8 +596,7 @@ export default function DepensesPage() {
     if (confirmed) {
       try {
         await deleteDepense(id)
-        await refreshDepenses()
-        await refreshRecettes()
+        // Pas de rafraîchissement - optimisation
         showSuccess(
           "Dépense supprimée",
           "La dépense a été supprimée avec succès !"
@@ -729,6 +725,8 @@ export default function DepensesPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50">
+      {/* Indicateur de synchronisation */}
+      <SyncIndicator />
       {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-orange-600 text-white px-6 py-8 shadow-lg">
         <div className="max-w-7xl mx-auto">
@@ -878,8 +876,7 @@ export default function DepensesPage() {
                 <button
                   onClick={() => {
                     console.log('🔄 Rechargement forcé des données...')
-                    refreshRecettes()
-                    refreshDepenses()
+                    // Pas de rafraîchissement - optimisation
                   }}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
                 >
@@ -1195,17 +1192,24 @@ export default function DepensesPage() {
                     onChange={async (e) => {
                       setSelectedRecetteId(e.target.value)
                       // Rafraîchir les recettes quand on change de sélection
-                      await refreshRecettes()
+                      // Pas de rafraîchissement - optimisation
                     }}
                     className="w-full px-5 py-4 bg-gradient-to-r from-gray-50 to-red-50 border-2 border-gray-200 rounded-2xl focus:border-red-500 focus:ring-4 focus:ring-red-100 transition-all appearance-none cursor-pointer font-medium text-gray-800 pr-12"
                     required
                   >
                     <option value="">-- Choisissez la source --</option>
                     {recettes.filter(recette => isRecetteUtilisable(recette)).map(recette => {
-                      // Calculer le solde correct en temps réel
+                      // Recalculer le solde en temps réel pour chaque recette
                       const depensesLiees = depenses.filter(d => d.recetteId === recette.id)
                       const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
                       const soldeCorrect = recette.montant - totalDepenses
+                      
+                      console.log('🔍 Menu déroulant - Recette:', recette.libelle, {
+                        montantInitial: recette.montant,
+                        totalDepenses,
+                        soldeCorrect,
+                        soldeDisponible: recette.soldeDisponible
+                      })
                       
                       return (
                         <option key={recette.id} value={recette.id}>

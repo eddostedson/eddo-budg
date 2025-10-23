@@ -99,3 +99,4 @@ SELECT '✅ Configuration des colonnes de reçus terminée avec succès !' as st
 
 
 
+

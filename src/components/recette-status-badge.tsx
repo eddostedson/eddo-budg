@@ -48,3 +48,4 @@ export function RecetteStatusBadge({ recette, showDetails = false }: RecetteStat
 
 
 
+

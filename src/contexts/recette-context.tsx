@@ -58,6 +58,13 @@ export function RecetteProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem('recettes')
         }
       }
+      
+      // Forcer un re-render des composants qui utilisent les recettes
+      setTimeout(() => {
+        console.log('🔄 Forçage du re-render des composants...')
+        setRecettes(prev => [...prev])
+      }, 100)
+      
     } catch (error) {
       console.error('❌ Erreur lors du rechargement des recettes:', error)
       // NE PAS utiliser localStorage en fallback - forcer le rechargement
@@ -111,9 +118,37 @@ export function RecetteProvider({ children }: { children: ReactNode }) {
   }
 
   const deleteRecette = async (id: string) => {
-    const success = await RecetteService.deleteRecette(id)
-    if (success) {
-      setRecettes(prev => prev.filter(r => r.id !== id))
+    try {
+      console.log('🗑️ Suppression de la recette:', id)
+      
+      // 1. Tentative de suppression en base de données D'ABORD
+      const success = await RecetteService.deleteRecette(id)
+      
+      if (success) {
+        console.log('✅ Recette supprimée avec succès en base de données')
+        
+        // 2. Suppression de l'état local seulement si succès en base
+        setRecettes(prev => {
+          const filtered = prev.filter(r => r.id !== id)
+          console.log(`✅ Recette supprimée de l'état local. Avant: ${prev.length}, Après: ${filtered.length}`)
+          return filtered
+        })
+        
+        // 3. Rafraîchissement de vérification après un délai
+        setTimeout(async () => {
+          console.log('🔄 Rafraîchissement de vérification...')
+          await refreshRecettes()
+        }, 1000)
+      } else {
+        console.error('❌ Échec de la suppression en base de données')
+        throw new Error('Échec de la suppression')
+      }
+      
+    } catch (error) {
+      console.error('❌ Erreur lors de la suppression:', error)
+      // En cas d'erreur, rafraîchir pour synchroniser avec la base
+      await refreshRecettes()
+      throw error
     }
   }
 
@@ -122,7 +157,7 @@ export function RecetteProvider({ children }: { children: ReactNode }) {
     return recettes.reduce((total, recette) => total + recette.montant, 0)
   }
 
-  // Calculer le total disponible
+  // Calculer le total disponible (SIMPLE)
   const getTotalDisponible = () => {
     return recettes.reduce((total, recette) => total + recette.soldeDisponible, 0)
   }

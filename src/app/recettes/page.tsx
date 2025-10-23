@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
+import AuthService from '@/lib/supabase/auth-service'
 import { useRecettes } from '@/contexts/recette-context'
 import { useDepenses } from '@/contexts/depense-context'
 import { useNotifications } from '@/contexts/notification-context'
@@ -92,15 +93,28 @@ export default function RecettesPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      try {
+        // Vérification rapide avec cache
+        const cachedUser = AuthService.getCachedUser()
+        if (cachedUser) {
+          setLoading(false)
+          return
+        }
+        
+        // Si pas en cache, vérifier avec Supabase
+        const { data: { user } } = await AuthService.getUser()
+        if (!user) {
+          router.push('/auth')
+          return
+        }
+        setLoading(false)
+      } catch (error) {
+        console.error('Erreur de vérification auth:', error)
         router.push('/auth')
-        return
       }
-      setLoading(false)
     }
     checkAuth()
-  }, [router, supabase.auth])
+  }, [router])
 
   // Écouter les mises à jour de recettes et dépenses depuis d'autres pages
   useEffect(() => {
@@ -812,10 +826,9 @@ export default function RecettesPage() {
             const isDescriptionMatch = recette.description && shouldHighlight(recette.description, searchFilters.libelle)
             const hasSearchMatch = isLibelleMatch || isDescriptionMatch
             
-            // Calculer le solde correct en temps réel
-            const depensesLiees = depenses.filter(d => d.recetteId === recette.id)
-            const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
-            const soldeCorrect = recette.montant - totalDepenses
+            // Utiliser le soldeDisponible de la base de données (correct)
+            const soldeCorrect = recette.soldeDisponible || 0
+            const totalDepenses = recette.montant - soldeCorrect
             
             return (
               <div
@@ -1022,10 +1035,17 @@ export default function RecettesPage() {
                 const isDescriptionMatch = recette.description && shouldHighlight(recette.description, searchFilters.libelle)
                 const hasSearchMatch = isLibelleMatch || isDescriptionMatch
                 
-                // Calculer le solde correct en temps réel
+                // Recalculer le solde en temps réel (plus fiable)
                 const depensesLiees = depenses.filter(d => d.recetteId === recette.id)
-                const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
-                const soldeCorrect = recette.montant - totalDepenses
+                const totalDepensesReelles = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
+                const soldeCorrect = recette.montant - totalDepensesReelles
+                
+                console.log('🔍 Calcul solde pour', recette.libelle, {
+                  montantInitial: recette.montant,
+                  totalDepensesReelles,
+                  soldeCorrect,
+                  soldeDisponible: recette.soldeDisponible
+                })
                 
                 return (
                   <div
@@ -1156,9 +1176,17 @@ export default function RecettesPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {recettesCloturees.map((recette, index) => {
+                // Recalculer le solde en temps réel (plus fiable)
                 const depensesLiees = depenses.filter(d => d.recetteId === recette.id)
-                const totalDepenses = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
-                const soldeCorrect = recette.montant - totalDepenses
+                const totalDepensesReelles = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
+                const soldeCorrect = recette.montant - totalDepensesReelles
+                
+                console.log('🔍 Calcul solde pour', recette.libelle, {
+                  montantInitial: recette.montant,
+                  totalDepensesReelles,
+                  soldeCorrect,
+                  soldeDisponible: recette.soldeDisponible
+                })
                 
                 return (
                   <div

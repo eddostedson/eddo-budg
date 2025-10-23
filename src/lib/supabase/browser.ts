@@ -6,16 +6,22 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       auth: {
-        // Configuration pour améliorer la gestion des erreurs réseau
+        // Configuration optimisée pour la performance
         persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce'
+        autoRefreshToken: false, // Désactivé pour la performance
+        detectSessionInUrl: false, // Désactivé pour la performance
+        flowType: 'implicit' // Plus rapide que pkce
       },
       global: {
         headers: {
-          'X-Client-Info': 'eddo-budg-app'
+          'X-Client-Info': 'eddo-budg-app-fast'
         }
+      },
+      db: {
+        schema: 'public'
+      },
+      realtime: {
+        enabled: false // Désactivé pour la performance
       }
     }
   )
