@@ -55,7 +55,8 @@ const RecetteCardEnhanced: React.FC<RecetteCardEnhancedProps> = ({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2, scale: 1.01 }}
       transition={{ duration: 0.3 }}
-      className="relative bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 flex"
+      className="relative bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 flex cursor-pointer"
+      onClick={() => onView && onView(recette)}
     >
       {/* Bande latérale gauche colorée */}
       <div className={`w-3 bg-gradient-to-b ${getAvailabilityColorClass(recette)} rounded-l-xl flex items-center justify-center`}>

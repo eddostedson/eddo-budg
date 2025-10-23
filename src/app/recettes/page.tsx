@@ -2,6 +2,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useRecettes } from '@/contexts/recette-context'
 import { useDepenses } from '@/contexts/depense-context'
 import { Recette } from '@/lib/shared-data'
@@ -16,6 +17,7 @@ import RecettesByAvailability from '@/components/recettes-by-availability'
 import { toast } from 'sonner'
 
 const RecettesPage: React.FC = () => {
+  const router = useRouter()
   const { recettes, loading, error, refreshRecettes } = useRecettes()
   const { depenses } = useDepenses()
   const [showModal, setShowModal] = useState(false)
@@ -41,8 +43,8 @@ const RecettesPage: React.FC = () => {
   }
 
   const handleViewRecette = (recette: Recette) => {
-    setSelectedRecette(recette)
-    setShowModal(true)
+    // Navigation vers la page de détails avec Next.js router
+    router.push(`/recettes/${recette.id}`)
   }
 
   const handleEditRecette = (recette: Recette) => {
@@ -88,7 +90,7 @@ const RecettesPage: React.FC = () => {
         >
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-2xl">❌</span>
-          </div>
+        </div>
           <h2 className="text-2xl font-bold text-red-600 mb-2">Erreur de chargement</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <Button onClick={handleRefresh} className="bg-red-600 hover:bg-red-700">
@@ -96,7 +98,7 @@ const RecettesPage: React.FC = () => {
             Réessayer
           </Button>
         </motion.div>
-      </div>
+        </div>
     )
   }
 
@@ -115,19 +117,19 @@ const RecettesPage: React.FC = () => {
               <p className="text-blue-100 text-lg">Suivi financier avec design remarquable</p>
             </div>
           </div>
-          
+
           {/* Métriques intégrées dans le header */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
-              <div className="flex items-center justify-between">
-                <div>
+                <div className="flex items-center justify-between">
+                    <div>
                   <div className="text-sm font-medium opacity-90">Total Recettes</div>
                   <div className="text-2xl font-bold">{formatCurrency(totalRecettes)}</div>
-                </div>
+                    </div>
                 <TrendingUpIcon className="h-8 w-8 opacity-80" />
-              </div>
-            </div>
-            
+                  </div>
+          </div>
+
             <div className="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -137,7 +139,7 @@ const RecettesPage: React.FC = () => {
                 <TrendingDownIcon className="h-8 w-8 opacity-80" />
               </div>
             </div>
-            
+
             <div className="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -146,9 +148,9 @@ const RecettesPage: React.FC = () => {
                 </div>
                 <DollarSignIcon className="h-8 w-8 opacity-80" />
               </div>
+              </div>
             </div>
-          </div>
-        </div>
+                </div>
       </motion.div>
 
       <div className="max-w-7xl mx-auto p-8">
@@ -165,15 +167,15 @@ const RecettesPage: React.FC = () => {
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
                     <TrendingUpIcon className="h-6 w-6" />
-                  </div>
-                  <div>
+                </div>
+                <div>
                     <div className="text-sm font-medium opacity-90">Recettes Pleines</div>
                     <div className="text-2xl font-bold">{recettesPleine}</div>
-                  </div>
                 </div>
+              </div>
                 <div className="text-right">
                   <div className="text-xs opacity-80">Aucune dépense effectuée</div>
-                </div>
+              </div>
               </div>
             </CardContent>
           </Card>
@@ -184,35 +186,35 @@ const RecettesPage: React.FC = () => {
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
                     <TrendingDownIcon className="h-6 w-6" />
-                  </div>
-                  <div>
+                </div>
+                <div>
                     <div className="text-sm font-medium opacity-90">Recettes Utilisées</div>
                     <div className="text-2xl font-bold">{recettesUtilisees}</div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs opacity-80">Partiellement dépensées</div>
                 </div>
               </div>
+                <div className="text-right">
+                  <div className="text-xs opacity-80">Partiellement dépensées</div>
+              </div>
+            </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-r from-red-500 to-red-600 text-white shadow-xl">
             <CardContent className="p-4">
-              <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
                     <span className="text-xl">❌</span>
                   </div>
-                  <div>
+              <div>
                     <div className="text-sm font-medium opacity-90">Recettes Vides</div>
                     <div className="text-2xl font-bold">{recettesVides}</div>
-                  </div>
-                </div>
+              </div>
+              </div>
                 <div className="text-right">
                   <div className="text-xs opacity-80">Entièrement dépensées</div>
-                </div>
-              </div>
+            </div>
+          </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -266,8 +268,8 @@ const RecettesPage: React.FC = () => {
             <Badge variant="outline" className="text-lg px-4 py-2">
               {recettes.length} recettes
             </Badge>
-          </div>
-
+                </div>
+                
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {recettes
               .sort((a, b) => {
@@ -290,13 +292,9 @@ const RecettesPage: React.FC = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 * index }}
-                    className="cursor-pointer"
-                    onClick={() => handleViewRecette(recette)}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
                   >
                     <RecetteCardEnhanced
-                      recette={recette}
+                        recette={recette}
                       onView={handleViewRecette}
                       onEdit={handleEditRecette}
                       onDelete={handleDeleteRecette}
@@ -321,11 +319,11 @@ const RecettesPage: React.FC = () => {
                   </motion.div>
                 )
               })}
-          </div>
+            </div>
         </motion.div>
-      </div>
-    </div>
-  )
+                    </div>
+                  </div>
+                )
 }
 
 export default RecettesPage
