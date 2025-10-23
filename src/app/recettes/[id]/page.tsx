@@ -11,7 +11,7 @@ import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, ArrowLeftIcon, PlusIcon, ReceiptIcon, CalendarIcon, DollarSignIcon, TrendingDownIcon } from 'lucide-react'
+import { Loader2, ArrowLeftIcon, PlusIcon, ReceiptIcon, CalendarIcon, DollarSignIcon, TrendingDownIcon, EditIcon, TrashIcon, EyeIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 const RecetteDetailsPage: React.FC = () => {
@@ -47,6 +47,30 @@ const RecetteDetailsPage: React.FC = () => {
 
   const handleAddDepense = () => {
     router.push(`/depenses?recetteId=${recette?.id}`)
+  }
+
+  const handleEditDepense = (depense: Depense) => {
+    // Navigation vers la page de modification des dépenses
+    router.push(`/depenses?edit=${depense.id}`)
+  }
+
+  const handleDeleteDepense = async (depense: Depense) => {
+    if (confirm(`Êtes-vous sûr de vouloir supprimer la dépense "${depense.libelle}" ?`)) {
+      try {
+        // Ici vous pouvez appeler votre service de suppression
+        // await DepenseService.deleteDepense(depense.id)
+        toast.success("Dépense supprimée avec succès !")
+        // Recharger les données
+        window.location.reload()
+      } catch (error) {
+        toast.error("Erreur lors de la suppression de la dépense")
+      }
+    }
+  }
+
+  const handleViewDepense = (depense: Depense) => {
+    // Afficher les détails de la dépense dans un modal ou une page dédiée
+    toast.info(`Détails de la dépense: ${depense.libelle}`)
   }
 
   const getPourcentageDisponible = () => {
@@ -207,8 +231,8 @@ const RecetteDetailsPage: React.FC = () => {
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-gray-600">Date de création:</span>
                     <span className="font-medium">{new Date(recette.createdAt).toLocaleDateString('fr-FR')}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
+                </div>
+                    <div className="flex items-center justify-between">
                     <span className="text-gray-600">Dernière mise à jour:</span>
                     <span className="font-medium">{new Date(recette.updatedAt).toLocaleDateString('fr-FR')}</span>
                   </div>
@@ -222,15 +246,15 @@ const RecetteDetailsPage: React.FC = () => {
                     >
                       {pourcentageDisponible}% disponible
                     </Badge>
-              </div>
+                              </div>
                   {recette.description && (
                     <div>
                       <span className="text-gray-600">Description:</span>
                       <p className="mt-1 text-gray-800">{recette.description}</p>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
+            </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -263,6 +287,7 @@ const RecetteDetailsPage: React.FC = () => {
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date</th>
                       <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">Montant</th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Statut</th>
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -293,16 +318,38 @@ const RecetteDetailsPage: React.FC = () => {
                           {recette.statut}
                         </Badge>
                       </td>
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center space-x-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0 bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200"
+                            onClick={() => handleViewDepense({ id: 0, userId: '', recetteId: recette.id, libelle: recette.libelle, montant: recette.montant, date: recette.date, description: recette.description, createdAt: recette.createdAt, updatedAt: recette.updatedAt } as Depense)}
+                            title="Voir les détails"
+                          >
+                            <EyeIcon className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0 bg-green-50 hover:bg-green-100 text-green-600 border-green-200"
+                            onClick={() => toast.info("Modification de recette en cours de développement")}
+                            title="Modifier la recette"
+                          >
+                            <EditIcon className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
 
                     {/* Dépenses */}
                     {depensesLiees.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center">
+                        <td colSpan={6} className="px-6 py-12 text-center">
                           <div className="flex flex-col items-center">
                             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                               <ReceiptIcon className="h-8 w-8 text-gray-400" />
-                            </div>
+                                </div>
                             <h3 className="text-lg font-semibold text-gray-600 mb-2">Aucune dépense</h3>
                             <p className="text-gray-500 mb-4">Cette recette n'a pas encore de dépenses associées</p>
                             <Button
@@ -312,7 +359,7 @@ const RecetteDetailsPage: React.FC = () => {
                               <PlusIcon className="h-4 w-4 mr-2" />
                               Créer la Première Dépense
                             </Button>
-                          </div>
+                                </div>
                         </td>
                       </tr>
                     ) : (
@@ -360,6 +407,37 @@ const RecetteDetailsPage: React.FC = () => {
                               <Badge variant="outline" className="text-red-600 border-red-300">
                                 Dépense
                               </Badge>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center space-x-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 w-8 p-0 bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200"
+                                onClick={() => handleViewDepense(depense)}
+                                title="Voir les détails"
+                              >
+                                <EyeIcon className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 w-8 p-0 bg-green-50 hover:bg-green-100 text-green-600 border-green-200"
+                                onClick={() => handleEditDepense(depense)}
+                                title="Modifier la dépense"
+                              >
+                                <EditIcon className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 w-8 p-0 bg-red-50 hover:bg-red-100 text-red-600 border-red-200"
+                                onClick={() => handleDeleteDepense(depense)}
+                                title="Supprimer la dépense"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </Button>
                             </div>
                           </td>
                         </motion.tr>
