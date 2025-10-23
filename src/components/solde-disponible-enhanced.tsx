@@ -45,9 +45,9 @@ const SoldeDisponibleEnhanced: React.FC<SoldeDisponibleEnhancedProps> = ({
     <motion.div
       initial={{ scale: 0.9, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      whileHover={{ scale: 1.05 }}
+      whileHover={{ scale: 1.02 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className={`relative overflow-hidden rounded-2xl p-6 shadow-2xl ${className}`}
+      className={`relative overflow-hidden rounded-xl p-4 shadow-lg ${className}`}
     >
       {/* Arrière-plan avec dégradé animé */}
       <div className={`absolute inset-0 bg-gradient-to-br ${getSoldeColor()} opacity-90`} />
@@ -63,26 +63,26 @@ const SoldeDisponibleEnhanced: React.FC<SoldeDisponibleEnhancedProps> = ({
       {/* Contenu principal */}
       <div className="relative z-10">
         {/* En-tête avec icône */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
             <motion.span
               animate={{ rotate: [0, 10, -10, 0] }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="text-3xl"
+              className="text-xl"
             >
               {getIcon()}
             </motion.span>
-            <span className={`text-lg font-black text-white uppercase tracking-wide`}>
+            <span className={`text-sm font-black text-white uppercase tracking-wide`}>
               Solde Disponible
             </span>
           </div>
           
           {/* Indicateur de pourcentage */}
           <div className="text-right">
-            <div className={`text-sm font-bold text-white opacity-90`}>
+            <div className={`text-xs font-bold text-white opacity-90`}>
               {pourcentageUtilise.toFixed(1)}% utilisé
             </div>
-            <div className="w-20 h-2 bg-white bg-opacity-30 rounded-full mt-1">
+            <div className="w-16 h-1.5 bg-white bg-opacity-30 rounded-full mt-1">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${pourcentageUtilise}%` }}
@@ -100,13 +100,13 @@ const SoldeDisponibleEnhanced: React.FC<SoldeDisponibleEnhancedProps> = ({
           transition={{ duration: 0.6, delay: 0.2 }}
           className="text-center"
         >
-          <div className={`text-4xl font-black text-white mb-2`}>
+          <div className={`text-2xl font-black text-white mb-2`}>
             {formatCurrency(montant)}
           </div>
           
           {/* Barre de progression circulaire */}
-          <div className="relative w-24 h-24 mx-auto mb-4">
-            <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
+          <div className="relative w-16 h-16 mx-auto mb-3">
+            <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 100 100">
               {/* Cercle de fond */}
               <circle
                 cx="50"
@@ -133,7 +133,7 @@ const SoldeDisponibleEnhanced: React.FC<SoldeDisponibleEnhancedProps> = ({
             
             {/* Pourcentage au centre */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className={`text-lg font-black text-white`}>
+              <span className={`text-xs font-black text-white`}>
                 {Math.round(100 - pourcentageUtilise)}%
               </span>
             </div>
@@ -142,7 +142,7 @@ const SoldeDisponibleEnhanced: React.FC<SoldeDisponibleEnhancedProps> = ({
         
         {/* Informations supplémentaires */}
         <div className="text-center">
-          <div className={`text-sm text-white font-bold opacity-90 mb-2`}>
+          <div className={`text-xs text-white font-bold opacity-90 mb-2`}>
             Montant initial: {formatCurrency(montantInitial)}
           </div>
           
@@ -150,7 +150,7 @@ const SoldeDisponibleEnhanced: React.FC<SoldeDisponibleEnhancedProps> = ({
           <motion.div
             animate={{ opacity: [0.7, 1, 0.7] }}
             transition={{ duration: 2, repeat: Infinity }}
-            className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${
+            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
               estVide 
                 ? 'bg-red-500 text-white' 
                 : estFaible 
