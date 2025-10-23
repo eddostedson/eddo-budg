@@ -14,7 +14,7 @@ import { Loader2, PlusIcon, RefreshCwIcon, TrendingUpIcon, TrendingDownIcon, Dol
 import RecetteCardEnhanced from '@/components/recette-card-enhanced'
 import { toast } from 'sonner'
 
-const RecettesPage: React.FC = () => {
+const RecettesPageNew: React.FC = () => {
   const { recettes, loading, error, refreshRecettes } = useRecettes()
   const { depenses } = useDepenses()
   const [showModal, setShowModal] = useState(false)
@@ -265,4 +265,4 @@ const RecettesPage: React.FC = () => {
   )
 }
 
-export default RecettesPage
+export default RecettesPageNew

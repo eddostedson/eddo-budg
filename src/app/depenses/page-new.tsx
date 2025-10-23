@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Loader2, PlusIcon, RefreshCwIcon, TrendingUpIcon, TrendingDownIcon, DollarSignIcon, ReceiptIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
-const DepensesPage: React.FC = () => {
+const DepensesPageNew: React.FC = () => {
   const { depenses, loading, error, refreshDepenses } = useDepenses()
   const { recettes } = useRecettes()
   const [showModal, setShowModal] = useState(false)
@@ -337,4 +337,4 @@ const DepensesPage: React.FC = () => {
   )
 }
 
-export default DepensesPage
+export default DepensesPageNew

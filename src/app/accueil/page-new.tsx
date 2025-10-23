@@ -13,7 +13,7 @@ import { Loader2, TrendingUpIcon, TrendingDownIcon, DollarSignIcon, BarChart3Ico
 import { toast } from 'sonner'
 import Link from 'next/link'
 
-const AccueilPage: React.FC = () => {
+const AccueilPageNew: React.FC = () => {
   const { recettes, loading: recettesLoading, getTotalRecettes, getTotalDisponible } = useRecettes()
   const { depenses, loading: depensesLoading } = useDepenses()
   const [loading, setLoading] = useState(true)
@@ -301,4 +301,4 @@ const AccueilPage: React.FC = () => {
   )
 }
 
-export default AccueilPage
+export default AccueilPageNew
