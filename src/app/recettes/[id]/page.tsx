@@ -11,7 +11,7 @@ import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, ArrowLeftIcon, PlusIcon, ReceiptIcon, CalendarIcon, DollarSignIcon, TrendingDownIcon, EditIcon, TrashIcon, EyeIcon, AlertTriangleIcon, CheckCircleIcon } from 'lucide-react'
+import { Loader2, ArrowLeftIcon, PlusIcon, ReceiptIcon, CalendarIcon, DollarSignIcon, TrendingDownIcon, EditIcon, TrashIcon, AlertTriangleIcon, CheckCircleIcon, SaveIcon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 const RecetteDetailsPage: React.FC = () => {
@@ -25,6 +25,15 @@ const RecetteDetailsPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [depenseToDelete, setDepenseToDelete] = useState<Depense | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [depenseToEdit, setDepenseToEdit] = useState<Depense | null>(null)
+  const [editForm, setEditForm] = useState({
+    libelle: '',
+    montant: '',
+    date: '',
+    description: '',
+    categorie: ''
+  })
 
   useEffect(() => {
     if (!recettesLoading && !depensesLoading) {
@@ -52,8 +61,15 @@ const RecetteDetailsPage: React.FC = () => {
   }
 
   const handleEditDepense = (depense: Depense) => {
-    // Navigation vers la page de modification des dépenses
-    router.push(`/depenses?edit=${depense.id}`)
+    setDepenseToEdit(depense)
+    setEditForm({
+      libelle: depense.libelle,
+      montant: depense.montant.toString(),
+      date: depense.date,
+      description: depense.description || '',
+      categorie: depense.categorie || ''
+    })
+    setShowEditModal(true)
   }
 
   const handleDeleteDepense = (depense: Depense) => {
@@ -77,9 +93,27 @@ const RecetteDetailsPage: React.FC = () => {
     }
   }
 
-  const handleViewDepense = (depense: Depense) => {
-    // Afficher les détails de la dépense dans un modal ou une page dédiée
-    toast.info(`Détails de la dépense: ${depense.libelle}`)
+  const handleFormChange = (field: string, value: string) => {
+    setEditForm(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleSaveEdit = async () => {
+    if (!depenseToEdit) return
+    
+    try {
+      // Ici vous pouvez appeler votre service de mise à jour
+      // await DepenseService.updateDepense(depenseToEdit.id, editForm)
+      toast.success("Dépense modifiée avec succès !")
+      setShowEditModal(false)
+      setDepenseToEdit(null)
+      // Recharger les données
+      window.location.reload()
+    } catch (error) {
+      toast.error("Erreur lors de la modification de la dépense")
+    }
   }
 
   const getPourcentageDisponible = () => {
@@ -332,20 +366,11 @@ const RecetteDetailsPage: React.FC = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-8 w-8 p-0 bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200"
-                            onClick={() => handleViewDepense({ id: 0, userId: '', recetteId: recette.id, libelle: recette.libelle, montant: recette.montant, date: recette.date, description: recette.description, createdAt: recette.createdAt, updatedAt: recette.updatedAt } as Depense)}
-                            title="Voir les détails"
-                          >
-                            <EyeIcon className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 w-8 p-0 bg-green-50 hover:bg-green-100 text-green-600 border-green-200"
+                            className="h-10 w-10 p-0 bg-green-100 hover:bg-green-200 text-green-700 border-green-300 shadow-sm"
                             onClick={() => toast.info("Modification de recette en cours de développement")}
                             title="Modifier la recette"
                           >
-                            <EditIcon className="h-4 w-4" />
+                            <EditIcon className="h-5 w-5" />
                           </Button>
                         </div>
                       </td>
@@ -419,33 +444,24 @@ const RecetteDetailsPage: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <div className="flex items-center justify-center space-x-2">
+                            <div className="flex items-center justify-center space-x-3">
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-8 w-8 p-0 bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-200"
-                                onClick={() => handleViewDepense(depense)}
-                                title="Voir les détails"
-                              >
-                                <EyeIcon className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 bg-green-50 hover:bg-green-100 text-green-600 border-green-200"
+                                className="h-10 w-10 p-0 bg-green-100 hover:bg-green-200 text-green-700 border-green-300 shadow-sm"
                                 onClick={() => handleEditDepense(depense)}
                                 title="Modifier la dépense"
                               >
-                                <EditIcon className="h-4 w-4" />
+                                <EditIcon className="h-5 w-5" />
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-8 w-8 p-0 bg-red-50 hover:bg-red-100 text-red-600 border-red-200"
+                                className="h-10 w-10 p-0 bg-red-100 hover:bg-red-200 text-red-700 border-red-300 shadow-sm"
                                 onClick={() => handleDeleteDepense(depense)}
                                 title="Supprimer la dépense"
                               >
-                                <TrashIcon className="h-4 w-4" />
+                                <TrashIcon className="h-5 w-5" />
                               </Button>
                             </div>
                           </td>
@@ -478,7 +494,7 @@ const RecetteDetailsPage: React.FC = () => {
               {/* En-tête avec icône d'alerte */}
               <div className="flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mx-auto mb-4">
                 <AlertTriangleIcon className="h-8 w-8 text-red-600" />
-              </div>
+      </div>
 
               {/* Titre et message */}
               <div className="text-center mb-6">
@@ -494,8 +510,8 @@ const RecetteDetailsPage: React.FC = () => {
                 <p className="text-sm text-gray-500 mt-2">
                   Cette action est irréversible.
                 </p>
-              </div>
-
+            </div>
+            
               {/* Informations de la dépense */}
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <div className="flex justify-between items-center">
@@ -527,6 +543,145 @@ const RecetteDetailsPage: React.FC = () => {
                 >
                   <TrashIcon className="h-4 w-4 mr-2" />
                   Supprimer
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Modale moderne de modification */}
+        {showEditModal && depenseToEdit && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowEditModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* En-tête avec icône d'édition */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center">
+                  <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mr-4">
+                    <EditIcon className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      Modifier la dépense
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Modifiez les informations de cette dépense
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setShowEditModal(false)}
+                >
+                  <XIcon className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Formulaire de modification */}
+              <div className="space-y-6">
+                {/* Libellé */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Libellé *
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.libelle}
+                    onChange={(e) => handleFormChange('libelle', e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                    placeholder="Nom de la dépense"
+                  />
+                </div>
+
+                {/* Montant et Date */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Montant (FCFA) *
+                    </label>
+                    <input
+                      type="number"
+                      value={editForm.montant}
+                      onChange={(e) => handleFormChange('montant', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={editForm.date}
+                      onChange={(e) => handleFormChange('date', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Catégorie */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Catégorie
+                  </label>
+                  <select
+                    value={editForm.categorie}
+                    onChange={(e) => handleFormChange('categorie', e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                  >
+                    <option value="">Sélectionner une catégorie</option>
+                    <option value="Transport">Transport</option>
+                    <option value="Nourriture">Nourriture</option>
+                    <option value="Matériel">Matériel</option>
+                    <option value="Communication">Communication</option>
+                    <option value="Autre">Autre</option>
+                  </select>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={editForm.description}
+                    onChange={(e) => handleFormChange('description', e.target.value)}
+                    rows={3}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors resize-none"
+                    placeholder="Description de la dépense (optionnel)"
+                  />
+                </div>
+              </div>
+
+              {/* Boutons d'action */}
+              <div className="flex space-x-3 mt-8 pt-6 border-t border-gray-200">
+                <Button
+                  variant="outline"
+                  className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
+                  onClick={() => setShowEditModal(false)}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  onClick={handleSaveEdit}
+                >
+                  <SaveIcon className="h-4 w-4 mr-2" />
+                  Sauvegarder
                 </Button>
               </div>
             </motion.div>
