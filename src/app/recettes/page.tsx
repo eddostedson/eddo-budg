@@ -102,7 +102,7 @@ const RecettesPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* En-tête avec animations */}
+      {/* En-tête avec métriques intégrées */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -114,79 +114,104 @@ const RecettesPage: React.FC = () => {
               <h1 className="text-4xl font-bold mb-2">💰 Gestion des Recettes</h1>
               <p className="text-blue-100 text-lg">Suivi financier avec design remarquable</p>
             </div>
-            <div className="flex space-x-4">
-              <Button
-                onClick={handleRefresh}
-                variant="secondary"
-                className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white border-white"
-              >
-                <RefreshCwIcon className="h-4 w-4 mr-2" />
-                Actualiser
-              </Button>
-              <Button className="bg-white text-blue-600 hover:bg-blue-50">
-                <PlusIcon className="h-4 w-4 mr-2" />
-                Nouvelle Recette
-              </Button>
+          </div>
+          
+          {/* Métriques intégrées dans le header */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium opacity-90">Total Recettes</div>
+                  <div className="text-2xl font-bold">{formatCurrency(totalRecettes)}</div>
+                </div>
+                <TrendingUpIcon className="h-8 w-8 opacity-80" />
+              </div>
+            </div>
+            
+            <div className="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium opacity-90">Total Dépenses</div>
+                  <div className="text-2xl font-bold">{formatCurrency(totalDepenses)}</div>
+                </div>
+                <TrendingDownIcon className="h-8 w-8 opacity-80" />
+              </div>
+            </div>
+            
+            <div className="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium opacity-90">Solde Disponible</div>
+                  <div className="text-2xl font-bold">{formatCurrency(totalDisponible)}</div>
+                </div>
+                <DollarSignIcon className="h-8 w-8 opacity-80" />
+              </div>
             </div>
           </div>
         </div>
       </motion.div>
 
       <div className="max-w-7xl mx-auto p-8">
-        {/* Cartes de statistiques globales */}
+        {/* Nouvelles cartes en paysage - optimisées en hauteur */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8"
+          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
         >
-          <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white shadow-xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium opacity-90">Total Recettes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{formatCurrency(totalRecettes)}</div>
-              <div className="flex items-center mt-2">
-                <TrendingUpIcon className="h-4 w-4 mr-1" />
-                <span className="text-sm opacity-80">Revenus totaux</span>
+          <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white shadow-xl">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                    <TrendingUpIcon className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium opacity-90">Recettes Pleines</div>
+                    <div className="text-2xl font-bold">{recettesPleine}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs opacity-80">Aucune dépense effectuée</div>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white shadow-xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium opacity-90">Total Dépenses</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{formatCurrency(totalDepenses)}</div>
-              <div className="flex items-center mt-2">
-                <TrendingDownIcon className="h-4 w-4 mr-1" />
-                <span className="text-sm opacity-80">Dépenses totales</span>
+          <Card className="bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-xl">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                    <TrendingDownIcon className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium opacity-90">Recettes Utilisées</div>
+                    <div className="text-2xl font-bold">{recettesUtilisees}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs opacity-80">Partiellement dépensées</div>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium opacity-90">Solde Disponible</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{formatCurrency(totalDisponible)}</div>
-              <div className="flex items-center mt-2">
-                <DollarSignIcon className="h-4 w-4 mr-1" />
-                <span className="text-sm opacity-80">Disponible</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium opacity-90">Statut</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{recettes.length}</div>
-              <div className="flex items-center mt-2">
-                <span className="text-sm opacity-80">Recettes actives</span>
+          <Card className="bg-gradient-to-r from-red-500 to-red-600 text-white shadow-xl">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                    <span className="text-xl">❌</span>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium opacity-90">Recettes Vides</div>
+                    <div className="text-2xl font-bold">{recettesVides}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs opacity-80">Entièrement dépensées</div>
+                </div>
               </div>
             </CardContent>
           </Card>
