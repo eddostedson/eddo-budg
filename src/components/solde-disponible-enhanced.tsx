@@ -20,18 +20,18 @@ const SoldeDisponibleEnhanced: React.FC<SoldeDisponibleEnhancedProps> = ({
   const estFaible = montant < montantInitial * 0.2 // Moins de 20% restant
   const estVide = montant === 0
   
-  // Couleurs dynamiques basées sur le montant
+  // Couleurs dynamiques basées sur le montant - VERT FONCÉ
   const getSoldeColor = () => {
-    if (estVide) return 'from-red-500 to-red-600'
-    if (estFaible) return 'from-orange-500 to-orange-600'
-    if (montant >= montantInitial * 0.8) return 'from-green-500 to-green-600'
-    return 'from-blue-500 to-blue-600'
+    if (estVide) return 'from-red-700 to-red-800'
+    if (estFaible) return 'from-orange-600 to-orange-700'
+    if (montant >= montantInitial * 0.8) return 'from-green-700 to-green-800'
+    return 'from-green-600 to-green-700'
   }
   
   const getTextColor = () => {
-    if (estVide) return 'text-red-100'
-    if (estFaible) return 'text-orange-100'
-    return 'text-white'
+    if (estVide) return 'text-white font-black'
+    if (estFaible) return 'text-white font-black'
+    return 'text-white font-black'
   }
   
   const getIcon = () => {
@@ -72,14 +72,14 @@ const SoldeDisponibleEnhanced: React.FC<SoldeDisponibleEnhancedProps> = ({
             >
               {getIcon()}
             </motion.span>
-            <span className={`text-lg font-bold ${getTextColor()} uppercase tracking-wide`}>
+            <span className={`text-lg font-black text-white uppercase tracking-wide`}>
               Solde Disponible
             </span>
           </div>
           
           {/* Indicateur de pourcentage */}
           <div className="text-right">
-            <div className={`text-sm font-medium ${getTextColor()} opacity-80`}>
+            <div className={`text-sm font-bold text-white opacity-90`}>
               {pourcentageUtilise.toFixed(1)}% utilisé
             </div>
             <div className="w-20 h-2 bg-white bg-opacity-30 rounded-full mt-1">
@@ -100,7 +100,7 @@ const SoldeDisponibleEnhanced: React.FC<SoldeDisponibleEnhancedProps> = ({
           transition={{ duration: 0.6, delay: 0.2 }}
           className="text-center"
         >
-          <div className={`text-4xl font-black ${getTextColor()} mb-2`}>
+          <div className={`text-4xl font-black text-white mb-2`}>
             {formatCurrency(montant)}
           </div>
           
@@ -133,7 +133,7 @@ const SoldeDisponibleEnhanced: React.FC<SoldeDisponibleEnhancedProps> = ({
             
             {/* Pourcentage au centre */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className={`text-lg font-bold ${getTextColor()}`}>
+              <span className={`text-lg font-black text-white`}>
                 {Math.round(100 - pourcentageUtilise)}%
               </span>
             </div>
@@ -142,7 +142,7 @@ const SoldeDisponibleEnhanced: React.FC<SoldeDisponibleEnhancedProps> = ({
         
         {/* Informations supplémentaires */}
         <div className="text-center">
-          <div className={`text-sm ${getTextColor()} opacity-80 mb-2`}>
+          <div className={`text-sm text-white font-bold opacity-90 mb-2`}>
             Montant initial: {formatCurrency(montantInitial)}
           </div>
           
