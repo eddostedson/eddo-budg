@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, TrendingUpIcon, TrendingDownIcon, DollarSignIcon, BarChart3Icon, PieChartIcon, ActivityIcon } from 'lucide-react'
+import RecetteCardEnhanced from '@/components/recette-card-enhanced'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -295,6 +296,49 @@ const AccueilPage: React.FC = () => {
               </div>
             </div>
           </div>
+        </motion.div>
+
+        {/* Aperçu des recettes avec nouveau design */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.0 }}
+          className="bg-white rounded-2xl p-8 shadow-lg"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-800">🎨 Aperçu des Recettes</h2>
+            <Link href="/recettes">
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                Voir Toutes les Recettes
+              </Button>
+            </Link>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {recettes.slice(0, 4).map((recette, index) => (
+              <motion.div
+                key={recette.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 * index }}
+              >
+                <RecetteCardEnhanced
+                  recette={recette}
+                  onView={() => {}}
+                  onEdit={() => {}}
+                  onDelete={() => {}}
+                />
+              </motion.div>
+            ))}
+          </div>
+          
+          {recettes.length > 4 && (
+            <div className="text-center mt-6">
+              <Badge variant="outline" className="text-lg px-4 py-2">
+                + {recettes.length - 4} autres recettes
+              </Badge>
+            </div>
+          )}
         </motion.div>
       </div>
     </div>

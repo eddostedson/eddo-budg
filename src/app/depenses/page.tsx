@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, PlusIcon, RefreshCwIcon, TrendingUpIcon, TrendingDownIcon, DollarSignIcon, ReceiptIcon } from 'lucide-react'
+import RecetteCardEnhanced from '@/components/recette-card-enhanced'
 import { toast } from 'sonner'
 
 const DepensesPage: React.FC = () => {
@@ -331,6 +332,47 @@ const DepensesPage: React.FC = () => {
               </motion.div>
             ))}
           </div>
+        </motion.div>
+
+        {/* Aperçu des recettes avec nouveau design */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          className="bg-white rounded-2xl p-8 shadow-lg mt-8"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-800">🎨 Recettes Disponibles</h2>
+            <Badge variant="outline" className="text-lg px-4 py-2">
+              {recettes.length} recettes
+            </Badge>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {recettes.slice(0, 4).map((recette, index) => (
+              <motion.div
+                key={recette.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 * index }}
+              >
+                <RecetteCardEnhanced
+                  recette={recette}
+                  onView={() => {}}
+                  onEdit={() => {}}
+                  onDelete={() => {}}
+                />
+              </motion.div>
+            ))}
+          </div>
+          
+          {recettes.length > 4 && (
+            <div className="text-center mt-6">
+              <Badge variant="outline" className="text-lg px-4 py-2">
+                + {recettes.length - 4} autres recettes
+              </Badge>
+            </div>
+          )}
         </motion.div>
       </div>
     </div>
