@@ -1,65 +1,59 @@
-// 🎨 PAGE RECETTES AVEC DESIGN AMÉLIORÉ - SOLDES REMARQUABLES
+// 🎨 PAGE DE TEST - TRI DES RECETTES PAR DISPONIBILITÉ
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useRecettes } from '@/contexts/recette-context'
 import { useDepenses } from '@/contexts/depense-context'
-import { Recette } from '@/lib/shared-data'
 import { formatCurrency } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, PlusIcon, RefreshCwIcon, TrendingUpIcon, TrendingDownIcon, DollarSignIcon } from 'lucide-react'
-import RecetteCardEnhanced from '@/components/recette-card-enhanced'
+import { Loader2, RefreshCwIcon, TrendingUpIcon, TrendingDownIcon, AlertTriangleIcon } from 'lucide-react'
 import RecettesByAvailability from '@/components/recettes-by-availability'
 import { toast } from 'sonner'
 
-const RecettesPage: React.FC = () => {
+const TestTriDisponibilitePage: React.FC = () => {
   const { recettes, loading, error, refreshRecettes } = useRecettes()
   const { depenses } = useDepenses()
-  const [showModal, setShowModal] = useState(false)
-  const [selectedRecette, setSelectedRecette] = useState<Recette | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   // Calculs des totaux
   const totalRecettes = recettes.reduce((sum, recette) => sum + recette.montant, 0)
   const totalDepenses = depenses.reduce((sum, depense) => sum + depense.montant, 0)
   const totalDisponible = recettes.reduce((sum, recette) => sum + recette.soldeDisponible, 0)
 
-  // Statistiques avancées
-  const recettesUtilisees = recettes.filter(r => r.soldeDisponible < r.montant).length
-  const recettesVides = recettes.filter(r => r.soldeDisponible === 0).length
-  const recettesPleine = recettes.filter(r => r.soldeDisponible === r.montant).length
+  // Statistiques par disponibilité
+  const recettesHigh = recettes.filter(r => (r.soldeDisponible / r.montant) * 100 >= 50).length
+  const recettesMedium = recettes.filter(r => {
+    const pourcentage = (r.soldeDisponible / r.montant) * 100
+    return pourcentage >= 15 && pourcentage < 50
+  }).length
+  const recettesLow = recettes.filter(r => (r.soldeDisponible / r.montant) * 100 < 15).length
 
   const handleRefresh = async () => {
     try {
       await refreshRecettes()
+      setRefreshKey(prev => prev + 1)
       toast.success("Données rafraîchies avec succès !")
     } catch (error) {
       toast.error("Erreur lors du rafraîchissement")
     }
   }
 
-  const handleViewRecette = (recette: Recette) => {
-    setSelectedRecette(recette)
-    setShowModal(true)
+  const handleViewRecette = (recette: any) => {
+    console.log('Voir recette:', recette)
+    toast.info(`Voir recette: ${recette.libelle}`)
   }
 
-  const handleEditRecette = (recette: Recette) => {
-    // Logique d'édition
-    toast.info("Fonctionnalité d'édition en cours de développement")
+  const handleEditRecette = (recette: any) => {
+    console.log('Modifier recette:', recette)
+    toast.info(`Modifier recette: ${recette.libelle}`)
   }
 
-  const handleDeleteRecette = async (id: string) => {
-    if (confirm("Êtes-vous sûr de vouloir supprimer cette recette ?")) {
-      try {
-        // Logique de suppression
-        toast.success("Recette supprimée avec succès !")
-        await refreshRecettes()
-      } catch (error) {
-        toast.error("Erreur lors de la suppression")
-      }
-    }
+  const handleDeleteRecette = (id: string) => {
+    console.log('Supprimer recette:', id)
+    toast.info(`Supprimer recette: ${id}`)
   }
 
   if (loading) {
@@ -72,7 +66,7 @@ const RecettesPage: React.FC = () => {
         >
           <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-700">Chargement des recettes...</h2>
-          <p className="text-gray-500 mt-2">Préparation des données financières</p>
+          <p className="text-gray-500 mt-2">Préparation du tri par disponibilité</p>
         </motion.div>
       </div>
     )
@@ -104,6 +98,7 @@ const RecettesPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {/* En-tête avec animations */}
       <motion.div
+        key={refreshKey}
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white p-8"
@@ -111,8 +106,8 @@ const RecettesPage: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-4xl font-bold mb-2">💰 Gestion des Recettes</h1>
-              <p className="text-blue-100 text-lg">Suivi financier avec design remarquable</p>
+              <h1 className="text-4xl font-bold mb-2">📊 Test Tri par Disponibilité</h1>
+              <p className="text-blue-100 text-lg">Recettes classées par pourcentage de budget disponible</p>
             </div>
             <div className="flex space-x-4">
               <Button
@@ -123,10 +118,6 @@ const RecettesPage: React.FC = () => {
                 <RefreshCwIcon className="h-4 w-4 mr-2" />
                 Actualiser
               </Button>
-              <Button className="bg-white text-blue-600 hover:bg-blue-50">
-                <PlusIcon className="h-4 w-4 mr-2" />
-                Nouvelle Recette
-              </Button>
             </div>
           </div>
         </div>
@@ -135,6 +126,7 @@ const RecettesPage: React.FC = () => {
       <div className="max-w-7xl mx-auto p-8">
         {/* Cartes de statistiques globales */}
         <motion.div
+          key={refreshKey + 1}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -142,96 +134,84 @@ const RecettesPage: React.FC = () => {
         >
           <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white shadow-xl">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium opacity-90">Total Recettes</CardTitle>
+              <CardTitle className="text-sm font-medium opacity-90">🟢 Disponibilité Élevée</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{formatCurrency(totalRecettes)}</div>
+              <div className="text-3xl font-bold">{recettesHigh}</div>
               <div className="flex items-center mt-2">
                 <TrendingUpIcon className="h-4 w-4 mr-1" />
-                <span className="text-sm opacity-80">Revenus totaux</span>
+                <span className="text-sm opacity-80">50% - 100%</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-xl">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium opacity-90">🟠 Disponibilité Moyenne</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{recettesMedium}</div>
+              <div className="flex items-center mt-2">
+                <AlertTriangleIcon className="h-4 w-4 mr-1" />
+                <span className="text-sm opacity-80">15% - 49%</span>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white shadow-xl">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium opacity-90">Total Dépenses</CardTitle>
+              <CardTitle className="text-sm font-medium opacity-90">🔴 Disponibilité Faible</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{formatCurrency(totalDepenses)}</div>
+              <div className="text-3xl font-bold">{recettesLow}</div>
               <div className="flex items-center mt-2">
                 <TrendingDownIcon className="h-4 w-4 mr-1" />
-                <span className="text-sm opacity-80">Dépenses totales</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium opacity-90">Solde Disponible</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{formatCurrency(totalDisponible)}</div>
-              <div className="flex items-center mt-2">
-                <DollarSignIcon className="h-4 w-4 mr-1" />
-                <span className="text-sm opacity-80">Disponible</span>
+                <span className="text-sm opacity-80">0% - 14%</span>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-xl">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium opacity-90">Statut</CardTitle>
+              <CardTitle className="text-sm font-medium opacity-90">Total</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{recettes.length}</div>
               <div className="flex items-center mt-2">
-                <span className="text-sm opacity-80">Recettes actives</span>
+                <span className="text-sm opacity-80">Recettes</span>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Statistiques détaillées */}
+        {/* Résumé financier */}
         <motion.div
+          key={refreshKey + 2}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
+          className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 mb-8"
         >
-          <Card className="bg-white shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-green-600">✅ Recettes Pleines</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">{recettesPleine}</div>
-              <p className="text-sm text-gray-600 mt-2">Aucune dépense effectuée</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-orange-600">⚠️ Recettes Utilisées</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-orange-600">{recettesUtilisees}</div>
-              <p className="text-sm text-gray-600 mt-2">Partiellement dépensées</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-red-600">❌ Recettes Vides</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-red-600">{recettesVides}</div>
-              <p className="text-sm text-gray-600 mt-2">Entièrement dépensées</p>
-            </CardContent>
-          </Card>
+          <h2 className="text-xl font-bold text-gray-800 mb-4">💰 Résumé Financier</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">{formatCurrency(totalRecettes)}</div>
+              <p className="text-sm text-gray-600">Total Recettes</p>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">{formatCurrency(totalDepenses)}</div>
+              <p className="text-sm text-gray-600">Total Dépenses</p>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{formatCurrency(totalDisponible)}</div>
+              <p className="text-sm text-gray-600">Solde Disponible</p>
+            </div>
+          </div>
         </motion.div>
 
-        {/* Liste des recettes triées par disponibilité */}
+        {/* Composant de tri par disponibilité */}
         <motion.div
+          key={refreshKey + 3}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
@@ -248,4 +228,4 @@ const RecettesPage: React.FC = () => {
   )
 }
 
-export default RecettesPage
+export default TestTriDisponibilitePage
