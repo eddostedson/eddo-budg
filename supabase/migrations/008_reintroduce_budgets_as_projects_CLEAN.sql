@@ -119,3 +119,6 @@ SELECT 'Migration (V4 CLEAN) terminée avec succès ! Tables budgets, budget_rec
 
 
 
+
+
+

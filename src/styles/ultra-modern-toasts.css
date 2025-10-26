@@ -1,0 +1,203 @@
+/* 🎨 Ultra Modern Toasts - Styles Avancés */
+
+/* Animations de base */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(59, 130, 246, 0.6);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+}
+
+/* Classes utilitaires pour les toasts */
+.ultra-toast-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+.ultra-toast-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.ultra-toast-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.ultra-toast-pulse {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Effets de particules */
+.ultra-toast-particles {
+  position: relative;
+  overflow: hidden;
+}
+
+.ultra-toast-particles::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.1) 1px,
+    transparent 1px
+  );
+  background-size: 20px 20px;
+  animation: float 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Effets de gradient animé */
+.ultra-toast-gradient {
+  background: linear-gradient(
+    45deg,
+    #667eea,
+    #764ba2,
+    #f093fb,
+    #f5576c,
+    #4facfe,
+    #00f2fe
+  );
+  background-size: 400% 400%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Effets de glassmorphism */
+.ultra-toast-glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* Animations d'entrée avancées */
+.ultra-toast-enter {
+  animation: toast-enter 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes toast-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-100px) scale(0.8) rotateX(-90deg);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateY(-20px) scale(1.05) rotateX(-45deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotateX(0deg);
+  }
+}
+
+/* Animations de sortie */
+.ultra-toast-exit {
+  animation: toast-exit 0.4s cubic-bezier(0.55, 0.055, 0.675, 0.19);
+}
+
+@keyframes toast-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotateX(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.8) rotateX(90deg);
+  }
+}
+
+/* Effets de hover avancés */
+.ultra-toast-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ultra-toast-hover:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Responsive design pour les toasts */
+@media (max-width: 640px) {
+  .ultra-toast-mobile {
+    margin: 0 16px;
+    max-width: calc(100vw - 32px);
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .ultra-toast-dark {
+    background: rgba(17, 24, 39, 0.8);
+    border-color: rgba(75, 85, 99, 0.3);
+    color: rgba(243, 244, 246, 0.9);
+  }
+}
+
+/* Accessibilité */
+.ultra-toast-reduced-motion {
+  animation: none !important;
+  transition: opacity 0.3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ultra-toast-shimmer,
+  .ultra-toast-glow,
+  .ultra-toast-float,
+  .ultra-toast-pulse,
+  .ultra-toast-gradient {
+    animation: none !important;
+  }
+}
+
+

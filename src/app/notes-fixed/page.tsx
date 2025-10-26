@@ -8,7 +8,6 @@ import { useNotifications } from '@/contexts/notification-context'
 import { useConfirm } from '@/components/modern-confirm'
 import { Note, NoteFormData, ConvertNoteToRecetteData, ConvertNoteToDepenseData } from '@/types/notes'
 import { formatCurrency } from '@/lib/utils'
-import '@/lib/debug-notes'
 
 export default function NotesFixedPage() {
   const router = useRouter()
@@ -307,6 +306,9 @@ export default function NotesFixedPage() {
     </div>
   )
 }
+
+
+
 
 
 

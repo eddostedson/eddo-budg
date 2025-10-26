@@ -44,3 +44,6 @@ SELECT 'Colonnes pour les reçus ajoutées avec succès' as status;
 
 
 
+
+
+

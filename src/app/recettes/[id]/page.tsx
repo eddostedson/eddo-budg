@@ -17,8 +17,8 @@ import { toast } from 'sonner'
 const RecetteDetailsPage: React.FC = () => {
   const params = useParams()
   const router = useRouter()
-  const { recettes, loading: recettesLoading } = useRecettes()
-  const { depenses, loading: depensesLoading } = useDepenses()
+  const { recettes, loading: recettesLoading, refreshRecettes } = useRecettes()
+  const { depenses, loading: depensesLoading, addDepense, updateDepense, deleteDepense, refreshDepenses } = useDepenses()
   
   const [recette, setRecette] = useState<Recette | null>(null)
   const [depensesLiees, setDepensesLiees] = useState<Depense[]>([])
@@ -27,6 +27,14 @@ const RecetteDetailsPage: React.FC = () => {
   const [depenseToDelete, setDepenseToDelete] = useState<Depense | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [depenseToEdit, setDepenseToEdit] = useState<Depense | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    libelle: '',
+    montant: '',
+    date: new Date().toISOString().split('T')[0],
+    description: '',
+    categorie: ''
+  })
   const [editForm, setEditForm] = useState({
     libelle: '',
     montant: '',
@@ -57,7 +65,14 @@ const RecetteDetailsPage: React.FC = () => {
   }
 
   const handleAddDepense = () => {
-    router.push(`/depenses?recetteId=${recette?.id}`)
+    setCreateForm({
+      libelle: '',
+      montant: '',
+      date: new Date().toISOString().split('T')[0],
+      description: '',
+      categorie: ''
+    })
+    setShowCreateModal(true)
   }
 
   const handleEditDepense = (depense: Depense) => {
@@ -81,14 +96,19 @@ const RecetteDetailsPage: React.FC = () => {
     if (!depenseToDelete) return
     
     try {
-      // Ici vous pouvez appeler votre service de suppression
-      // await DepenseService.deleteDepense(depenseToDelete.id)
+      console.log('🔄 Suppression de dépense:', depenseToDelete.id)
+
+      // Supprimer la dépense via le contexte
+      await deleteDepense(depenseToDelete.id)
+      
       toast.success("Dépense supprimée avec succès !")
       setShowDeleteModal(false)
       setDepenseToDelete(null)
-      // Recharger les données
-      window.location.reload()
+      
+      // Rafraîchir les données
+      await Promise.all([refreshDepenses(), refreshRecettes()])
     } catch (error) {
+      console.error('❌ Erreur lors de la suppression de la dépense:', error)
       toast.error("Erreur lors de la suppression de la dépense")
     }
   }
@@ -100,19 +120,102 @@ const RecetteDetailsPage: React.FC = () => {
     }))
   }
 
+  const handleCreateFormChange = (field: string, value: string) => {
+    setCreateForm(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
   const handleSaveEdit = async () => {
     if (!depenseToEdit) return
     
     try {
-      // Ici vous pouvez appeler votre service de mise à jour
-      // await DepenseService.updateDepense(depenseToEdit.id, editForm)
+      // Validation
+      if (!editForm.libelle || !editForm.montant) {
+        toast.error("Le libellé et le montant sont obligatoires")
+        return
+      }
+
+      const montant = parseFloat(editForm.montant)
+      if (isNaN(montant) || montant <= 0) {
+        toast.error("Le montant doit être un nombre positif")
+        return
+      }
+
+      console.log('🔄 Modification de dépense:', depenseToEdit.id, 'Nouveau montant:', montant)
+
+      // Mettre à jour la dépense via le contexte
+      await updateDepense(depenseToEdit.id, {
+        libelle: editForm.libelle,
+        montant: montant,
+        date: editForm.date,
+        description: editForm.description || '',
+        categorie: editForm.categorie || '',
+        updatedAt: new Date().toISOString()
+      })
+      
       toast.success("Dépense modifiée avec succès !")
       setShowEditModal(false)
       setDepenseToEdit(null)
-      // Recharger les données
-      window.location.reload()
+      
+      // Rafraîchir les données
+      await Promise.all([refreshDepenses(), refreshRecettes()])
     } catch (error) {
+      console.error('❌ Erreur lors de la modification de la dépense:', error)
       toast.error("Erreur lors de la modification de la dépense")
+    }
+  }
+
+  const handleSaveCreate = async () => {
+    if (!recette) {
+      toast.error("Recette non trouvée")
+      return
+    }
+    
+    try {
+      // Validation
+      if (!createForm.libelle || !createForm.montant) {
+        toast.error("Le libellé et le montant sont obligatoires")
+        return
+      }
+
+      const montant = parseFloat(createForm.montant)
+      if (isNaN(montant) || montant <= 0) {
+        toast.error("Le montant doit être un nombre positif")
+        return
+      }
+
+      console.log('🔄 Création de dépense pour recette:', recette.id, 'Montant:', montant)
+
+      // Créer la dépense via le contexte
+      await addDepense({
+        libelle: createForm.libelle,
+        montant: montant,
+        date: createForm.date,
+        description: createForm.description || '',
+        recetteId: recette.id, // Utiliser l'ID de la recette courante
+        categorie: createForm.categorie || '',
+        userId: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
+      
+      toast.success("Dépense créée avec succès !")
+      setShowCreateModal(false)
+      setCreateForm({
+        libelle: '',
+        montant: '',
+        date: new Date().toISOString().split('T')[0],
+        description: '',
+        categorie: ''
+      })
+      
+      // Rafraîchir les données
+      await Promise.all([refreshDepenses(), refreshRecettes()])
+    } catch (error) {
+      console.error('❌ Erreur lors de la création de la dépense:', error)
+      toast.error("Erreur lors de la création de la dépense")
     }
   }
 
@@ -638,18 +741,35 @@ const RecetteDetailsPage: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Catégorie
                   </label>
-                  <select
-                    value={editForm.categorie}
-                    onChange={(e) => handleFormChange('categorie', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-                  >
-                    <option value="">Sélectionner une catégorie</option>
-                    <option value="Transport">Transport</option>
-                    <option value="Nourriture">Nourriture</option>
-                    <option value="Matériel">Matériel</option>
-                    <option value="Communication">Communication</option>
-                    <option value="Autre">Autre</option>
-                  </select>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={editForm.categorie}
+                      onChange={(e) => handleFormChange('categorie', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                      placeholder="Tapez ou sélectionnez une catégorie"
+                      list="categorie-suggestions-edit"
+                    />
+                    <datalist id="categorie-suggestions-edit">
+                      <option value="Transport">Transport</option>
+                      <option value="Nourriture">Nourriture</option>
+                      <option value="Matériel">Matériel</option>
+                      <option value="Communication">Communication</option>
+                      <option value="Santé">Santé</option>
+                      <option value="Éducation">Éducation</option>
+                      <option value="Loisirs">Loisirs</option>
+                      <option value="Vêtements">Vêtements</option>
+                      <option value="Électricité">Électricité</option>
+                      <option value="Eau">Eau</option>
+                      <option value="Internet">Internet</option>
+                      <option value="Assurance">Assurance</option>
+                      <option value="Maintenance">Maintenance</option>
+                      <option value="Autre">Autre</option>
+                    </datalist>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    💡 Vous pouvez taper une catégorie personnalisée ou choisir dans la liste
+                  </p>
                 </div>
 
                 {/* Description */}
@@ -682,6 +802,173 @@ const RecetteDetailsPage: React.FC = () => {
                 >
                   <SaveIcon className="h-4 w-4 mr-2" />
                   Sauvegarder
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Modal de création de dépense */}
+        {showCreateModal && recette && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowCreateModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* En-tête avec icône de création */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center">
+                  <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full mr-4">
+                    <PlusIcon className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      Créer une nouvelle dépense
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Pour la recette: <span className="font-semibold text-blue-600">{recette.libelle}</span>
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setShowCreateModal(false)}
+                >
+                  <XIcon className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Formulaire de création */}
+              <div className="space-y-6">
+                {/* Libellé */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Libellé *
+                  </label>
+                  <input
+                    type="text"
+                    value={createForm.libelle}
+                    onChange={(e) => handleCreateFormChange('libelle', e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    placeholder="Nom de la dépense"
+                  />
+                </div>
+
+                {/* Montant et Date */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Montant (FCFA) *
+                    </label>
+                    <input
+                      type="number"
+                      value={createForm.montant}
+                      onChange={(e) => handleCreateFormChange('montant', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      placeholder="0"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={createForm.date}
+                      onChange={(e) => handleCreateFormChange('date', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Catégorie */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Catégorie
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={createForm.categorie}
+                      onChange={(e) => handleCreateFormChange('categorie', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      placeholder="Tapez ou sélectionnez une catégorie"
+                      list="categorie-suggestions"
+                    />
+                    <datalist id="categorie-suggestions">
+                      <option value="Transport">Transport</option>
+                      <option value="Nourriture">Nourriture</option>
+                      <option value="Matériel">Matériel</option>
+                      <option value="Communication">Communication</option>
+                      <option value="Santé">Santé</option>
+                      <option value="Éducation">Éducation</option>
+                      <option value="Loisirs">Loisirs</option>
+                      <option value="Vêtements">Vêtements</option>
+                      <option value="Électricité">Électricité</option>
+                      <option value="Eau">Eau</option>
+                      <option value="Internet">Internet</option>
+                      <option value="Assurance">Assurance</option>
+                      <option value="Maintenance">Maintenance</option>
+                      <option value="Autre">Autre</option>
+                    </datalist>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    💡 Vous pouvez taper une catégorie personnalisée ou choisir dans la liste
+                  </p>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={createForm.description}
+                    onChange={(e) => handleCreateFormChange('description', e.target.value)}
+                    rows={3}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
+                    placeholder="Description de la dépense (optionnel)"
+                  />
+                </div>
+
+                {/* Information sur la recette */}
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">Recette associée</h4>
+                  <div className="text-sm text-blue-700">
+                    <p><strong>Nom:</strong> {recette.libelle}</p>
+                    <p><strong>Solde disponible:</strong> {formatCurrency(recette.soldeDisponible)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Boutons d'action */}
+              <div className="flex space-x-3 mt-8 pt-6 border-t border-gray-200">
+                <Button
+                  variant="outline"
+                  className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
+                  onClick={() => setShowCreateModal(false)}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={handleSaveCreate}
+                >
+                  <PlusIcon className="h-4 w-4 mr-2" />
+                  Créer la Dépense
                 </Button>
               </div>
             </motion.div>

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Sélection Multiple - Recettes</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #3b82f6;
+        }
+        .button {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+        .button.success {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+        .result {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .recette-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 10px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .recette-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+        }
+        .recette-card.selected {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        .checkbox {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .selection-summary {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .summary-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .summary-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 Test Sélection Multiple - Recettes</h1>
+            <p>Test des fonctionnalités de sélection multiple des recettes</p>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Contrôles de Sélection</h2>
+            <button class="button" onclick="toggleSelectionMode()">Activer/Désactiver Mode Sélection</button>
+            <button class="button success" onclick="selectAll()">Tout Sélectionner</button>
+            <button class="button" onclick="clearSelection()">Tout Désélectionner</button>
+            <div id="selectionStatus" class="result"></div>
+        </div>
+
+        <div id="selectionSummary" class="selection-summary" style="display: none;">
+            <h3>📊 Résumé des Recettes Sélectionnées</h3>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div>Total Recettes</div>
+                    <div class="summary-value" id="totalRecettes">0 F CFA</div>
+                </div>
+                <div class="summary-item">
+                    <div>Total Dépensé</div>
+                    <div class="summary-value" id="totalDepenses">0 F CFA</div>
+                </div>
+                <div class="summary-item">
+                    <div>Solde Disponible</div>
+                    <div class="summary-value" id="totalSoldes">0 F CFA</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>💰 Recettes de Test</h2>
+            <div id="recettesList"></div>
+        </div>
+    </div>
+
+    <script>
+        let selectionMode = false;
+        let selectedRecettes = [];
+        
+        // Données de test
+        const recettesTest = [
+            { id: '1', libelle: 'Salaire Septembre', montant: 500000, soldeDisponible: 300000 },
+            { id: '2', libelle: 'Prime Performance', montant: 150000, soldeDisponible: 150000 },
+            { id: '3', libelle: 'Vente Matériel', montant: 75000, soldeDisponible: 0 },
+            { id: '4', libelle: 'Consultation', montant: 200000, soldeDisponible: 50000 },
+            { id: '5', libelle: 'Formation', montant: 100000, soldeDisponible: 100000 }
+        ];
+
+        function toggleSelectionMode() {
+            selectionMode = !selectionMode;
+            if (!selectionMode) {
+                selectedRecettes = [];
+            }
+            updateDisplay();
+            updateSelectionStatus();
+        }
+
+        function selectAll() {
+            if (!selectionMode) return;
+            selectedRecettes = recettesTest.map(r => r.id);
+            updateDisplay();
+            updateSelectionStatus();
+        }
+
+        function clearSelection() {
+            selectedRecettes = [];
+            updateDisplay();
+            updateSelectionStatus();
+        }
+
+        function toggleRecetteSelection(recetteId) {
+            if (!selectionMode) return;
+            
+            const index = selectedRecettes.indexOf(recetteId);
+            if (index > -1) {
+                selectedRecettes.splice(index, 1);
+            } else {
+                selectedRecettes.push(recetteId);
+            }
+            updateDisplay();
+            updateSelectionStatus();
+        }
+
+        function updateDisplay() {
+            const container = document.getElementById('recettesList');
+            container.innerHTML = '';
+            
+            recettesTest.forEach(recette => {
+                const isSelected = selectedRecettes.includes(recette.id);
+                const totalDepenses = recette.montant - recette.soldeDisponible;
+                
+                const card = document.createElement('div');
+                card.className = `recette-card ${isSelected ? 'selected' : ''}`;
+                card.innerHTML = `
+                    ${selectionMode ? `<input type="checkbox" class="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleRecetteSelection('${recette.id}')">` : ''}
+                    <div style="margin-left: ${selectionMode ? '30px' : '0'}">
+                        <h3>${recette.libelle}</h3>
+                        <p><strong>Montant initial:</strong> ${recette.montant.toLocaleString()} F CFA</p>
+                        <p><strong>Dépensé:</strong> ${totalDepenses.toLocaleString()} F CFA</p>
+                        <p><strong>Solde disponible:</strong> ${recette.soldeDisponible.toLocaleString()} F CFA</p>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function updateSelectionStatus() {
+            const status = document.getElementById('selectionStatus');
+            const summary = document.getElementById('selectionSummary');
+            
+            if (selectionMode) {
+                status.textContent = `Mode sélection: ACTIF | ${selectedRecettes.length} recette(s) sélectionnée(s)`;
+                
+                if (selectedRecettes.length > 0) {
+                    const selectedData = recettesTest.filter(r => selectedRecettes.includes(r.id));
+                    const totalRecettes = selectedData.reduce((sum, r) => sum + r.montant, 0);
+                    const totalDepenses = selectedData.reduce((sum, r) => sum + (r.montant - r.soldeDisponible), 0);
+                    const totalSoldes = selectedData.reduce((sum, r) => sum + r.soldeDisponible, 0);
+                    
+                    document.getElementById('totalRecettes').textContent = totalRecettes.toLocaleString() + ' F CFA';
+                    document.getElementById('totalDepenses').textContent = totalDepenses.toLocaleString() + ' F CFA';
+                    document.getElementById('totalSoldes').textContent = totalSoldes.toLocaleString() + ' F CFA';
+                    
+                    summary.style.display = 'block';
+                } else {
+                    summary.style.display = 'none';
+                }
+            } else {
+                status.textContent = 'Mode sélection: INACTIF';
+                summary.style.display = 'none';
+            }
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDisplay();
+            updateSelectionStatus();
+        });
+    </script>
+</body>
+</html>

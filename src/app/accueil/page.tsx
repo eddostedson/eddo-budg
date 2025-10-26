@@ -81,6 +81,12 @@ const AccueilPage: React.FC = () => {
                 <PieChartIcon className="h-4 w-4 mr-2" />
                 Analyses
               </Button>
+              <Link href="/journal-activite">
+                <Button className="bg-white text-green-600 hover:bg-green-50">
+                  <ActivityIcon className="h-4 w-4 mr-2" />
+                  Journal
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -220,6 +226,23 @@ const AccueilPage: React.FC = () => {
                   <p className="text-gray-600 mb-4">Enregistrer et suivre vos dépenses</p>
                   <Button className="w-full bg-red-600 hover:bg-red-700">
                     Voir les Dépenses
+                  </Button>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/journal-activite">
+              <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-green-600 flex items-center">
+                    <ActivityIcon className="h-5 w-5 mr-2" />
+                    Journal d'Activité
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-4">Consulter l'historique des transactions</p>
+                  <Button className="w-full bg-green-600 hover:bg-green-700">
+                    Voir le Journal
                   </Button>
                 </CardContent>
               </Card>

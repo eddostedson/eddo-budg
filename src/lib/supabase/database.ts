@@ -288,9 +288,10 @@ export class RecetteService {
         .from('recettes')
         .insert({
           user_id: user.id,
-          description: recette.libelle, // libelle -> description (correction)
-          amount: recette.montant, // montant -> amount (correction)
-          receipt_date: recette.dateReception || new Date().toISOString().split('T')[0] // dateReception -> receipt_date (correction)
+          description: recette.libelle, // libelle -> description
+          amount: recette.montant, // montant -> amount
+          solde_disponible: recette.soldeDisponible, // Ajouter le solde disponible
+          receipt_date: recette.dateReception || new Date().toISOString().split('T')[0] // dateReception -> receipt_date
         })
         .select()
         .single()
@@ -307,7 +308,7 @@ export class RecetteService {
         libelle: data.description || '', // description -> libelle (correction)
         description: data.description || '',
         montant: parseFloat(data.amount || 0), // amount -> montant (correction)
-        soldeDisponible: parseFloat(data.amount || 0), // amount -> soldeDisponible (correction)
+        soldeDisponible: parseFloat(data.solde_disponible || data.amount || 0), // Utiliser solde_disponible de la base
         source: '', // Colonne n'existe pas dans la nouvelle structure
         periodicite: 'unique', // Colonne n'existe pas dans la nouvelle structure
         dateReception: data.receipt_date, // receipt_date -> dateReception (correction)
@@ -335,6 +336,7 @@ export class RecetteService {
       if (updates.libelle !== undefined) updateData.description = updates.libelle // libelle -> description (correction)
       if (updates.description !== undefined) updateData.description = updates.description
       if (updates.montant !== undefined) updateData.amount = updates.montant // montant -> amount (correction)
+      if (updates.soldeDisponible !== undefined) updateData.solde_disponible = updates.soldeDisponible // soldeDisponible -> solde_disponible
       if (updates.dateReception !== undefined) updateData.receipt_date = updates.dateReception // dateReception -> receipt_date (correction)
 
       const { data, error } = await supabase
@@ -357,7 +359,7 @@ export class RecetteService {
         libelle: data.description || '', // description -> libelle (correction)
         description: data.description || '',
         montant: parseFloat(data.amount || 0), // amount -> montant (correction)
-        soldeDisponible: parseFloat(data.amount || 0), // amount -> soldeDisponible (correction)
+        soldeDisponible: parseFloat(data.solde_disponible || data.amount || 0), // Utiliser solde_disponible de la base
         source: '', // Colonne n'existe pas dans la nouvelle structure
         periodicite: 'unique', // Colonne n'existe pas dans la nouvelle structure
         dateReception: data.receipt_date, // receipt_date -> dateReception (correction)
@@ -419,46 +421,9 @@ export class RecetteService {
         console.log('ℹ️ Aucune dépense liée à supprimer')
       }
 
-      // 2. Récupérer les informations de la recette pour supprimer le reçu
-      const { data: recette, error: fetchError } = await supabase
-        .from('recettes')
-        .select('receipt_url')
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .single()
-
-      if (fetchError) {
-        console.error('❌ Erreur lors de la récupération de la recette:', fetchError)
-        return false
-      }
-
-      // 2. Supprimer le fichier reçu du stockage si il existe
-      if (recette?.receipt_url) {
-        try {
-          // Extraire le chemin du fichier depuis l'URL
-          const urlParts = recette.receipt_url.split('/')
-          const fileName = urlParts[urlParts.length - 1]
-          const filePath = `${user.id}/${fileName}`
-
-          console.log('🗑️ Suppression du fichier reçu:', filePath)
-          
-          const { error: storageError } = await supabase.storage
-            .from('receipts')
-            .remove([filePath])
-
-          if (storageError) {
-            console.warn('⚠️ Erreur lors de la suppression du fichier reçu (peut être déjà supprimé):', storageError)
-            // On continue même si la suppression du fichier échoue
-          } else {
-            console.log('✅ Fichier reçu supprimé avec succès:', filePath)
-          }
-        } catch (storageError) {
-          console.warn('⚠️ Erreur lors de la suppression du fichier reçu:', storageError)
-          // On continue même si la suppression du fichier échoue
-        }
-      }
-
-      // 3. Supprimer l'enregistrement de la recette
+      // 2. Supprimer directement la recette (sans récupération préalable)
+      console.log('🗑️ Suppression de la recette...')
+      
       const { error } = await supabase
         .from('recettes')
         .delete()
@@ -765,17 +730,25 @@ export class DepenseService {
         return false
       }
 
-      // 1. Suppression directe (sans logs de performance)
-      const { data: depense, error: fetchError } = await supabase
-        .from('depenses')
-        .select('receipt_url')
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .single()
+      // 1. Récupération optionnelle de la dépense (pour le fichier reçu)
+      let depense = null
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('depenses')
+          .select('receipt_url')
+          .eq('id', id)
+          .eq('user_id', user.id)
+          .single()
 
-      if (fetchError) {
-        console.error('❌ Erreur lors de la récupération de la dépense:', fetchError)
-        return false
+        if (fetchError) {
+          console.warn('⚠️ Impossible de récupérer la dépense pour le fichier reçu:', fetchError)
+          // On continue quand même la suppression
+        } else {
+          depense = data
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la récupération de la dépense:', error)
+        // On continue quand même la suppression
       }
 
       // 2. Supprimer le fichier reçu du stockage si il existe (en arrière-plan)

@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Résumé Flottant - Recettes</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin-bottom: 200px; /* Espace pour le résumé flottant */
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #3b82f6;
+        }
+        .button {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+        .button.success {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+        .recette-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 10px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .recette-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+        }
+        .recette-card.selected {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        .checkbox {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        
+        /* Résumé flottant */
+        .floating-summary {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            width: 320px;
+            max-width: calc(100vw - 40px);
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            border: 1px solid #e5e7eb;
+            overflow: hidden;
+            animation: slideUp 0.3s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(100px) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        .floating-header {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            padding: 15px;
+        }
+        
+        .floating-header h4 {
+            margin: 0;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .floating-content {
+            padding: 15px;
+        }
+        
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .summary-label {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .summary-value {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .summary-value.green {
+            color: #10b981;
+        }
+        
+        .summary-value.red {
+            color: #ef4444;
+        }
+        
+        .summary-value.blue {
+            color: #3b82f6;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ef4444, #f97316);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+        
+        .minimize-btn {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+        
+        .minimize-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .minimized-content {
+            text-align: center;
+            padding: 15px;
+        }
+        
+        .minimized-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #3b82f6;
+        }
+        
+        .minimized-label {
+            font-size: 11px;
+            color: #6b7280;
+        }
+        
+        .clear-btn {
+            width: 100%;
+            background: none;
+            border: none;
+            color: #6b7280;
+            font-size: 11px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+            transition: color 0.2s;
+        }
+        
+        .clear-btn:hover {
+            color: #ef4444;
+        }
+        
+        @media (max-width: 768px) {
+            .floating-summary {
+                width: calc(100vw - 20px);
+                right: 10px;
+                bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Test Résumé Flottant - Recettes</h1>
+            <p>Le résumé reste visible en permanence, peu importe où vous vous trouvez sur la page</p>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Contrôles de Sélection</h2>
+            <button class="button" onclick="toggleSelectionMode()">Activer/Désactiver Mode Sélection</button>
+            <button class="button success" onclick="selectAll()">Tout Sélectionner</button>
+            <button class="button" onclick="clearSelection()">Tout Désélectionner</button>
+            <div id="selectionStatus" style="margin-top: 10px; padding: 10px; background: #f0f9ff; border-radius: 8px; font-family: monospace;"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>💰 Recettes de Test</h2>
+            <p><em>Faites défiler vers le bas pour voir que le résumé flottant reste visible !</em></p>
+            <div id="recettesList"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 Informations Supplémentaires</h2>
+            <p>Cette section est là pour démontrer que le résumé flottant reste visible même quand vous faites défiler la page.</p>
+            <p>Le résumé flottant affiche en temps réel :</p>
+            <ul>
+                <li>Le nombre de recettes sélectionnées</li>
+                <li>Le total des recettes</li>
+                <li>Le total des dépenses</li>
+                <li>Le solde disponible</li>
+                <li>Un pourcentage d'utilisation visuel</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>🎨 Fonctionnalités du Résumé Flottant</h2>
+            <ul>
+                <li><strong>Position fixe :</strong> Reste visible en permanence</li>
+                <li><strong>Responsive :</strong> S'adapte aux écrans mobiles</li>
+                <li><strong>Minimisable :</strong> Peut être réduit pour économiser l'espace</li>
+                <li><strong>Animations :</strong> Transitions fluides</li>
+                <li><strong>Mise à jour temps réel :</strong> Se met à jour instantanément</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>📱 Test Mobile</h2>
+            <p>Sur mobile, le résumé s'adapte automatiquement à la largeur de l'écran et reste parfaitement visible.</p>
+        </div>
+    </div>
+
+    <!-- Résumé flottant -->
+    <div id="floatingSummary" class="floating-summary" style="display: none;">
+        <div class="floating-header">
+            <h4>
+                <span>📊 Résumé Sélection</span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 12px; font-size: 11px;" id="selectedCount">0 recette(s)</span>
+                    <button class="minimize-btn" onclick="toggleMinimized()" id="minimizeBtn">📉</button>
+                </div>
+            </h4>
+        </div>
+        
+        <div id="floatingContent" class="floating-content">
+            <div class="summary-row">
+                <span class="summary-label">Total Recettes</span>
+                <span class="summary-value green" id="totalRecettes">0 F CFA</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Total Dépensé</span>
+                <span class="summary-value red" id="totalDepenses">0 F CFA</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Solde Disponible</span>
+                <span class="summary-value blue" id="totalSoldes">0 F CFA</span>
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <div style="display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; margin-bottom: 5px;">
+                    <span>Utilisation</span>
+                    <span id="usagePercent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <button class="clear-btn" onclick="clearSelection()">❌ Effacer la sélection</button>
+        </div>
+        
+        <div id="minimizedContent" class="minimized-content" style="display: none;">
+            <div class="minimized-value" id="minimizedValue">0 F CFA</div>
+            <div class="minimized-label">Solde disponible</div>
+        </div>
+    </div>
+
+    <script>
+        let selectionMode = false;
+        let selectedRecettes = [];
+        let minimized = false;
+        
+        // Données de test
+        const recettesTest = [
+            { id: '1', libelle: 'Salaire Septembre', montant: 500000, soldeDisponible: 300000 },
+            { id: '2', libelle: 'Prime Performance', montant: 150000, soldeDisponible: 150000 },
+            { id: '3', libelle: 'Vente Matériel', montant: 75000, soldeDisponible: 0 },
+            { id: '4', libelle: 'Consultation', montant: 200000, soldeDisponible: 50000 },
+            { id: '5', libelle: 'Formation', montant: 100000, soldeDisponible: 100000 },
+            { id: '6', libelle: 'Prestation Web', montant: 300000, soldeDisponible: 200000 },
+            { id: '7', libelle: 'Maintenance', montant: 80000, soldeDisponible: 30000 },
+            { id: '8', libelle: 'Support Client', montant: 120000, soldeDisponible: 120000 }
+        ];
+
+        function toggleSelectionMode() {
+            selectionMode = !selectionMode;
+            if (!selectionMode) {
+                selectedRecettes = [];
+            }
+            updateDisplay();
+            updateFloatingSummary();
+        }
+
+        function selectAll() {
+            if (!selectionMode) return;
+            selectedRecettes = recettesTest.map(r => r.id);
+            updateDisplay();
+            updateFloatingSummary();
+        }
+
+        function clearSelection() {
+            selectedRecettes = [];
+            updateDisplay();
+            updateFloatingSummary();
+        }
+
+        function toggleRecetteSelection(recetteId) {
+            if (!selectionMode) return;
+            
+            const index = selectedRecettes.indexOf(recetteId);
+            if (index > -1) {
+                selectedRecettes.splice(index, 1);
+            } else {
+                selectedRecettes.push(recetteId);
+            }
+            updateDisplay();
+            updateFloatingSummary();
+        }
+
+        function toggleMinimized() {
+            minimized = !minimized;
+            const content = document.getElementById('floatingContent');
+            const minimizedContent = document.getElementById('minimizedContent');
+            const btn = document.getElementById('minimizeBtn');
+            
+            if (minimized) {
+                content.style.display = 'none';
+                minimizedContent.style.display = 'block';
+                btn.textContent = '📈';
+            } else {
+                content.style.display = 'block';
+                minimizedContent.style.display = 'none';
+                btn.textContent = '📉';
+            }
+        }
+
+        function updateDisplay() {
+            const container = document.getElementById('recettesList');
+            container.innerHTML = '';
+            
+            recettesTest.forEach(recette => {
+                const isSelected = selectedRecettes.includes(recette.id);
+                const totalDepenses = recette.montant - recette.soldeDisponible;
+                
+                const card = document.createElement('div');
+                card.className = `recette-card ${isSelected ? 'selected' : ''}`;
+                card.innerHTML = `
+                    ${selectionMode ? `<input type="checkbox" class="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleRecetteSelection('${recette.id}')">` : ''}
+                    <div style="margin-left: ${selectionMode ? '30px' : '0'}">
+                        <h3>${recette.libelle}</h3>
+                        <p><strong>Montant initial:</strong> ${recette.montant.toLocaleString()} F CFA</p>
+                        <p><strong>Dépensé:</strong> ${totalDepenses.toLocaleString()} F CFA</p>
+                        <p><strong>Solde disponible:</strong> ${recette.soldeDisponible.toLocaleString()} F CFA</p>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function updateFloatingSummary() {
+            const summary = document.getElementById('floatingSummary');
+            const status = document.getElementById('selectionStatus');
+            
+            if (selectedRecettes.length > 0) {
+                summary.style.display = 'block';
+                
+                const selectedData = recettesTest.filter(r => selectedRecettes.includes(r.id));
+                const totalRecettes = selectedData.reduce((sum, r) => sum + r.montant, 0);
+                const totalDepenses = selectedData.reduce((sum, r) => sum + (r.montant - r.soldeDisponible), 0);
+                const totalSoldes = selectedData.reduce((sum, r) => sum + r.soldeDisponible, 0);
+                const usagePercent = Math.round((totalDepenses / totalRecettes) * 100);
+                
+                // Mise à jour des valeurs
+                document.getElementById('selectedCount').textContent = `${selectedRecettes.length} recette(s)`;
+                document.getElementById('totalRecettes').textContent = totalRecettes.toLocaleString() + ' F CFA';
+                document.getElementById('totalDepenses').textContent = totalDepenses.toLocaleString() + ' F CFA';
+                document.getElementById('totalSoldes').textContent = totalSoldes.toLocaleString() + ' F CFA';
+                document.getElementById('usagePercent').textContent = usagePercent + '%';
+                document.getElementById('progressFill').style.width = usagePercent + '%';
+                document.getElementById('minimizedValue').textContent = totalSoldes.toLocaleString() + ' F CFA';
+                
+                status.textContent = `Mode sélection: ${selectionMode ? 'ACTIF' : 'INACTIF'} | ${selectedRecettes.length} recette(s) sélectionnée(s)`;
+            } else {
+                summary.style.display = 'none';
+                status.textContent = `Mode sélection: ${selectionMode ? 'ACTIF' : 'INACTIF'}`;
+            }
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDisplay();
+            updateFloatingSummary();
+        });
+    </script>
+</body>
+</html>

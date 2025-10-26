@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Modes de Vue - Recettes</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #10b981;
+        }
+        .button {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+        }
+        .button.blue {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        }
+        .button.blue:hover {
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+        .button.purple {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        }
+        .button.purple:hover {
+            box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3);
+        }
+        .result {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .view-controls {
+            background: #f9fafb;
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .view-controls h3 {
+            margin: 0 0 15px 0;
+            color: #1f2937;
+        }
+        .view-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .view-btn {
+            padding: 8px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .view-btn.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        .view-btn:hover {
+            background: #f3f4f6;
+        }
+        .view-btn.active:hover {
+            background: #2563eb;
+        }
+        .sort-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .sort-btn {
+            padding: 6px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+        }
+        .sort-btn.active {
+            background: #10b981;
+            color: white;
+            border-color: #10b981;
+        }
+        .sort-btn:hover {
+            background: #f3f4f6;
+        }
+        .sort-btn.active:hover {
+            background: #059669;
+        }
+        .demo-data {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .demo-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 15px;
+        }
+        .grid-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        .list-view {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .compact-view {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .recette-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+        .recette-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        .recette-card.grid {
+            /* Style pour vue grille */
+        }
+        .recette-card.list {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px;
+        }
+        .recette-card.compact {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+        }
+        .recette-info {
+            flex: 1;
+        }
+        .recette-title {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+        .recette-date {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        .recette-amounts {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+        .amount-group {
+            text-align: right;
+        }
+        .amount-value {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .amount-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+        .amount-total {
+            color: #1f2937;
+        }
+        .amount-available {
+            color: #10b981;
+        }
+        .percentage-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .percentage-high {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .percentage-medium {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .percentage-low {
+            background: #fed7aa;
+            color: #c2410c;
+        }
+        .percentage-critical {
+            background: #fecaca;
+            color: #dc2626;
+        }
+        .checkbox {
+            width: 16px;
+            height: 16px;
+            margin-right: 12px;
+        }
+        .test-results {
+            background: #f9fafb;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .test-results h4 {
+            margin: 0 0 10px 0;
+            color: #1f2937;
+        }
+        .test-results ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .test-results li {
+            margin-bottom: 5px;
+            color: #374151;
+        }
+        .icon {
+            width: 16px;
+            height: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👁️ Test Modes de Vue - Recettes</h1>
+            <p>Test des différents modes d'affichage : Grille, Liste, Compacte</p>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 État du Système</h2>
+            <button class="button" onclick="checkSystemState()">Vérifier l'état du système</button>
+            <div id="systemStateResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🎛️ Contrôles de Vue et Tri</h2>
+            <div class="view-controls">
+                <h3>Modes de Vue</h3>
+                <div class="view-buttons">
+                    <button class="view-btn active" onclick="setViewMode('grid')" id="gridBtn">
+                        <span>🔲</span> Grille
+                    </button>
+                    <button class="view-btn" onclick="setViewMode('list')" id="listBtn">
+                        <span>📋</span> Liste
+                    </button>
+                    <button class="view-btn" onclick="setViewMode('compact')" id="compactBtn">
+                        <span>📄</span> Compacte
+                    </button>
+                </div>
+
+                <h3>Options de Tri</h3>
+                <div class="sort-controls">
+                    <span>Trier par :</span>
+                    <button class="sort-btn active" onclick="setSort('libelle')" id="sortLibelle">
+                        <span>📝</span> Nom
+                    </button>
+                    <button class="sort-btn" onclick="setSort('montant')" id="sortMontant">
+                        <span>💰</span> Montant
+                    </button>
+                    <button class="sort-btn" onclick="setSort('date')" id="sortDate">
+                        <span>📅</span> Date
+                    </button>
+                    <button class="sort-btn" onclick="setSort('solde')" id="sortSolde">
+                        <span>💳</span> Solde
+                    </button>
+                    <button class="sort-btn" onclick="toggleSortOrder()" id="sortOrderBtn">
+                        <span id="sortOrderIcon">⬆️</span> <span id="sortOrderText">Croissant</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Données de Démonstration</h2>
+            <div class="demo-data">
+                <div class="demo-title">Recettes Disponibles</div>
+                <div id="recettesContainer" class="grid-view">
+                    <!-- Les recettes seront générées ici -->
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Tests de Fonctionnalités</h2>
+            <button class="button blue" onclick="testViewModes()">Tester les modes de vue</button>
+            <button class="button purple" onclick="testSorting()">Tester le tri</button>
+            <div id="testResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Logs de Debug</h2>
+            <button class="button" onclick="clearLogs()">Effacer les logs</button>
+            <div id="debugLogs" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        let debugLogs = [];
+        let currentViewMode = 'grid';
+        let currentSort = 'libelle';
+        let sortOrder = 'asc';
+
+        // Données de démonstration
+        const demoRecettes = [
+            {
+                id: '1',
+                libelle: 'Loyer Kennedy',
+                montant: 150000,
+                soldeDisponible: 120000,
+                date: '2024-01-15',
+                description: 'Loyer du mois de janvier'
+            },
+            {
+                id: '2',
+                libelle: 'Salaire Développeur',
+                montant: 500000,
+                soldeDisponible: 450000,
+                date: '2024-01-01',
+                description: 'Salaire mensuel'
+            },
+            {
+                id: '3',
+                libelle: 'Vente Matériel',
+                montant: 75000,
+                soldeDisponible: 0,
+                date: '2024-01-20',
+                description: 'Vente d\'ancien matériel informatique'
+            },
+            {
+                id: '4',
+                libelle: 'Consultation Client',
+                montant: 200000,
+                soldeDisponible: 200000,
+                date: '2024-01-10',
+                description: 'Prestation de consultation'
+            },
+            {
+                id: '5',
+                libelle: 'Formation en Ligne',
+                montant: 30000,
+                soldeDisponible: 15000,
+                date: '2024-01-25',
+                description: 'Formation en développement web'
+            },
+            {
+                id: '6',
+                libelle: 'Maintenance Serveur',
+                montant: 100000,
+                soldeDisponible: 100000,
+                date: '2024-01-05',
+                description: 'Maintenance mensuelle des serveurs'
+            }
+        ];
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLogs.push(`[${timestamp}] ${message}`);
+            updateDebugLogs();
+        }
+
+        function updateDebugLogs() {
+            const logsElement = document.getElementById('debugLogs');
+            logsElement.textContent = debugLogs.join('\n');
+            logsElement.scrollTop = logsElement.scrollHeight;
+        }
+
+        function clearLogs() {
+            debugLogs = [];
+            updateDebugLogs();
+        }
+
+        function showResult(elementId, content, isError = false) {
+            const element = document.getElementById(elementId);
+            const className = isError ? 'error' : 'result';
+            element.innerHTML = `<div class="${className}">${content}</div>`;
+        }
+
+        function setViewMode(mode) {
+            addLog(`🔄 Changement de mode de vue: ${currentViewMode} → ${mode}`);
+            currentViewMode = mode;
+            
+            // Mettre à jour les boutons
+            document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(mode + 'Btn').classList.add('active');
+            
+            // Mettre à jour le conteneur
+            const container = document.getElementById('recettesContainer');
+            container.className = mode + '-view';
+            
+            renderRecettes();
+        }
+
+        function setSort(field) {
+            addLog(`🔄 Changement de tri: ${currentSort} → ${field}`);
+            currentSort = field;
+            
+            // Mettre à jour les boutons
+            document.querySelectorAll('.sort-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('sort' + field.charAt(0).toUpperCase() + field.slice(1)).classList.add('active');
+            
+            renderRecettes();
+        }
+
+        function toggleSortOrder() {
+            sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+            addLog(`🔄 Changement d'ordre de tri: ${sortOrder === 'asc' ? 'décroissant' : 'croissant'} → ${sortOrder === 'asc' ? 'croissant' : 'décroissant'}`);
+            
+            document.getElementById('sortOrderIcon').textContent = sortOrder === 'asc' ? '⬆️' : '⬇️';
+            document.getElementById('sortOrderText').textContent = sortOrder === 'asc' ? 'Croissant' : 'Décroissant';
+            
+            renderRecettes();
+        }
+
+        function getPercentage(recette) {
+            return recette.montant > 0 ? Math.round((recette.soldeDisponible / recette.montant) * 100) : 0;
+        }
+
+        function getPercentageClass(percentage) {
+            if (percentage >= 80) return 'percentage-high';
+            if (percentage >= 50) return 'percentage-medium';
+            if (percentage >= 20) return 'percentage-low';
+            return 'percentage-critical';
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('fr-FR').format(amount) + ' F CFA';
+        }
+
+        function renderRecettes() {
+            const container = document.getElementById('recettesContainer');
+            
+            // Trier les recettes
+            const sortedRecettes = [...demoRecettes].sort((a, b) => {
+                let aValue, bValue;
+                
+                switch (currentSort) {
+                    case 'libelle':
+                        aValue = a.libelle.toLowerCase();
+                        bValue = b.libelle.toLowerCase();
+                        break;
+                    case 'montant':
+                        aValue = a.montant;
+                        bValue = b.montant;
+                        break;
+                    case 'date':
+                        aValue = new Date(a.date);
+                        bValue = new Date(b.date);
+                        break;
+                    case 'solde':
+                        aValue = a.soldeDisponible;
+                        bValue = b.soldeDisponible;
+                        break;
+                    default:
+                        aValue = a.libelle.toLowerCase();
+                        bValue = b.libelle.toLowerCase();
+                }
+                
+                if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+                if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            // Rendu selon le mode de vue
+            container.innerHTML = sortedRecettes.map(recette => {
+                const percentage = getPercentage(recette);
+                const percentageClass = getPercentageClass(percentage);
+                
+                if (currentViewMode === 'list') {
+                    return `
+                        <div class="recette-card list">
+                            <div class="recette-info">
+                                <input type="checkbox" class="checkbox">
+                                <div>
+                                    <div class="recette-title">${recette.libelle}</div>
+                                    <div class="recette-date">${recette.date}</div>
+                                </div>
+                            </div>
+                            <div class="recette-amounts">
+                                <div class="amount-group">
+                                    <div class="amount-value amount-total">${formatCurrency(recette.montant)}</div>
+                                    <div class="amount-label">Total</div>
+                                </div>
+                                <div class="amount-group">
+                                    <div class="amount-value amount-available">${formatCurrency(recette.soldeDisponible)}</div>
+                                    <div class="amount-label">Disponible</div>
+                                </div>
+                                <div class="percentage-badge ${percentageClass}">${percentage}%</div>
+                                <div>
+                                    <button class="button" style="padding: 6px 12px; font-size: 12px;">Voir</button>
+                                    <button class="button blue" style="padding: 6px 12px; font-size: 12px;">Modifier</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (currentViewMode === 'compact') {
+                    return `
+                        <div class="recette-card compact">
+                            <div class="recette-info">
+                                <input type="checkbox" class="checkbox" style="width: 12px; height: 12px;">
+                                <div>
+                                    <div class="recette-title" style="font-size: 14px;">${recette.libelle}</div>
+                                    <div class="recette-date" style="font-size: 12px;">${recette.date}</div>
+                                </div>
+                            </div>
+                            <div class="recette-amounts">
+                                <div class="amount-group">
+                                    <div class="amount-value amount-total" style="font-size: 14px;">${formatCurrency(recette.montant)}</div>
+                                    <div class="amount-label" style="font-size: 11px;">Total</div>
+                                </div>
+                                <div class="amount-group">
+                                    <div class="amount-value amount-available" style="font-size: 14px;">${formatCurrency(recette.soldeDisponible)}</div>
+                                    <div class="amount-label" style="font-size: 11px;">Disponible</div>
+                                </div>
+                                <div class="percentage-badge ${percentageClass}" style="font-size: 11px; padding: 2px 6px;">${percentage}%</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // Vue grille
+                    return `
+                        <div class="recette-card grid">
+                            <div class="recette-info">
+                                <input type="checkbox" class="checkbox">
+                                <div class="recette-title">${recette.libelle}</div>
+                                <div class="recette-date">${recette.date}</div>
+                            </div>
+                            <div class="recette-amounts" style="margin-top: 12px;">
+                                <div class="amount-group">
+                                    <div class="amount-value amount-total">${formatCurrency(recette.montant)}</div>
+                                    <div class="amount-label">Montant total</div>
+                                </div>
+                                <div class="amount-group">
+                                    <div class="amount-value amount-available">${formatCurrency(recette.soldeDisponible)}</div>
+                                    <div class="amount-label">Solde disponible</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 12px; text-align: center;">
+                                <div class="percentage-badge ${percentageClass}">${percentage}% disponible</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }).join('');
+            
+            addLog(`✅ ${sortedRecettes.length} recettes rendues en mode ${currentViewMode}`);
+        }
+
+        function checkSystemState() {
+            try {
+                addLog('🔍 Vérification de l\'état du système...');
+                showResult('systemStateResult', '🔄 Vérification en cours...');
+                
+                const systemState = {
+                    viewModesSupported: ['grid', 'list', 'compact'],
+                    sortOptionsSupported: ['libelle', 'montant', 'date', 'solde'],
+                    currentViewMode: currentViewMode,
+                    currentSort: currentSort,
+                    sortOrder: sortOrder,
+                    demoDataCount: demoRecettes.length
+                };
+                
+                addLog(`✅ Modes de vue supportés: ${systemState.viewModesSupported.join(', ')}`);
+                addLog(`✅ Options de tri supportées: ${systemState.sortOptionsSupported.join(', ')}`);
+                addLog(`✅ Mode de vue actuel: ${systemState.currentViewMode}`);
+                addLog(`✅ Tri actuel: ${systemState.currentSort} (${systemState.sortOrder})`);
+                addLog(`✅ Données de démonstration: ${systemState.demoDataCount} recettes`);
+                
+                const result = `
+                    <h4>📊 État du Système</h4>
+                    <ul>
+                        <li><strong>Modes de vue:</strong> ${systemState.viewModesSupported.join(', ')}</li>
+                        <li><strong>Options de tri:</strong> ${systemState.sortOptionsSupported.join(', ')}</li>
+                        <li><strong>Mode actuel:</strong> ${systemState.currentViewMode}</li>
+                        <li><strong>Tri actuel:</strong> ${systemState.currentSort} (${systemState.sortOrder})</li>
+                        <li><strong>Données:</strong> ${systemState.demoDataCount} recettes</li>
+                    </ul>
+                `;
+                
+                showResult('systemStateResult', result);
+                addLog('✅ État du système vérifié');
+                
+            } catch (error) {
+                addLog(`❌ Erreur: ${error.message}`, 'error');
+                showResult('systemStateResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function testViewModes() {
+            try {
+                addLog('🧪 Test des modes de vue...');
+                showResult('testResults', '🔄 Test en cours...');
+                
+                const modes = ['grid', 'list', 'compact'];
+                let testResults = [];
+                
+                modes.forEach(mode => {
+                    setViewMode(mode);
+                    const container = document.getElementById('recettesContainer');
+                    const isCorrectClass = container.className.includes(mode + '-view');
+                    
+                    testResults.push({
+                        mode,
+                        success: isCorrectClass,
+                        className: container.className
+                    });
+                    
+                    addLog(`✅ Test mode ${mode}: ${isCorrectClass ? 'Succès' : 'Échec'} (${container.className})`);
+                });
+                
+                const successCount = testResults.filter(r => r.success).length;
+                const totalCount = testResults.length;
+                
+                const result = `
+                    <h4>🧪 Résultats des Tests de Vue</h4>
+                    <div class="test-results">
+                        <h4>Modes testés:</h4>
+                        <ul>
+                            ${testResults.map(r => 
+                                `<li><strong>${r.mode}</strong> - ${r.success ? '✅ Succès' : '❌ Échec'} (${r.className})</li>`
+                            ).join('')}
+                        </ul>
+                        <p><strong>Résumé:</strong> ${successCount}/${totalCount} tests réussis</p>
+                    </div>
+                `;
+                
+                showResult('testResults', result);
+                addLog(`✅ Test terminé: ${successCount}/${totalCount} modes fonctionnels`);
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors du test: ${error.message}`, 'error');
+                showResult('testResults', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function testSorting() {
+            try {
+                addLog('🧪 Test des options de tri...');
+                showResult('testResults', '🔄 Test en cours...');
+                
+                const sortOptions = ['libelle', 'montant', 'date', 'solde'];
+                let testResults = [];
+                
+                sortOptions.forEach(option => {
+                    setSort(option);
+                    const recettes = document.querySelectorAll('.recette-card');
+                    const hasRecettes = recettes.length > 0;
+                    
+                    testResults.push({
+                        option,
+                        success: hasRecettes,
+                        count: recettes.length
+                    });
+                    
+                    addLog(`✅ Test tri ${option}: ${hasRecettes ? 'Succès' : 'Échec'} (${recettes.length} recettes)`);
+                });
+                
+                const successCount = testResults.filter(r => r.success).length;
+                const totalCount = testResults.length;
+                
+                const result = `
+                    <h4>🧪 Résultats des Tests de Tri</h4>
+                    <div class="test-results">
+                        <h4>Options testées:</h4>
+                        <ul>
+                            ${testResults.map(r => 
+                                `<li><strong>${r.option}</strong> - ${r.success ? '✅ Succès' : '❌ Échec'} (${r.count} recettes)</li>`
+                            ).join('')}
+                        </ul>
+                        <p><strong>Résumé:</strong> ${successCount}/${totalCount} options fonctionnelles</p>
+                    </div>
+                `;
+                
+                showResult('testResults', result);
+                addLog(`✅ Test terminé: ${successCount}/${totalCount} options de tri fonctionnelles`);
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors du test: ${error.message}`, 'error');
+                showResult('testResults', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('🔍 Test des modes de vue initialisé');
+            addLog('💡 Cliquez sur "Vérifier l\'état du système" pour commencer');
+            renderRecettes();
+        });
+    </script>
+</body>
+</html>

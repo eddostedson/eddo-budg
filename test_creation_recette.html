@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Création Recette</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .error {
+            color: #f44336;
+            background: #ffebee;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            color: #4CAF50;
+            background: #e8f5e8;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .log {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Création Recette</h1>
+        <p>Ce script teste la création de recettes avec diagnostic des erreurs.</p>
+        
+        <form id="testForm">
+            <div class="form-group">
+                <label for="libelle">Libellé *</label>
+                <input type="text" id="libelle" name="libelle" required placeholder="Ex: Salaire Janvier 2025">
+            </div>
+            
+            <div class="form-group">
+                <label for="montant">Montant *</label>
+                <input type="number" id="montant" name="montant" step="0.01" required placeholder="Ex: 100000">
+            </div>
+            
+            <div class="form-group">
+                <label for="date">Date</label>
+                <input type="date" id="date" name="date" value="">
+            </div>
+            
+            <div class="form-group">
+                <label for="statut">Statut</label>
+                <select id="statut" name="statut">
+                    <option value="reçue">Reçue</option>
+                    <option value="attendue">En attente</option>
+                    <option value="retardée">Retardée</option>
+                    <option value="annulée">Annulée</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="3" placeholder="Description optionnelle"></textarea>
+            </div>
+            
+            <button type="submit">🧪 Tester la Création</button>
+            <button type="button" onclick="clearLog()">🗑️ Effacer Log</button>
+        </form>
+        
+        <div id="result"></div>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        // Configuration Supabase (remplacer par vos vraies valeurs)
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        let supabase;
+        
+        // Initialiser Supabase
+        async function initSupabase() {
+            if (typeof window.supabase === 'undefined') {
+                log('❌ Supabase non initialisé. Veuillez configurer les variables SUPABASE_URL et SUPABASE_ANON_KEY');
+                return false;
+            }
+            supabase = window.supabase;
+            return true;
+        }
+        
+        // Fonction de log
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        // Effacer le log
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+            document.getElementById('result').innerHTML = '';
+        }
+        
+        // Tester la création de recette
+        async function testCreateRecette(formData) {
+            try {
+                log('🔄 Début du test de création de recette...');
+                
+                // 1. Vérifier l'authentification
+                const { data: { user }, error: authError } = await supabase.auth.getUser();
+                if (authError || !user) {
+                    throw new Error('Erreur d\'authentification: ' + (authError?.message || 'Utilisateur non connecté'));
+                }
+                log('✅ Utilisateur authentifié: ' + user.email);
+                
+                // 2. Validation des données
+                if (!formData.libelle || !formData.libelle.trim()) {
+                    throw new Error('Le libellé est obligatoire');
+                }
+                
+                if (!formData.montant || formData.montant <= 0) {
+                    throw new Error('Le montant doit être positif');
+                }
+                
+                log('✅ Validation des données réussie');
+                
+                // 3. Préparer les données pour l'insertion
+                const recetteData = {
+                    user_id: user.id,
+                    libelle: formData.libelle.trim(),
+                    montant: parseFloat(formData.montant),
+                    solde_disponible: parseFloat(formData.montant), // Solde initial = montant
+                    description: formData.description || null,
+                    date_reception: formData.date || new Date().toISOString().split('T')[0],
+                    statut: formData.statut || 'reçue'
+                };
+                
+                log('📊 Données préparées: ' + JSON.stringify(recetteData, null, 2));
+                
+                // 4. Tentative d'insertion
+                const { data, error } = await supabase
+                    .from('recettes')
+                    .insert(recetteData)
+                    .select()
+                    .single();
+                
+                if (error) {
+                    log('❌ Erreur lors de l\'insertion: ' + error.message);
+                    log('🔍 Code d\'erreur: ' + error.code);
+                    log('🔍 Détails: ' + JSON.stringify(error, null, 2));
+                    throw error;
+                }
+                
+                log('✅ Recette créée avec succès!');
+                log('📋 ID de la recette: ' + data.id);
+                
+                return { success: true, data };
+                
+            } catch (error) {
+                log('❌ Erreur: ' + error.message);
+                return { success: false, error: error.message };
+            }
+        }
+        
+        // Gestionnaire de formulaire
+        document.getElementById('testForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '';
+            
+            // Initialiser Supabase
+            if (!await initSupabase()) {
+                resultDiv.innerHTML = '<div class="error">❌ Supabase non configuré</div>';
+                return;
+            }
+            
+            // Récupérer les données du formulaire
+            const formData = {
+                libelle: document.getElementById('libelle').value,
+                montant: document.getElementById('montant').value,
+                date: document.getElementById('date').value,
+                statut: document.getElementById('statut').value,
+                description: document.getElementById('description').value
+            };
+            
+            log('🚀 Début du test avec les données: ' + JSON.stringify(formData, null, 2));
+            
+            // Tester la création
+            const result = await testCreateRecette(formData);
+            
+            if (result.success) {
+                resultDiv.innerHTML = '<div class="success">✅ Test réussi! Recette créée avec succès.</div>';
+            } else {
+                resultDiv.innerHTML = '<div class="error">❌ Test échoué: ' + result.error + '</div>';
+            }
+        });
+        
+        // Initialiser la date par défaut
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+        
+        // Vérifier si Supabase est disponible
+        if (typeof window.supabase === 'undefined') {
+            log('⚠️ Supabase non détecté. Assurez-vous que le script Supabase est chargé.');
+        } else {
+            log('✅ Supabase détecté et prêt pour les tests.');
+        }
+    </script>
+</body>
+</html>
+
+

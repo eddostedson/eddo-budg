@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Fonctionnalités CRUD - Recettes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .info {
+            color: #17a2b8;
+            font-weight: bold;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Fonctionnalités CRUD - Recettes</h1>
+    
+    <div class="test-section">
+        <h2>📋 Configuration</h2>
+        <p><strong>URL Supabase:</strong> <span id="supabase-url">Chargement...</span></p>
+        <p><strong>Utilisateur connecté:</strong> <span id="user-info">Chargement...</span></p>
+        <p><strong>Nombre de recettes:</strong> <span id="recettes-count">Chargement...</span></p>
+    </div>
+
+    <div class="test-section">
+        <h2>🔧 Tests de Fonctionnalités</h2>
+        
+        <h3>1. Test de Création</h3>
+        <button class="test-button" onclick="testCreateRecette()">Créer une Recette Test</button>
+        <div id="create-result" class="log"></div>
+
+        <h3>2. Test de Lecture</h3>
+        <button class="test-button" onclick="testReadRecettes()">Lister les Recettes</button>
+        <div id="read-result" class="log"></div>
+
+        <h3>3. Test de Modification</h3>
+        <button class="test-button" onclick="testUpdateRecette()">Modifier une Recette</button>
+        <div id="update-result" class="log"></div>
+
+        <h3>4. Test de Suppression</h3>
+        <button class="test-button" onclick="testDeleteRecette()">Supprimer une Recette</button>
+        <div id="delete-result" class="log"></div>
+
+        <h3>5. Test Complet CRUD</h3>
+        <button class="test-button" onclick="testCompleteCRUD()">Test Complet CRUD</button>
+        <div id="complete-result" class="log"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Logs de Test</h2>
+        <div id="test-logs" class="log"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2'
+
+        // Configuration Supabase
+        const supabaseUrl = 'https://your-project.supabase.co'
+        const supabaseKey = 'your-anon-key'
+        
+        // Note: Remplacez par vos vraies clés Supabase
+        const supabase = createClient(supabaseUrl, supabaseKey)
+
+        let testRecetteId = null
+
+        // Fonction de log
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString()
+            const logElement = document.getElementById('test-logs')
+            const colorClass = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info'
+            logElement.innerHTML += `<span class="${colorClass}">[${timestamp}] ${message}</span>\n`
+            logElement.scrollTop = logElement.scrollHeight
+            console.log(message)
+        }
+
+        // Initialisation
+        async function init() {
+            try {
+                document.getElementById('supabase-url').textContent = supabaseUrl
+                
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                if (authError) {
+                    log(`❌ Erreur d'authentification: ${authError.message}`, 'error')
+                    document.getElementById('user-info').textContent = 'Non connecté'
+                } else if (user) {
+                    log(`✅ Utilisateur connecté: ${user.email}`, 'success')
+                    document.getElementById('user-info').textContent = user.email
+                } else {
+                    log('⚠️ Aucun utilisateur connecté', 'error')
+                    document.getElementById('user-info').textContent = 'Non connecté'
+                }
+
+                // Compter les recettes
+                const { data: recettes, error: countError } = await supabase
+                    .from('recettes')
+                    .select('id', { count: 'exact' })
+                
+                if (countError) {
+                    log(`❌ Erreur lors du comptage: ${countError.message}`, 'error')
+                    document.getElementById('recettes-count').textContent = 'Erreur'
+                } else {
+                    log(`📊 Nombre de recettes: ${recettes?.length || 0}`, 'success')
+                    document.getElementById('recettes-count').textContent = recettes?.length || 0
+                }
+
+            } catch (error) {
+                log(`❌ Erreur d'initialisation: ${error.message}`, 'error')
+            }
+        }
+
+        // Test de création
+        window.testCreateRecette = async function() {
+            const resultDiv = document.getElementById('create-result')
+            resultDiv.innerHTML = '🔄 Test de création en cours...\n'
+            
+            try {
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                if (authError || !user) {
+                    throw new Error('Utilisateur non connecté')
+                }
+
+                const testRecette = {
+                    user_id: user.id,
+                    description: `Test Recette ${Date.now()}`,
+                    amount: 50000,
+                    solde_disponible: 50000,
+                    receipt_date: new Date().toISOString().split('T')[0]
+                }
+
+                const { data, error } = await supabase
+                    .from('recettes')
+                    .insert(testRecette)
+                    .select()
+                    .single()
+
+                if (error) {
+                    throw error
+                }
+
+                testRecetteId = data.id
+                resultDiv.innerHTML += `✅ Recette créée avec succès!\n`
+                resultDiv.innerHTML += `📋 ID: ${data.id}\n`
+                resultDiv.innerHTML += `📝 Description: ${data.description}\n`
+                resultDiv.innerHTML += `💰 Montant: ${data.amount} F CFA\n`
+                resultDiv.innerHTML += `💳 Solde disponible: ${data.solde_disponible} F CFA\n`
+                
+                log(`✅ Test création réussi - ID: ${data.id}`, 'success')
+                
+            } catch (error) {
+                resultDiv.innerHTML += `❌ Erreur: ${error.message}\n`
+                log(`❌ Test création échoué: ${error.message}`, 'error')
+            }
+        }
+
+        // Test de lecture
+        window.testReadRecettes = async function() {
+            const resultDiv = document.getElementById('read-result')
+            resultDiv.innerHTML = '🔄 Test de lecture en cours...\n'
+            
+            try {
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                if (authError || !user) {
+                    throw new Error('Utilisateur non connecté')
+                }
+
+                const { data, error } = await supabase
+                    .from('recettes')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(5)
+
+                if (error) {
+                    throw error
+                }
+
+                resultDiv.innerHTML += `✅ ${data.length} recettes trouvées:\n\n`
+                data.forEach((recette, index) => {
+                    resultDiv.innerHTML += `${index + 1}. ${recette.description}\n`
+                    resultDiv.innerHTML += `   💰 Montant: ${recette.amount} F CFA\n`
+                    resultDiv.innerHTML += `   💳 Solde: ${recette.solde_disponible} F CFA\n`
+                    resultDiv.innerHTML += `   📅 Date: ${recette.receipt_date}\n\n`
+                })
+                
+                log(`✅ Test lecture réussi - ${data.length} recettes`, 'success')
+                
+            } catch (error) {
+                resultDiv.innerHTML += `❌ Erreur: ${error.message}\n`
+                log(`❌ Test lecture échoué: ${error.message}`, 'error')
+            }
+        }
+
+        // Test de modification
+        window.testUpdateRecette = async function() {
+            const resultDiv = document.getElementById('update-result')
+            resultDiv.innerHTML = '🔄 Test de modification en cours...\n'
+            
+            try {
+                if (!testRecetteId) {
+                    throw new Error('Aucune recette de test disponible. Créez d\'abord une recette.')
+                }
+
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                if (authError || !user) {
+                    throw new Error('Utilisateur non connecté')
+                }
+
+                const updates = {
+                    description: `Test Recette Modifiée ${Date.now()}`,
+                    amount: 75000,
+                    solde_disponible: 75000
+                }
+
+                const { data, error } = await supabase
+                    .from('recettes')
+                    .update(updates)
+                    .eq('id', testRecetteId)
+                    .eq('user_id', user.id)
+                    .select()
+                    .single()
+
+                if (error) {
+                    throw error
+                }
+
+                resultDiv.innerHTML += `✅ Recette modifiée avec succès!\n`
+                resultDiv.innerHTML += `📋 ID: ${data.id}\n`
+                resultDiv.innerHTML += `📝 Nouvelle description: ${data.description}\n`
+                resultDiv.innerHTML += `💰 Nouveau montant: ${data.amount} F CFA\n`
+                resultDiv.innerHTML += `💳 Nouveau solde: ${data.solde_disponible} F CFA\n`
+                
+                log(`✅ Test modification réussi - ID: ${data.id}`, 'success')
+                
+            } catch (error) {
+                resultDiv.innerHTML += `❌ Erreur: ${error.message}\n`
+                log(`❌ Test modification échoué: ${error.message}`, 'error')
+            }
+        }
+
+        // Test de suppression
+        window.testDeleteRecette = async function() {
+            const resultDiv = document.getElementById('delete-result')
+            resultDiv.innerHTML = '🔄 Test de suppression en cours...\n'
+            
+            try {
+                if (!testRecetteId) {
+                    throw new Error('Aucune recette de test disponible. Créez d\'abord une recette.')
+                }
+
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                if (authError || !user) {
+                    throw new Error('Utilisateur non connecté')
+                }
+
+                const { error } = await supabase
+                    .from('recettes')
+                    .delete()
+                    .eq('id', testRecetteId)
+                    .eq('user_id', user.id)
+
+                if (error) {
+                    throw error
+                }
+
+                resultDiv.innerHTML += `✅ Recette supprimée avec succès!\n`
+                resultDiv.innerHTML += `📋 ID supprimé: ${testRecetteId}\n`
+                
+                log(`✅ Test suppression réussi - ID: ${testRecetteId}`, 'success')
+                testRecetteId = null
+                
+            } catch (error) {
+                resultDiv.innerHTML += `❌ Erreur: ${error.message}\n`
+                log(`❌ Test suppression échoué: ${error.message}`, 'error')
+            }
+        }
+
+        // Test complet CRUD
+        window.testCompleteCRUD = async function() {
+            const resultDiv = document.getElementById('complete-result')
+            resultDiv.innerHTML = '🔄 Test complet CRUD en cours...\n'
+            
+            try {
+                log('🚀 Début du test complet CRUD', 'info')
+                
+                // 1. Création
+                resultDiv.innerHTML += '1️⃣ Test de création...\n'
+                await testCreateRecette()
+                
+                if (!testRecetteId) {
+                    throw new Error('Échec de la création')
+                }
+                
+                // 2. Lecture
+                resultDiv.innerHTML += '\n2️⃣ Test de lecture...\n'
+                await testReadRecettes()
+                
+                // 3. Modification
+                resultDiv.innerHTML += '\n3️⃣ Test de modification...\n'
+                await testUpdateRecette()
+                
+                // 4. Suppression
+                resultDiv.innerHTML += '\n4️⃣ Test de suppression...\n'
+                await testDeleteRecette()
+                
+                resultDiv.innerHTML += '\n✅ Test complet CRUD réussi!\n'
+                log('✅ Test complet CRUD réussi!', 'success')
+                
+            } catch (error) {
+                resultDiv.innerHTML += `\n❌ Test complet CRUD échoué: ${error.message}\n`
+                log(`❌ Test complet CRUD échoué: ${error.message}`, 'error')
+            }
+        }
+
+        // Initialisation au chargement
+        init()
+    </script>
+</body>
+</html>
+
+

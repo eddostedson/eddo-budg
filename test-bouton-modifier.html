@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Bouton Modifier - Diagnostic</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #e53e3e;
+        }
+        .button {
+            background: linear-gradient(135deg, #e53e3e, #c53030);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(229, 62, 62, 0.3);
+        }
+        .button.success {
+            background: linear-gradient(135deg, #38a169, #2f855a);
+        }
+        .result {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .error {
+            background: #fed7d7;
+            border: 1px solid #feb2b2;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+        .recette-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 10px 0;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .recette-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+        }
+        .action-buttons {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 5px;
+        }
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .edit-btn {
+            background: #3b82f6;
+            color: white;
+        }
+        .edit-btn:hover {
+            background: #2563eb;
+        }
+        .delete-btn {
+            background: #ef4444;
+            color: white;
+        }
+        .delete-btn:hover {
+            background: #dc2626;
+        }
+        
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 0;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body {
+            padding: 20px;
+        }
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #374151;
+        }
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #6b7280;
+        }
+        .close-btn:hover {
+            color: #374151;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 Test Bouton Modifier - Diagnostic</h1>
+            <p>Diagnostic du problème avec le bouton modifier des recettes</p>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 État du Système</h2>
+            <button class="button" onclick="checkSystemState()">Vérifier l'état du système</button>
+            <div id="systemStateResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Test Bouton Modifier</h2>
+            <button class="button success" onclick="testEditButton()">Tester le bouton modifier</button>
+            <div id="editTestResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>💰 Recettes de Test</h2>
+            <p><em>Cliquez sur le bouton modifier (icône crayon) pour tester</em></p>
+            <div id="recettesList"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Logs de Debug</h2>
+            <button class="button" onclick="clearLogs()">Effacer les logs</button>
+            <div id="debugLogs" class="result"></div>
+        </div>
+    </div>
+
+    <!-- Modal de modification -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Modifier la Recette</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Libellé *</label>
+                    <input type="text" id="editLibelle" class="form-input" placeholder="Nom de la recette">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Montant (F CFA) *</label>
+                    <input type="number" id="editMontant" class="form-input" placeholder="0" min="0" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date de réception</label>
+                    <input type="date" id="editDate" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Statut</label>
+                    <select id="editStatut" class="form-input">
+                        <option value="Reçue">Reçue</option>
+                        <option value="En attente">En attente</option>
+                        <option value="Annulée">Annulée</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="editDescription" class="form-input" rows="3" placeholder="Détails supplémentaires..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="button" onclick="closeModal()">Annuler</button>
+                <button class="button success" onclick="saveEdit()">Sauvegarder</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let debugLogs = [];
+        let currentEditingRecette = null;
+
+        // Données de test
+        const recettesTest = [
+            { id: '1', libelle: 'Salaire Septembre', montant: 500000, soldeDisponible: 300000, date: '2024-09-01', statut: 'Reçue', description: 'Salaire mensuel' },
+            { id: '2', libelle: 'Prime Performance', montant: 150000, soldeDisponible: 150000, date: '2024-09-15', statut: 'Reçue', description: 'Prime de performance' },
+            { id: '3', libelle: 'Vente Matériel', montant: 75000, soldeDisponible: 0, date: '2024-09-20', statut: 'Reçue', description: 'Vente de matériel informatique' }
+        ];
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLogs.push(`[${timestamp}] ${message}`);
+            updateDebugLogs();
+        }
+
+        function updateDebugLogs() {
+            const logsElement = document.getElementById('debugLogs');
+            logsElement.textContent = debugLogs.join('\n');
+            logsElement.scrollTop = logsElement.scrollHeight;
+        }
+
+        function clearLogs() {
+            debugLogs = [];
+            updateDebugLogs();
+        }
+
+        function showResult(elementId, content, isError = false) {
+            const element = document.getElementById(elementId);
+            const className = isError ? 'error' : 'result';
+            element.innerHTML = `<div class="${className}">${content}</div>`;
+        }
+
+        function checkSystemState() {
+            try {
+                addLog('🔍 Vérification de l\'état du système...');
+                showResult('systemStateResult', '🔄 Vérification en cours...');
+                
+                const systemState = {
+                    modalExists: !!document.getElementById('editModal'),
+                    recettesLoaded: recettesTest.length,
+                    eventListeners: 'Prêts à être attachés'
+                };
+                
+                addLog(`✅ Modal existe: ${systemState.modalExists}`);
+                addLog(`✅ Recettes chargées: ${systemState.recettesLoaded}`);
+                addLog(`✅ Event listeners: ${systemState.eventListeners}`);
+                
+                const result = `
+                    <h4>📊 État du Système</h4>
+                    <ul>
+                        <li><strong>Modal de modification:</strong> ${systemState.modalExists ? '✅ Présent' : '❌ Manquant'}</li>
+                        <li><strong>Recettes de test:</strong> ${systemState.recettesLoaded} chargées</li>
+                        <li><strong>Event listeners:</strong> ${systemState.eventListeners}</li>
+                    </ul>
+                `;
+                
+                showResult('systemStateResult', result);
+                addLog('✅ État du système vérifié');
+                
+            } catch (error) {
+                addLog(`❌ Erreur: ${error.message}`, 'error');
+                showResult('systemStateResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function testEditButton() {
+            try {
+                addLog('🧪 Test du bouton modifier...');
+                showResult('editTestResult', '🔄 Test en cours...');
+                
+                // Simuler un clic sur le bouton modifier
+                const editButton = document.querySelector('.edit-btn');
+                if (editButton) {
+                    addLog('✅ Bouton modifier trouvé');
+                    editButton.click();
+                    addLog('✅ Clic simulé sur le bouton modifier');
+                    
+                    setTimeout(() => {
+                        const modal = document.getElementById('editModal');
+                        if (modal && modal.classList.contains('show')) {
+                            addLog('✅ Modal affiché avec succès');
+                            showResult('editTestResult', '✅ Test réussi - Modal affiché');
+                        } else {
+                            addLog('❌ Modal non affiché');
+                            showResult('editTestResult', '❌ Test échoué - Modal non affiché', true);
+                        }
+                    }, 100);
+                } else {
+                    addLog('❌ Bouton modifier non trouvé');
+                    showResult('editTestResult', '❌ Bouton modifier non trouvé', true);
+                }
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors du test: ${error.message}`, 'error');
+                showResult('editTestResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function openEditModal(recette) {
+            try {
+                addLog(`📝 Ouverture du modal pour: ${recette.libelle}`);
+                currentEditingRecette = recette;
+                
+                // Remplir le formulaire
+                document.getElementById('editLibelle').value = recette.libelle;
+                document.getElementById('editMontant').value = recette.montant;
+                document.getElementById('editDate').value = recette.date;
+                document.getElementById('editStatut').value = recette.statut;
+                document.getElementById('editDescription').value = recette.description;
+                
+                // Afficher le modal
+                const modal = document.getElementById('editModal');
+                modal.classList.add('show');
+                
+                addLog('✅ Modal ouvert avec succès');
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors de l'ouverture: ${error.message}`, 'error');
+            }
+        }
+
+        function closeModal() {
+            try {
+                addLog('❌ Fermeture du modal');
+                const modal = document.getElementById('editModal');
+                modal.classList.remove('show');
+                currentEditingRecette = null;
+            } catch (error) {
+                addLog(`❌ Erreur lors de la fermeture: ${error.message}`, 'error');
+            }
+        }
+
+        function saveEdit() {
+            try {
+                if (!currentEditingRecette) {
+                    addLog('❌ Aucune recette en cours de modification');
+                    return;
+                }
+                
+                addLog(`💾 Sauvegarde de: ${currentEditingRecette.libelle}`);
+                
+                // Récupérer les valeurs du formulaire
+                const libelle = document.getElementById('editLibelle').value;
+                const montant = parseFloat(document.getElementById('editMontant').value);
+                const date = document.getElementById('editDate').value;
+                const statut = document.getElementById('editStatut').value;
+                const description = document.getElementById('editDescription').value;
+                
+                // Validation
+                if (!libelle || !montant || montant <= 0) {
+                    addLog('❌ Validation échouée');
+                    alert('Veuillez remplir tous les champs obligatoires');
+                    return;
+                }
+                
+                // Mettre à jour la recette
+                const index = recettesTest.findIndex(r => r.id === currentEditingRecette.id);
+                if (index !== -1) {
+                    recettesTest[index] = {
+                        ...recettesTest[index],
+                        libelle,
+                        montant,
+                        date,
+                        statut,
+                        description
+                    };
+                    
+                    addLog('✅ Recette mise à jour');
+                    updateDisplay();
+                    closeModal();
+                    
+                    alert('Recette modifiée avec succès !');
+                }
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors de la sauvegarde: ${error.message}`, 'error');
+            }
+        }
+
+        function updateDisplay() {
+            const container = document.getElementById('recettesList');
+            container.innerHTML = '';
+            
+            recettesTest.forEach(recette => {
+                const totalDepenses = recette.montant - recette.soldeDisponible;
+                
+                const card = document.createElement('div');
+                card.className = 'recette-card';
+                card.innerHTML = `
+                    <div class="action-buttons">
+                        <button class="action-btn edit-btn" onclick="openEditModal(${JSON.stringify(recette).replace(/"/g, '&quot;')})" title="Modifier">
+                            ✏️
+                        </button>
+                        <button class="action-btn delete-btn" onclick="deleteRecette('${recette.id}')" title="Supprimer">
+                            🗑️
+                        </button>
+                    </div>
+                    <h3>${recette.libelle}</h3>
+                    <p><strong>Montant initial:</strong> ${recette.montant.toLocaleString()} F CFA</p>
+                    <p><strong>Dépensé:</strong> ${totalDepenses.toLocaleString()} F CFA</p>
+                    <p><strong>Solde disponible:</strong> ${recette.soldeDisponible.toLocaleString()} F CFA</p>
+                    <p><strong>Date:</strong> ${recette.date}</p>
+                    <p><strong>Statut:</strong> ${recette.statut}</p>
+                    <p><strong>Description:</strong> ${recette.description}</p>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function deleteRecette(id) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer cette recette ?')) {
+                const index = recettesTest.findIndex(r => r.id === id);
+                if (index !== -1) {
+                    recettesTest.splice(index, 1);
+                    addLog(`🗑️ Recette supprimée: ${id}`);
+                    updateDisplay();
+                }
+            }
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('🔍 Test du bouton modifier initialisé');
+            addLog('💡 Cliquez sur "Vérifier l\'état du système" pour commencer');
+            updateDisplay();
+        });
+    </script>
+</body>
+</html>

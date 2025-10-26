@@ -33,12 +33,12 @@ export class DirectService {
       return (data || []).map(recette => ({
         id: recette.id,
         userId: recette.user_id,
-        libelle: recette.libelle,
-        montant: parseFloat(recette.amount || 0),
+        libelle: recette.description || '', // Utiliser 'description' au lieu de 'libelle'
+        montant: parseFloat(recette.amount || 0), // Utiliser 'amount' au lieu de 'montant'
         soldeDisponible: parseFloat(recette.solde_disponible || 0),
         description: recette.description || '',
-        date: recette.date,
-        statut: recette.statut || 'Reçue',
+        date: recette.receipt_date, // Utiliser 'receipt_date' au lieu de 'date_reception'
+        statut: 'Reçue', // Valeur par défaut car la colonne n'existe pas
         receiptUrl: recette.receipt_url || undefined,
         receiptFileName: recette.receipt_file_name || undefined,
         createdAt: recette.created_at,
@@ -50,37 +50,65 @@ export class DirectService {
     }
   }
 
-  static async createRecette(recette: Omit<Recette, 'id' | 'createdAt' | 'updatedAt'>): Promise<boolean> {
+  static async createRecette(recette: Omit<Recette, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; error?: string }> {
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
         console.error('❌ Erreur d\'authentification:', authError)
-        return false
+        return { success: false, error: 'Erreur d\'authentification' }
       }
 
-      const { error } = await supabase
+      // Validation côté client
+      if (!recette.libelle || !recette.libelle.trim()) {
+        return { success: false, error: 'Le libellé est obligatoire' }
+      }
+
+      if (!recette.montant || recette.montant <= 0) {
+        return { success: false, error: 'Le montant doit être positif' }
+      }
+
+      console.log('🔄 Tentative de création de recette:', {
+        libelle: recette.libelle,
+        montant: recette.montant,
+        date: recette.date,
+        statut: recette.statut
+      })
+
+      const { data, error } = await supabase
         .from('recettes')
         .insert({
           user_id: user.id,
-          libelle: recette.libelle,
-          amount: recette.montant,
+          description: recette.libelle, // Utiliser 'description' au lieu de 'libelle'
+          amount: recette.montant, // Utiliser 'amount' au lieu de 'montant'
           solde_disponible: recette.montant, // Solde initial = montant
-          description: recette.description,
-          date: recette.date,
-          statut: recette.statut,
-          receipt_url: recette.receiptUrl,
-          receipt_file_name: recette.receiptFileName
+          receipt_date: recette.date, // Utiliser 'receipt_date' au lieu de 'date_reception'
+          // Note: statut n'existe pas dans votre structure, on peut l'ajouter si nécessaire
         })
+        .select()
+        .single()
 
       if (error) {
         console.error('❌ Erreur lors de la création de la recette:', error)
-        return false
+        
+        // Messages d'erreur spécifiques selon le type d'erreur
+        if (error.code === '23505') {
+          return { success: false, error: 'Une recette avec ce libellé existe déjà' }
+        } else if (error.code === '23514') {
+          return { success: false, error: 'Les données ne respectent pas les contraintes de validation' }
+        } else if (error.message.includes('montant')) {
+          return { success: false, error: 'Le montant doit être positif' }
+        } else if (error.message.includes('libellé')) {
+          return { success: false, error: 'Le libellé ne peut pas être vide' }
+        } else {
+          return { success: false, error: `Erreur de base de données: ${error.message}` }
+        }
       }
 
-      return true
+      console.log('✅ Recette créée avec succès:', data.id)
+      return { success: true }
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
-      return false
+      return { success: false, error: 'Erreur inattendue lors de la création' }
     }
   }
 
@@ -93,14 +121,14 @@ export class DirectService {
       }
 
       const updateData: Record<string, any> = {}
-      if (updates.libelle !== undefined) updateData.libelle = updates.libelle
+      if (updates.libelle !== undefined) updateData.description = updates.libelle // Utiliser 'description' au lieu de 'libelle'
       if (updates.montant !== undefined) {
-        updateData.amount = updates.montant
+        updateData.amount = updates.montant // Utiliser 'amount' au lieu de 'montant'
         updateData.solde_disponible = updates.montant // Recalculer le solde
       }
       if (updates.description !== undefined) updateData.description = updates.description
-      if (updates.date !== undefined) updateData.date = updates.date
-      if (updates.statut !== undefined) updateData.statut = updates.statut
+      if (updates.date !== undefined) updateData.receipt_date = updates.date // Utiliser 'receipt_date' au lieu de 'date_reception'
+      // Note: statut n'existe pas dans votre structure
       if (updates.receiptUrl !== undefined) updateData.receipt_url = updates.receiptUrl
       if (updates.receiptFileName !== undefined) updateData.receipt_file_name = updates.receiptFileName
 

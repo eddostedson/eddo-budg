@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/supabase/browser'
 import { useToast } from '@/contexts/toast-context'
+import { EyeIcon, EyeOffIcon } from 'lucide-react'
 // Composant de réinitialisation de mot de passe
 const ResetPasswordModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const [email, setEmail] = useState('')
@@ -123,6 +124,8 @@ export default function AuthPage() {
   const [showResetModal, setShowResetModal] = useState(false)
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const searchParams = useSearchParams()
 
   const supabase = createClient()
@@ -306,33 +309,61 @@ export default function AuthPage() {
 
                 <div className="space-y-3">
                   <Label htmlFor="password" className="text-white font-semibold text-sm">Mot de passe</Label>
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    placeholder="••••••••"
-                    required
-                    disabled={loading}
-                    className="bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-yellow-400 focus:ring-yellow-400/30 rounded-2xl h-12 transition-all duration-300 hover:bg-white/15"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      placeholder="••••••••"
+                      required
+                      disabled={loading}
+                      className="bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-yellow-400 focus:ring-yellow-400/30 rounded-2xl h-12 transition-all duration-300 hover:bg-white/15 pr-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white transition-colors duration-200"
+                      disabled={loading}
+                    >
+                      {showPassword ? (
+                        <EyeOffIcon className="h-5 w-5" />
+                      ) : (
+                        <EyeIcon className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 {mode === 'signup' && (
                   <div className="space-y-3">
                     <Label htmlFor="confirmPassword" className="text-white font-semibold text-sm">Confirmer le mot de passe</Label>
-                    <Input
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      type="password"
-                      value={formData.confirmPassword}
-                      onChange={handleInputChange}
-                      placeholder="••••••••"
-                      required
-                      disabled={loading}
-                      className="bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-yellow-400 focus:ring-yellow-400/30 rounded-2xl h-12 transition-all duration-300 hover:bg-white/15"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={formData.confirmPassword}
+                        onChange={handleInputChange}
+                        placeholder="••••••••"
+                        required
+                        disabled={loading}
+                        className="bg-white/10 border-white/30 text-white placeholder:text-white/60 focus:border-yellow-400 focus:ring-yellow-400/30 rounded-2xl h-12 transition-all duration-300 hover:bg-white/15 pr-12"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white transition-colors duration-200"
+                        disabled={loading}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOffIcon className="h-5 w-5" />
+                        ) : (
+                          <EyeIcon className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
 

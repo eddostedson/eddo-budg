@@ -3,19 +3,25 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
+import { useScroll } from '@/hooks/useScroll'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ForgotPasswordModal } from './forgot-password-modal'
 
 export function TopHeader() {
   const { user, signOut } = useAuth()
+  const { isScrolled, scrollY } = useScroll()
   const [searchQuery, setSearchQuery] = useState('')
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false)
 
   if (!user) return null
 
   return (
-    <header className="fixed top-0 left-0 md:left-16 right-0 h-16 top-header z-40">
+    <header className={`fixed top-0 left-0 md:left-16 right-0 h-16 top-header z-50 transition-all duration-300 ${
+      isScrolled 
+        ? 'bg-gradient-to-r from-slate-900/98 via-purple-900/98 to-slate-900/98 backdrop-blur-2xl shadow-2xl border-b border-white/20' 
+        : 'bg-gradient-to-r from-slate-800/95 via-purple-800/95 to-slate-800/95 backdrop-blur-xl border-b border-white/10 shadow-xl'
+    }`}>
       <div className="flex items-center justify-between h-full px-6">
         {/* Left side - Title and navigation */}
         <div className="flex items-center gap-6">
@@ -129,6 +135,9 @@ export function TopHeader() {
         isOpen={showForgotPasswordModal}
         onClose={() => setShowForgotPasswordModal(false)}
       />
+      
+      {/* Indicateur de scroll */}
+      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-50"></div>
     </header>
   )
 }

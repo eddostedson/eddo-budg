@@ -72,7 +72,7 @@ const RecettesPageDirect: React.FC = () => {
     }
 
     try {
-      const success = await DirectService.createRecette({
+      const result = await DirectService.createRecette({
         libelle: formData.libelle,
         montant: montant,
         soldeDisponible: montant, // Solde initial = montant
@@ -81,13 +81,13 @@ const RecettesPageDirect: React.FC = () => {
         statut: formData.statut
       })
 
-      if (success) {
+      if (result.success) {
         toast.success('Recette créée avec succès !')
         setShowModal(false)
         resetForm()
         await loadRecettes() // Recharger depuis la base
       } else {
-        toast.error('Erreur lors de la création de la recette')
+        toast.error(result.error || 'Erreur lors de la création de la recette')
       }
     } catch (error) {
       console.error('❌ Erreur lors de la création:', error)

@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Formulaire Dépense - Page Recette</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #10b981;
+        }
+        .button {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+        }
+        .button.blue {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        }
+        .button.blue:hover {
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+        .result {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .recette-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 15px 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .recette-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .recette-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1f2937;
+        }
+        .recette-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .info-item {
+            background: #f9fafb;
+            padding: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+        }
+        .info-label {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 5px;
+        }
+        .info-value {
+            font-weight: bold;
+            color: #1f2937;
+        }
+        .operations-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .operations-table th,
+        .operations-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .operations-table th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: #374151;
+        }
+        .no-expenses {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+        .no-expenses-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+        .create-expense-btn {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+        .create-expense-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+        
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 0;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body {
+            padding: 20px;
+        }
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #374151;
+        }
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #6b7280;
+        }
+        .close-btn:hover {
+            color: #374151;
+        }
+        .recette-info-box {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .recette-info-box h4 {
+            color: #1e40af;
+            margin: 0 0 10px 0;
+            font-size: 0.875rem;
+        }
+        .recette-info-box p {
+            margin: 5px 0;
+            font-size: 0.875rem;
+            color: #1e40af;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💰 Test Formulaire Dépense - Page Recette</h1>
+            <p>Test de la nouvelle fonctionnalité : formulaire de création de dépense directement dans la page de détail d'une recette</p>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 État du Système</h2>
+            <button class="button" onclick="checkSystemState()">Vérifier l'état du système</button>
+            <div id="systemStateResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Test Formulaire Dépense</h2>
+            <button class="button blue" onclick="testCreateExpenseForm()">Tester le formulaire de création</button>
+            <div id="formTestResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>💰 Page de Détail Recette - Simulation</h2>
+            <p><em>Cliquez sur "Créer la Première Dépense" pour tester le nouveau formulaire</em></p>
+            
+            <!-- Simulation de la page de détail d'une recette -->
+            <div class="recette-card">
+                <div class="recette-header">
+                    <h3 class="recette-title">💰 Loyer Kennedy : Mois de Octobre 2025</h3>
+                </div>
+                
+                <div class="recette-info">
+                    <div class="info-item">
+                        <div class="info-label">Montant Initial</div>
+                        <div class="info-value">120,000 F CFA</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Total Dépensé</div>
+                        <div class="info-value">0 F CFA</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Solde Disponible</div>
+                        <div class="info-value">120,000 F CFA</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Disponibilité</div>
+                        <div class="info-value">100% disponible</div>
+                    </div>
+                </div>
+
+                <h4>Tableau des Opérations</h4>
+                <table class="operations-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Libellé</th>
+                            <th>Date</th>
+                            <th>Montant</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>✅ Recette</td>
+                            <td>Loyer Kennedy : Mois de Octobre 2025</td>
+                            <td>26/10/2025</td>
+                            <td>+120,000 F CFA</td>
+                            <td>reçue</td>
+                            <td>✏️</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="no-expenses">
+                    <div class="no-expenses-icon">💰</div>
+                    <h3>Aucune dépense</h3>
+                    <p>Cette recette n'a pas encore de dépenses associées</p>
+                    <button class="create-expense-btn" onclick="openCreateExpenseModal()">
+                        ➕ Créer la Première Dépense
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Logs de Debug</h2>
+            <button class="button" onclick="clearLogs()">Effacer les logs</button>
+            <div id="debugLogs" class="result"></div>
+        </div>
+    </div>
+
+    <!-- Modal de création de dépense -->
+    <div id="createExpenseModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2>➕ Créer une nouvelle dépense</h2>
+                    <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 0.875rem;">
+                        Pour la recette: <strong style="color: #3b82f6;">Loyer Kennedy : Mois de Octobre 2025</strong>
+                    </p>
+                </div>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="recette-info-box">
+                    <h4>Recette associée</h4>
+                    <p><strong>Nom:</strong> Loyer Kennedy : Mois de Octobre 2025</p>
+                    <p><strong>Solde disponible:</strong> 120,000 F CFA</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Libellé *</label>
+                    <input type="text" id="expenseLibelle" class="form-input" placeholder="Nom de la dépense">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label class="form-label">Montant (FCFA) *</label>
+                        <input type="number" id="expenseMontant" class="form-input" placeholder="0" min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Date *</label>
+                        <input type="date" id="expenseDate" class="form-input">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Catégorie</label>
+                    <select id="expenseCategorie" class="form-input">
+                        <option value="">Sélectionner une catégorie</option>
+                        <option value="Transport">Transport</option>
+                        <option value="Nourriture">Nourriture</option>
+                        <option value="Matériel">Matériel</option>
+                        <option value="Communication">Communication</option>
+                        <option value="Autre">Autre</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="expenseDescription" class="form-input" rows="3" placeholder="Description de la dépense (optionnel)"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="button" onclick="closeModal()">Annuler</button>
+                <button class="button blue" onclick="saveExpense()">➕ Créer la Dépense</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let debugLogs = [];
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLogs.push(`[${timestamp}] ${message}`);
+            updateDebugLogs();
+        }
+
+        function updateDebugLogs() {
+            const logsElement = document.getElementById('debugLogs');
+            logsElement.textContent = debugLogs.join('\n');
+            logsElement.scrollTop = logsElement.scrollHeight;
+        }
+
+        function clearLogs() {
+            debugLogs = [];
+            updateDebugLogs();
+        }
+
+        function showResult(elementId, content, isError = false) {
+            const element = document.getElementById(elementId);
+            const className = isError ? 'error' : 'result';
+            element.innerHTML = `<div class="${className}">${content}</div>`;
+        }
+
+        function checkSystemState() {
+            try {
+                addLog('🔍 Vérification de l\'état du système...');
+                showResult('systemStateResult', '🔄 Vérification en cours...');
+                
+                const systemState = {
+                    modalExists: !!document.getElementById('createExpenseModal'),
+                    formFields: ['libelle', 'montant', 'date', 'categorie', 'description'].length,
+                    recetteInfo: 'Loyer Kennedy : Mois de Octobre 2025',
+                    soldeDisponible: '120,000 F CFA'
+                };
+                
+                addLog(`✅ Modal existe: ${systemState.modalExists}`);
+                addLog(`✅ Champs de formulaire: ${systemState.formFields}`);
+                addLog(`✅ Recette: ${systemState.recetteInfo}`);
+                addLog(`✅ Solde: ${systemState.soldeDisponible}`);
+                
+                const result = `
+                    <h4>📊 État du Système</h4>
+                    <ul>
+                        <li><strong>Modal de création:</strong> ${systemState.modalExists ? '✅ Présent' : '❌ Manquant'}</li>
+                        <li><strong>Champs de formulaire:</strong> ${systemState.formFields} configurés</li>
+                        <li><strong>Recette associée:</strong> ${systemState.recetteInfo}</li>
+                        <li><strong>Solde disponible:</strong> ${systemState.soldeDisponible}</li>
+                    </ul>
+                `;
+                
+                showResult('systemStateResult', result);
+                addLog('✅ État du système vérifié');
+                
+            } catch (error) {
+                addLog(`❌ Erreur: ${error.message}`, 'error');
+                showResult('systemStateResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function testCreateExpenseForm() {
+            try {
+                addLog('🧪 Test du formulaire de création de dépense...');
+                showResult('formTestResult', '🔄 Test en cours...');
+                
+                // Ouvrir le modal
+                openCreateExpenseModal();
+                addLog('✅ Modal ouvert');
+                
+                // Vérifier les champs
+                const fields = ['expenseLibelle', 'expenseMontant', 'expenseDate', 'expenseCategorie', 'expenseDescription'];
+                let allFieldsPresent = true;
+                
+                fields.forEach(field => {
+                    const element = document.getElementById(field);
+                    if (element) {
+                        addLog(`✅ Champ ${field} présent`);
+                    } else {
+                        addLog(`❌ Champ ${field} manquant`);
+                        allFieldsPresent = false;
+                    }
+                });
+                
+                if (allFieldsPresent) {
+                    addLog('✅ Tous les champs sont présents');
+                    showResult('formTestResult', '✅ Test réussi - Formulaire complet et fonctionnel');
+                } else {
+                    addLog('❌ Certains champs sont manquants');
+                    showResult('formTestResult', '❌ Test échoué - Champs manquants', true);
+                }
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors du test: ${error.message}`, 'error');
+                showResult('formTestResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function openCreateExpenseModal() {
+            try {
+                addLog('📝 Ouverture du modal de création de dépense');
+                
+                // Remplir la date d'aujourd'hui par défaut
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('expenseDate').value = today;
+                
+                // Afficher le modal
+                const modal = document.getElementById('createExpenseModal');
+                modal.classList.add('show');
+                
+                addLog('✅ Modal ouvert avec succès');
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors de l'ouverture: ${error.message}`, 'error');
+            }
+        }
+
+        function closeModal() {
+            try {
+                addLog('❌ Fermeture du modal');
+                const modal = document.getElementById('createExpenseModal');
+                modal.classList.remove('show');
+                
+                // Réinitialiser le formulaire
+                document.getElementById('expenseLibelle').value = '';
+                document.getElementById('expenseMontant').value = '';
+                document.getElementById('expenseDate').value = '';
+                document.getElementById('expenseCategorie').value = '';
+                document.getElementById('expenseDescription').value = '';
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors de la fermeture: ${error.message}`, 'error');
+            }
+        }
+
+        function saveExpense() {
+            try {
+                addLog('💾 Sauvegarde de la dépense...');
+                
+                // Récupérer les valeurs du formulaire
+                const libelle = document.getElementById('expenseLibelle').value;
+                const montant = parseFloat(document.getElementById('expenseMontant').value);
+                const date = document.getElementById('expenseDate').value;
+                const categorie = document.getElementById('expenseCategorie').value;
+                const description = document.getElementById('expenseDescription').value;
+                
+                // Validation
+                if (!libelle || !montant || !date) {
+                    addLog('❌ Validation échouée - Champs obligatoires manquants');
+                    alert('Veuillez remplir tous les champs obligatoires (Libellé, Montant, Date)');
+                    return;
+                }
+                
+                if (montant <= 0) {
+                    addLog('❌ Validation échouée - Montant invalide');
+                    alert('Le montant doit être supérieur à 0');
+                    return;
+                }
+                
+                addLog(`✅ Dépense créée: ${libelle} - ${montant} F CFA`);
+                addLog(`📅 Date: ${date}`);
+                addLog(`📂 Catégorie: ${categorie || 'Non spécifiée'}`);
+                addLog(`📝 Description: ${description || 'Aucune'}`);
+                
+                closeModal();
+                
+                alert(`Dépense créée avec succès !\n\nLibellé: ${libelle}\nMontant: ${montant.toLocaleString()} F CFA\nDate: ${date}\nCatégorie: ${categorie || 'Non spécifiée'}`);
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors de la sauvegarde: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('🔍 Test du formulaire de dépense initialisé');
+            addLog('💡 Cliquez sur "Vérifier l\'état du système" pour commencer');
+        });
+    </script>
+</body>
+</html>

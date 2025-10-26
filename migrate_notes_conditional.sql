@@ -237,3 +237,6 @@ SELECT 'Migration conditionnelle des notes terminée avec succès.' AS status;
 
 
 
+
+
+

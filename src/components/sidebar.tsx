@@ -97,6 +97,12 @@ const sidebarItems = [
     icon: '🔄',
     description: 'Restaurer depuis JSON'
   },
+  { 
+    href: '/journal-activite', 
+    label: 'Journal', 
+    icon: '📝',
+    description: 'Journal d\'activité'
+  },
 ]
 
 const bottomItems = [

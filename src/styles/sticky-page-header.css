@@ -1,0 +1,85 @@
+/* Styles pour le header sticky de la page des recettes */
+.sticky-page-header {
+  position: sticky;
+  top: 4rem; /* 64px pour compenser le header global */
+  z-index: 40;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Animation de slide pour l'indicateur "Fixé" */
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sticky-indicator {
+  animation: slideInFromTop 0.3s ease-out;
+}
+
+/* Effet de glassmorphism pour l'état sticky */
+.sticky-page-header.sticky-active {
+  backdrop-filter: blur(20px);
+  background: linear-gradient(135deg, rgba(30, 64, 175, 0.95) 0%, rgba(147, 51, 234, 0.95) 50%, rgba(67, 56, 202, 0.95) 100%);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Amélioration de la lisibilité en mode sticky */
+.sticky-page-header.sticky-active h1 {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.sticky-page-header.sticky-active p {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Animation des boutons en mode sticky */
+.sticky-page-header.sticky-active button {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .sticky-page-header {
+    top: 4rem;
+    padding: 1rem;
+  }
+  
+  .sticky-page-header h1 {
+    font-size: 2rem;
+  }
+  
+  .sticky-page-header .flex.space-x-3 {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+/* Effet de parallax pour le contenu */
+.page-content {
+  transition: transform 0.1s ease-out;
+}
+
+/* Indicateur de scroll personnalisé */
+.scroll-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 50%, transparent 100%);
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
+}
+
+.scroll-indicator:hover {
+  opacity: 1;
+}
+
+

@@ -59,3 +59,6 @@ COMMENT ON COLUMN depenses.receipt_file_name IS 'Nom du fichier reçu original';
 
 
 
+
+
+

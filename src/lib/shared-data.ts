@@ -38,6 +38,22 @@ export interface BudgetTransfer {
   createdAt: Date
 }
 
+// ✅ Interface pour le JOURNAL D'ACTIVITÉ
+export interface ActivityLog {
+  id: string
+  timestamp: string
+  userId?: string
+  action: 'create' | 'update' | 'delete'
+  entityType: 'recette' | 'depense'
+  entityId: string
+  entityName: string
+  oldValues?: Record<string, any>
+  newValues?: Record<string, any>
+  description: string
+  ipAddress?: string
+  userAgent?: string
+}
+
 // ✅ Interface pour les RECETTES (Revenus)
 export interface Recette {
   id: string

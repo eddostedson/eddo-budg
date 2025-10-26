@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Application Recettes</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .debug-section { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .error { color: #d32f2f; background: #ffebee; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .success { color: #2e7d32; background: #e8f5e8; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .info { color: #1976d2; background: #e3f2fd; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        button { background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #45a049; }
+        .log { background: #000; color: #0f0; padding: 15px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Debug Application Recettes</h1>
+    
+    <div class="debug-section">
+        <h2>1. Vérification de l'Authentification</h2>
+        <button onclick="checkAuth()">Vérifier l'Authentification</button>
+        <div id="auth-result"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>2. Test de Création de Recette</h2>
+        <button onclick="testCreateRecette()">Tester la Création</button>
+        <div id="create-result"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>3. Vérification des Services</h2>
+        <button onclick="checkServices()">Vérifier les Services</button>
+        <div id="services-result"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>4. Logs de Debug</h2>
+        <button onclick="clearLogs()">Effacer les Logs</button>
+        <div id="debug-logs" class="log"></div>
+    </div>
+
+    <script>
+        // Configuration Supabase (remplacer par vos vraies valeurs)
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        let supabase;
+        
+        // Initialiser Supabase
+        async function initSupabase() {
+            if (typeof window.supabase === 'undefined') {
+                log('❌ Supabase non initialisé. Veuillez configurer les variables SUPABASE_URL et SUPABASE_ANON_KEY');
+                return false;
+            }
+            supabase = window.supabase;
+            return true;
+        }
+        
+        // Fonction de log
+        function log(message) {
+            const logDiv = document.getElementById('debug-logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        // Effacer les logs
+        function clearLogs() {
+            document.getElementById('debug-logs').textContent = '';
+        }
+        
+        // Vérifier l'authentification
+        async function checkAuth() {
+            const resultDiv = document.getElementById('auth-result');
+            resultDiv.innerHTML = '';
+            
+            try {
+                if (!await initSupabase()) {
+                    resultDiv.innerHTML = '<div class="error">❌ Supabase non configuré</div>';
+                    return;
+                }
+                
+                const { data: { user }, error } = await supabase.auth.getUser();
+                
+                if (error) {
+                    log('❌ Erreur d\'authentification: ' + error.message);
+                    resultDiv.innerHTML = '<div class="error">❌ Erreur d\'authentification: ' + error.message + '</div>';
+                } else if (user) {
+                    log('✅ Utilisateur connecté: ' + user.email);
+                    resultDiv.innerHTML = '<div class="success">✅ Utilisateur connecté: ' + user.email + '</div>';
+                } else {
+                    log('❌ Aucun utilisateur connecté');
+                    resultDiv.innerHTML = '<div class="error">❌ Aucun utilisateur connecté</div>';
+                }
+            } catch (error) {
+                log('❌ Erreur inattendue: ' + error.message);
+                resultDiv.innerHTML = '<div class="error">❌ Erreur inattendue: ' + error.message + '</div>';
+            }
+        }
+        
+        // Tester la création de recette
+        async function testCreateRecette() {
+            const resultDiv = document.getElementById('create-result');
+            resultDiv.innerHTML = '';
+            
+            try {
+                if (!await initSupabase()) {
+                    resultDiv.innerHTML = '<div class="error">❌ Supabase non configuré</div>';
+                    return;
+                }
+                
+                // Vérifier l'authentification
+                const { data: { user }, error: authError } = await supabase.auth.getUser();
+                if (authError || !user) {
+                    log('❌ Erreur d\'authentification: ' + (authError?.message || 'Utilisateur non connecté'));
+                    resultDiv.innerHTML = '<div class="error">❌ Erreur d\'authentification</div>';
+                    return;
+                }
+                
+                log('🔄 Test de création de recette...');
+                
+                // Données de test
+                const testData = {
+                    user_id: user.id,
+                    description: 'TEST DEBUG - ' + new Date().toISOString(),
+                    amount: 1000.00,
+                    receipt_date: new Date().toISOString().split('T')[0],
+                    solde_disponible: 1000.00
+                };
+                
+                log('📊 Données de test: ' + JSON.stringify(testData, null, 2));
+                
+                // Tentative d'insertion
+                const { data, error } = await supabase
+                    .from('recettes')
+                    .insert(testData)
+                    .select()
+                    .single();
+                
+                if (error) {
+                    log('❌ Erreur lors de l\'insertion: ' + error.message);
+                    log('🔍 Code erreur: ' + error.code);
+                    resultDiv.innerHTML = '<div class="error">❌ Erreur: ' + error.message + '</div>';
+                } else {
+                    log('✅ Recette créée avec succès: ' + data.id);
+                    resultDiv.innerHTML = '<div class="success">✅ Recette créée avec succès!</div>';
+                    
+                    // Supprimer la recette de test
+                    await supabase
+                        .from('recettes')
+                        .delete()
+                        .eq('id', data.id);
+                    
+                    log('🧹 Recette de test supprimée');
+                }
+                
+            } catch (error) {
+                log('❌ Erreur inattendue: ' + error.message);
+                resultDiv.innerHTML = '<div class="error">❌ Erreur inattendue: ' + error.message + '</div>';
+            }
+        }
+        
+        // Vérifier les services
+        async function checkServices() {
+            const resultDiv = document.getElementById('services-result');
+            resultDiv.innerHTML = '';
+            
+            let services = [];
+            
+            // Vérifier DirectService
+            if (typeof window.DirectService !== 'undefined') {
+                services.push('✅ DirectService disponible');
+            } else {
+                services.push('❌ DirectService non disponible');
+            }
+            
+            // Vérifier RecetteService
+            if (typeof window.RecetteService !== 'undefined') {
+                services.push('✅ RecetteService disponible');
+            } else {
+                services.push('❌ RecetteService non disponible');
+            }
+            
+            // Vérifier Supabase
+            if (typeof window.supabase !== 'undefined') {
+                services.push('✅ Supabase disponible');
+            } else {
+                services.push('❌ Supabase non disponible');
+            }
+            
+            resultDiv.innerHTML = '<div class="info">' + services.join('<br>') + '</div>';
+            
+            services.forEach(service => log(service));
+        }
+        
+        // Initialiser au chargement
+        window.addEventListener('load', function() {
+            log('🚀 Debug Application Recettes initialisé');
+            log('📋 Instructions:');
+            log('1. Cliquez sur "Vérifier l\'Authentification"');
+            log('2. Cliquez sur "Tester la Création"');
+            log('3. Cliquez sur "Vérifier les Services"');
+            log('4. Regardez les logs pour les détails');
+        });
+    </script>
+</body>
+</html>

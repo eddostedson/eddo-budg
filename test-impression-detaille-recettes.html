@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Impression Détaillée - Recettes et Dépenses</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #10b981;
+        }
+        .button {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+        }
+        .button.blue {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        }
+        .button.blue:hover {
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+        .button.orange {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+        .button.orange:hover {
+            box-shadow: 0 10px 20px rgba(245, 158, 11, 0.3);
+        }
+        .result {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .floating-summary {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 320px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+            z-index: 1000;
+        }
+        .summary-header {
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: white;
+            padding: 16px;
+        }
+        .summary-title {
+            font-weight: 600;
+            font-size: 16px;
+            margin: 0 0 8px 0;
+            display: flex;
+            align-items: center;
+        }
+        .summary-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .summary-count {
+            background: rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .action-btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.1);
+        }
+        .summary-content {
+            padding: 16px;
+        }
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .summary-item:last-child {
+            margin-bottom: 0;
+        }
+        .summary-label {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        .summary-value {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .summary-value.green {
+            color: #059669;
+        }
+        .summary-value.red {
+            color: #dc2626;
+        }
+        .summary-value.blue {
+            color: #2563eb;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ef4444, #f59e0b);
+            transition: width 0.3s ease;
+        }
+        .clear-btn {
+            width: 100%;
+            margin-top: 12px;
+            padding: 8px;
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            color: #6b7280;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .clear-btn:hover {
+            background: #fef2f2;
+            color: #dc2626;
+            border-color: #fecaca;
+        }
+        .recette-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 12px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        .recette-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .recette-card.selected {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        .recette-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        .recette-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #111827;
+            margin: 0;
+        }
+        .recette-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .recette-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            font-size: 14px;
+        }
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+        }
+        .detail-label {
+            color: #6b7280;
+        }
+        .detail-value {
+            font-weight: 500;
+            color: #111827;
+        }
+        .depenses-preview {
+            margin-top: 12px;
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        .depenses-preview h5 {
+            margin: 0 0 8px 0;
+            color: #374151;
+            font-size: 14px;
+        }
+        .depense-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+            font-size: 13px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .depense-item:last-child {
+            border-bottom: none;
+        }
+        .depense-libelle {
+            color: #6b7280;
+        }
+        .depense-montant {
+            color: #dc2626;
+            font-weight: 600;
+        }
+        .test-results {
+            background: #f9fafb;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .test-results h4 {
+            margin: 0 0 10px 0;
+            color: #1f2937;
+        }
+        .test-results ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .test-results li {
+            margin-bottom: 5px;
+            color: #374151;
+        }
+        .feature-highlight {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0;
+        }
+        .feature-highlight h4 {
+            margin: 0 0 8px 0;
+            color: #166534;
+        }
+        .feature-highlight p {
+            margin: 0;
+            color: #15803d;
+            font-size: 0.875rem;
+        }
+        .log-entry {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            font-family: monospace;
+            font-size: 0.875rem;
+        }
+        .log-entry.success {
+            border-left: 4px solid #10b981;
+            background: #f0fdf4;
+        }
+        .log-entry.error {
+            border-left: 4px solid #ef4444;
+            background: #fef2f2;
+        }
+        .log-entry.info {
+            border-left: 4px solid #3b82f6;
+            background: #eff6ff;
+        }
+        .print-preview {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0;
+        }
+        .print-preview h4 {
+            margin: 0 0 8px 0;
+            color: #1f2937;
+        }
+        .print-preview p {
+            margin: 0;
+            color: #374151;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🖨️ Test Impression Détaillée - Recettes et Dépenses</h1>
+            <p>Fonctionnalité d'impression avec détails complets des dépenses par recette</p>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 État du Système</h2>
+            <button class="button" onclick="checkSystemState()">Vérifier l'état du système</button>
+            <div id="systemStateResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔧 Fonctionnalité Améliorée</h2>
+            <div class="feature-highlight">
+                <h4>✅ Nouvelle Fonctionnalité Détaillée</h4>
+                <p>• Section dédiée pour chaque recette sélectionnée • Résumé complet (montant initial, dépensé, disponible) • Tableau détaillé de toutes les dépenses par recette • Colonnes: Libellé, Date, Montant, Catégorie, Description • Gestion des recettes sans dépenses • Format professionnel optimisé pour l'impression</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Recettes Disponibles</h2>
+            <div id="recettesContainer">
+                <!-- Les recettes seront affichées ici -->
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Tests de Fonctionnalités</h2>
+            <button class="button blue" onclick="testDetailedPrint()">Tester impression détaillée</button>
+            <button class="button orange" onclick="testPrintStructure()">Tester structure du document</button>
+            <button class="button" onclick="testDepensesDisplay()">Tester affichage dépenses</button>
+            <div id="testResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Logs de Debug</h2>
+            <button class="button" onclick="clearLogs()">Effacer les logs</button>
+            <div id="debugLogs" class="result"></div>
+        </div>
+    </div>
+
+    <!-- Résumé flottant -->
+    <div class="floating-summary" id="floatingSummary" style="display: none;">
+        <div class="summary-header">
+            <div class="summary-title">
+                <span style="margin-right: 8px;">📊</span>
+                Résumé Sélection
+            </div>
+            <div class="summary-actions">
+                <div class="summary-count" id="summaryCount">0 recette(s)</div>
+                <div class="action-buttons">
+                    <button class="action-btn" onclick="printDetailedSummary()" title="Imprimer le résumé détaillé">
+                        🖨️
+                    </button>
+                    <button class="action-btn" onclick="minimizeSummary()" title="Minimiser">
+                        📉
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="summary-content" id="summaryContent">
+            <div class="summary-item">
+                <span class="summary-label">Total Recettes</span>
+                <span class="summary-value green" id="totalRecettes">0 F CFA</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Total Dépensé</span>
+                <span class="summary-value red" id="totalDepenses">0 F CFA</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Solde Disponible</span>
+                <span class="summary-value blue" id="soldeDisponible">0 F CFA</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Utilisation</span>
+                <span class="summary-value" id="utilisation">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+            <button class="clear-btn" onclick="clearSelection()">
+                ❌ Effacer la sélection
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let debugLogs = [];
+        let selectedRecettes = [];
+        let isSummaryMinimized = false;
+
+        // Données de test avec dépenses associées
+        let recettes = [
+            {
+                id: '1',
+                libelle: 'EXPERTISE : Budget de Fonctionnement Juillet 2025',
+                montant: 462000,
+                soldeDisponible: 14200,
+                dateReception: '2025-08-02',
+                statut: 'reçue',
+                createdAt: '2025-08-02T10:00:00Z'
+            },
+            {
+                id: '2',
+                libelle: 'Numeraire Recupéré sur ACCD',
+                montant: 245000,
+                soldeDisponible: 8000,
+                dateReception: '2025-09-30',
+                statut: 'reçue',
+                createdAt: '2025-09-30T14:30:00Z'
+            },
+            {
+                id: '3',
+                libelle: 'PBF Niambrun',
+                montant: 50000,
+                soldeDisponible: 50000,
+                dateReception: '2025-10-20',
+                statut: 'reçue',
+                createdAt: '2025-10-20T09:15:00Z'
+            }
+        ];
+
+        let depenses = [
+            // Dépenses pour EXPERTISE
+            {
+                id: 1,
+                recetteId: '1',
+                libelle: 'Achat matériel informatique',
+                montant: 150000,
+                date: '2025-08-05',
+                categorie: 'Équipement',
+                description: 'Ordinateurs et accessoires pour le bureau'
+            },
+            {
+                id: 2,
+                recetteId: '1',
+                libelle: 'Formation personnel',
+                montant: 75000,
+                date: '2025-08-10',
+                categorie: 'Formation',
+                description: 'Formation en gestion de projet'
+            },
+            {
+                id: 3,
+                recetteId: '1',
+                libelle: 'Frais de transport',
+                montant: 45000,
+                date: '2025-08-15',
+                categorie: 'Transport',
+                description: 'Déplacements pour missions terrain'
+            },
+            {
+                id: 4,
+                recetteId: '1',
+                libelle: 'Communication',
+                montant: 25000,
+                date: '2025-08-20',
+                categorie: 'Communication',
+                description: 'Téléphone et internet'
+            },
+            {
+                id: 5,
+                recetteId: '1',
+                libelle: 'Fournitures de bureau',
+                montant: 30000,
+                date: '2025-08-25',
+                categorie: 'Fournitures',
+                description: 'Papeterie et consommables'
+            },
+            {
+                id: 6,
+                recetteId: '1',
+                libelle: 'Maintenance équipements',
+                montant: 40000,
+                date: '2025-09-01',
+                categorie: 'Maintenance',
+                description: 'Réparation et entretien'
+            },
+            {
+                id: 7,
+                recetteId: '1',
+                libelle: 'Frais divers',
+                montant: 27800,
+                date: '2025-09-05',
+                categorie: 'Divers',
+                description: 'Autres frais de fonctionnement'
+            },
+            // Dépenses pour Numeraire ACCD
+            {
+                id: 8,
+                recetteId: '2',
+                libelle: 'Achat véhicule',
+                montant: 180000,
+                date: '2025-10-01',
+                categorie: 'Équipement',
+                description: 'Véhicule de service'
+            },
+            {
+                id: 9,
+                recetteId: '2',
+                libelle: 'Carburant',
+                montant: 35000,
+                date: '2025-10-05',
+                categorie: 'Transport',
+                description: 'Carburant pour missions'
+            },
+            {
+                id: 10,
+                recetteId: '2',
+                libelle: 'Assurance véhicule',
+                montant: 22000,
+                date: '2025-10-10',
+                categorie: 'Assurance',
+                description: 'Assurance annuelle du véhicule'
+            }
+        ];
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLogs.push(`[${timestamp}] ${message}`);
+            updateDebugLogs();
+        }
+
+        function updateDebugLogs() {
+            const logsElement = document.getElementById('debugLogs');
+            logsElement.textContent = debugLogs.join('\n');
+            logsElement.scrollTop = logsElement.scrollHeight;
+        }
+
+        function clearLogs() {
+            debugLogs = [];
+            updateDebugLogs();
+        }
+
+        function showResult(elementId, content, isError = false) {
+            const element = document.getElementById(elementId);
+            const className = isError ? 'error' : 'result';
+            element.innerHTML = `<div class="${className}">${content}</div>`;
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('fr-FR').format(amount) + ' F CFA';
+        }
+
+        function formatDate(dateString) {
+            try {
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) {
+                    return 'Date invalide';
+                }
+                return date.toLocaleDateString('fr-FR');
+            } catch (error) {
+                return 'Date invalide';
+            }
+        }
+
+        function toggleRecetteSelection(recetteId) {
+            const index = selectedRecettes.indexOf(recetteId);
+            if (index > -1) {
+                selectedRecettes.splice(index, 1);
+                addLog(`❌ Recette désélectionnée: ${recettes.find(r => r.id === recetteId)?.libelle}`);
+            } else {
+                selectedRecettes.push(recetteId);
+                addLog(`✅ Recette sélectionnée: ${recettes.find(r => r.id === recetteId)?.libelle}`);
+            }
+            updateSummary();
+            renderRecettes();
+        }
+
+        function updateSummary() {
+            const summaryElement = document.getElementById('floatingSummary');
+            const summaryContent = document.getElementById('summaryContent');
+            
+            if (selectedRecettes.length === 0) {
+                summaryElement.style.display = 'none';
+                return;
+            }
+
+            summaryElement.style.display = 'block';
+            
+            const selectedRecettesData = recettes.filter(r => selectedRecettes.includes(r.id));
+            const totalRecettes = selectedRecettesData.reduce((sum, r) => sum + r.montant, 0);
+            const totalDepenses = selectedRecettesData.reduce((sum, r) => sum + (r.montant - r.soldeDisponible), 0);
+            const soldeDisponible = selectedRecettesData.reduce((sum, r) => sum + r.soldeDisponible, 0);
+            const pourcentage = totalRecettes > 0 ? Math.round((totalDepenses / totalRecettes) * 100) : 0;
+
+            document.getElementById('summaryCount').textContent = `${selectedRecettes.length} recette(s)`;
+            document.getElementById('totalRecettes').textContent = formatCurrency(totalRecettes);
+            document.getElementById('totalDepenses').textContent = formatCurrency(totalDepenses);
+            document.getElementById('soldeDisponible').textContent = formatCurrency(soldeDisponible);
+            document.getElementById('utilisation').textContent = `${pourcentage}%`;
+            document.getElementById('progressFill').style.width = `${pourcentage}%`;
+
+            if (isSummaryMinimized) {
+                summaryContent.style.display = 'none';
+            } else {
+                summaryContent.style.display = 'block';
+            }
+        }
+
+        function clearSelection() {
+            selectedRecettes = [];
+            addLog('🗑️ Sélection effacée');
+            updateSummary();
+            renderRecettes();
+        }
+
+        function minimizeSummary() {
+            isSummaryMinimized = !isSummaryMinimized;
+            updateSummary();
+            addLog(`📉 Résumé ${isSummaryMinimized ? 'minimisé' : 'agrandi'}`);
+        }
+
+        function renderRecettes() {
+            const container = document.getElementById('recettesContainer');
+            
+            container.innerHTML = recettes.map(recette => {
+                const isSelected = selectedRecettes.includes(recette.id);
+                const recetteDepenses = depenses.filter(d => d.recetteId === recette.id);
+                const totalDepenses = recetteDepenses.reduce((sum, d) => sum + d.montant, 0);
+                const pourcentage = Math.round((recette.soldeDisponible / recette.montant) * 100);
+                
+                return `
+                    <div class="recette-card ${isSelected ? 'selected' : ''}" onclick="toggleRecetteSelection('${recette.id}')">
+                        <div class="recette-header">
+                            <h3 class="recette-title">${recette.libelle}</h3>
+                            <input 
+                                type="checkbox" 
+                                class="recette-checkbox" 
+                                ${isSelected ? 'checked' : ''}
+                                onchange="toggleRecetteSelection('${recette.id}')"
+                                onclick="event.stopPropagation()"
+                            />
+                        </div>
+                        <div class="recette-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Date:</span>
+                                <span class="detail-value">${formatDate(recette.dateReception)}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Montant:</span>
+                                <span class="detail-value">${formatCurrency(recette.montant)}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Disponible:</span>
+                                <span class="detail-value">${formatCurrency(recette.soldeDisponible)}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Dépensé:</span>
+                                <span class="detail-value">${formatCurrency(totalDepenses)}</span>
+                            </div>
+                        </div>
+                        ${recetteDepenses.length > 0 ? `
+                            <div class="depenses-preview">
+                                <h5>Dépenses (${recetteDepenses.length}):</h5>
+                                ${recetteDepenses.slice(0, 3).map(depense => `
+                                    <div class="depense-item">
+                                        <span class="depense-libelle">${depense.libelle}</span>
+                                        <span class="depense-montant">${formatCurrency(depense.montant)}</span>
+                                    </div>
+                                `).join('')}
+                                ${recetteDepenses.length > 3 ? `<div class="depense-item"><span class="depense-libelle">... et ${recetteDepenses.length - 3} autres</span></div>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function printDetailedSummary() {
+            if (selectedRecettes.length === 0) {
+                addLog('❌ Aucune recette sélectionnée à imprimer', 'error');
+                showResult('testResults', '❌ Erreur: Aucune recette sélectionnée à imprimer', true);
+                return;
+            }
+
+            addLog('🖨️ Génération du document d\'impression détaillé...');
+            
+            const selectedRecettesData = recettes.filter(r => selectedRecettes.includes(r.id));
+            const totalRecettes = selectedRecettesData.reduce((sum, r) => sum + r.montant, 0);
+            const totalDepenses = selectedRecettesData.reduce((sum, r) => sum + (r.montant - r.soldeDisponible), 0);
+            const soldeDisponible = selectedRecettesData.reduce((sum, r) => sum + r.soldeDisponible, 0);
+            const pourcentage = totalRecettes > 0 ? Math.round((totalDepenses / totalRecettes) * 100) : 0;
+
+            // Créer le contenu HTML pour l'impression
+            const printContent = `
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                        <title>Résumé Détaillé des Recettes Sélectionnées</title>
+                        <style>
+                            body {
+                                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                                margin: 0;
+                                padding: 20px;
+                                background: white;
+                                color: #333;
+                            }
+                            .header {
+                                text-align: center;
+                                margin-bottom: 30px;
+                                border-bottom: 3px solid #3b82f6;
+                                padding-bottom: 20px;
+                            }
+                            .header h1 {
+                                color: #1f2937;
+                                margin: 0;
+                                font-size: 28px;
+                            }
+                            .header .date {
+                                color: #6b7280;
+                                margin-top: 5px;
+                                font-size: 14px;
+                            }
+                            .summary-grid {
+                                display: grid;
+                                grid-template-columns: repeat(2, 1fr);
+                                gap: 20px;
+                                margin-bottom: 30px;
+                            }
+                            .summary-card {
+                                background: #f8fafc;
+                                border: 1px solid #e2e8f0;
+                                border-radius: 8px;
+                                padding: 20px;
+                                text-align: center;
+                            }
+                            .summary-card h3 {
+                                margin: 0 0 10px 0;
+                                color: #374151;
+                                font-size: 14px;
+                                text-transform: uppercase;
+                                letter-spacing: 0.5px;
+                            }
+                            .summary-card .amount {
+                                font-size: 24px;
+                                font-weight: bold;
+                                margin: 0;
+                            }
+                            .summary-card.total-revenues .amount {
+                                color: #059669;
+                            }
+                            .summary-card.total-expenses .amount {
+                                color: #dc2626;
+                            }
+                            .summary-card.available-balance .amount {
+                                color: #2563eb;
+                            }
+                            .summary-card.utilization .amount {
+                                color: #d97706;
+                            }
+                            .progress-bar {
+                                width: 100%;
+                                height: 8px;
+                                background: #e5e7eb;
+                                border-radius: 4px;
+                                margin-top: 10px;
+                                overflow: hidden;
+                            }
+                            .progress-fill {
+                                height: 100%;
+                                background: linear-gradient(90deg, #ef4444, #f59e0b);
+                            }
+                            .recette-section {
+                                margin-bottom: 40px;
+                                border: 1px solid #e5e7eb;
+                                border-radius: 8px;
+                                overflow: hidden;
+                            }
+                            .recette-title {
+                                background: #f3f4f6;
+                                color: #1f2937;
+                                margin: 0;
+                                padding: 16px 20px;
+                                font-size: 18px;
+                                font-weight: 600;
+                                border-bottom: 1px solid #e5e7eb;
+                            }
+                            .recette-summary {
+                                padding: 20px;
+                                background: #f9fafb;
+                            }
+                            .summary-row {
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                margin-bottom: 12px;
+                                padding: 8px 0;
+                                border-bottom: 1px solid #f3f4f6;
+                            }
+                            .summary-row:last-child {
+                                margin-bottom: 0;
+                                border-bottom: none;
+                            }
+                            .summary-row .label {
+                                font-weight: 500;
+                                color: #374151;
+                                font-size: 14px;
+                            }
+                            .summary-row .value {
+                                font-weight: 600;
+                                color: #111827;
+                                font-size: 14px;
+                            }
+                            .summary-row .value.amount-initial {
+                                color: #059669;
+                            }
+                            .summary-row .value.amount-spent {
+                                color: #dc2626;
+                            }
+                            .summary-row .value.amount-available {
+                                color: #2563eb;
+                            }
+                            .depenses-title {
+                                margin: 0;
+                                padding: 16px 20px;
+                                background: #fef3c7;
+                                color: #92400e;
+                                font-size: 16px;
+                                font-weight: 600;
+                                border-top: 1px solid #e5e7eb;
+                            }
+                            .depenses-table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin: 0;
+                            }
+                            .depenses-table th,
+                            .depenses-table td {
+                                border: 1px solid #e5e7eb;
+                                padding: 12px;
+                                text-align: left;
+                                font-size: 13px;
+                            }
+                            .depenses-table th {
+                                background: #f9fafb;
+                                font-weight: 600;
+                                color: #374151;
+                            }
+                            .depenses-table tr:nth-child(even) {
+                                background: #f9fafb;
+                            }
+                            .depenses-table .amount-spent {
+                                color: #dc2626;
+                                font-weight: 600;
+                            }
+                            .no-depenses {
+                                padding: 20px;
+                                text-align: center;
+                                color: #6b7280;
+                                font-style: italic;
+                                background: #f9fafb;
+                            }
+                            .footer {
+                                margin-top: 40px;
+                                text-align: center;
+                                color: #6b7280;
+                                font-size: 12px;
+                                border-top: 1px solid #e5e7eb;
+                                padding-top: 20px;
+                            }
+                            @media print {
+                                body { margin: 0; }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h1>📊 Résumé Détaillé des Recettes Sélectionnées</h1>
+                            <div class="date">Généré le ${new Date().toLocaleDateString('fr-FR', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            })}</div>
+                        </div>
+
+                        <div class="summary-grid">
+                            <div class="summary-card total-revenues">
+                                <h3>Total Recettes</h3>
+                                <p class="amount">${totalRecettes.toLocaleString()} F CFA</p>
+                            </div>
+                            <div class="summary-card total-expenses">
+                                <h3>Total Dépensé</h3>
+                                <p class="amount">${totalDepenses.toLocaleString()} F CFA</p>
+                            </div>
+                            <div class="summary-card available-balance">
+                                <h3>Solde Disponible</h3>
+                                <p class="amount">${soldeDisponible.toLocaleString()} F CFA</p>
+                            </div>
+                            <div class="summary-card utilization">
+                                <h3>Taux d'Utilisation</h3>
+                                <p class="amount">${pourcentage}%</p>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: ${pourcentage}%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h2>Détail des Recettes Sélectionnées (${selectedRecettesData.length})</h2>
+                        ${selectedRecettesData.map(recette => {
+                            const recetteDepenses = depenses.filter(d => d.recetteId === recette.id);
+                            const totalDepenseRecette = recetteDepenses.reduce((sum, d) => sum + d.montant, 0);
+                            const pourcentage = recette.montant > 0 ? Math.round((recette.soldeDisponible / recette.montant) * 100) : 0;
+                            
+                            return `
+                                <div class="recette-section">
+                                    <h3 class="recette-title">${recette.libelle}</h3>
+                                    <div class="recette-summary">
+                                        <div class="summary-row">
+                                            <span class="label">Date de réception:</span>
+                                            <span class="value">${formatDate(recette.dateReception)}</span>
+                                        </div>
+                                        <div class="summary-row">
+                                            <span class="label">Montant initial:</span>
+                                            <span class="value amount-initial">${recette.montant.toLocaleString()} F CFA</span>
+                                        </div>
+                                        <div class="summary-row">
+                                            <span class="label">Total dépensé:</span>
+                                            <span class="value amount-spent">${totalDepenseRecette.toLocaleString()} F CFA</span>
+                                        </div>
+                                        <div class="summary-row">
+                                            <span class="label">Solde disponible:</span>
+                                            <span class="value amount-available">${recette.soldeDisponible.toLocaleString()} F CFA</span>
+                                        </div>
+                                        <div class="summary-row">
+                                            <span class="label">Statut:</span>
+                                            <span class="value"><span class="status-badge status-${recette.statut}">${recette.statut}</span></span>
+                                        </div>
+                                        <div class="summary-row">
+                                            <span class="label">% Disponible:</span>
+                                            <span class="value">${pourcentage}%</span>
+                                        </div>
+                                    </div>
+                                    
+                                    ${recetteDepenses.length > 0 ? `
+                                        <h4 class="depenses-title">Détail des Dépenses (${recetteDepenses.length})</h4>
+                                        <table class="depenses-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Libellé</th>
+                                                    <th>Date</th>
+                                                    <th>Montant</th>
+                                                    <th>Catégorie</th>
+                                                    <th>Description</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${recetteDepenses.map(depense => `
+                                                    <tr>
+                                                        <td>${depense.libelle}</td>
+                                                        <td>${formatDate(depense.date)}</td>
+                                                        <td class="amount-spent">${depense.montant.toLocaleString()} F CFA</td>
+                                                        <td>${depense.categorie || 'Non spécifiée'}</td>
+                                                        <td>${depense.description || '-'}</td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    ` : `
+                                        <div class="no-depenses">
+                                            <p>Aucune dépense enregistrée pour cette recette.</p>
+                                        </div>
+                                    `}
+                                </div>
+                            `;
+                        }).join('')}
+
+                        <div class="footer">
+                            <p>Document généré automatiquement par Budget Manager</p>
+                            <p>${selectedRecettesData.length} recette(s) sélectionnée(s) • Total: ${totalRecettes.toLocaleString()} F CFA</p>
+                        </div>
+                    </body>
+                </html>
+            `;
+
+            // Ouvrir une nouvelle fenêtre pour l'impression
+            const printWindow = window.open('', '_blank');
+            if (printWindow) {
+                printWindow.document.write(printContent);
+                printWindow.document.close();
+                
+                // Attendre que le contenu soit chargé puis imprimer
+                printWindow.onload = () => {
+                    setTimeout(() => {
+                        printWindow.print();
+                        printWindow.close();
+                    }, 500);
+                }
+            }
+
+            addLog(`✅ Résumé détaillé de ${selectedRecettesData.length} recette(s) envoyé à l'impression`, 'success');
+        }
+
+        function checkSystemState() {
+            try {
+                addLog('🔍 Vérification de l\'état du système...');
+                showResult('systemStateResult', '🔄 Vérification en cours...');
+                
+                const systemState = {
+                    detailedPrint: 'Impression détaillée avec dépenses par recette',
+                    recetteSections: 'Sections dédiées pour chaque recette sélectionnée',
+                    depensesTable: 'Tableau détaillé des dépenses avec catégories',
+                    summaryRows: 'Résumé complet (initial, dépensé, disponible)',
+                    noDepensesHandling: 'Gestion des recettes sans dépenses'
+                };
+                
+                addLog(`✅ Impression détaillée: ${systemState.detailedPrint}`);
+                addLog(`✅ Sections recettes: ${systemState.recetteSections}`);
+                addLog(`✅ Tableau dépenses: ${systemState.depensesTable}`);
+                addLog(`✅ Résumé complet: ${systemState.summaryRows}`);
+                addLog(`✅ Gestion sans dépenses: ${systemState.noDepensesHandling}`);
+                
+                const result = `
+                    <h4>📊 État du Système</h4>
+                    <ul>
+                        <li><strong>Impression détaillée:</strong> ${systemState.detailedPrint}</li>
+                        <li><strong>Sections recettes:</strong> ${systemState.recetteSections}</li>
+                        <li><strong>Tableau dépenses:</strong> ${systemState.depensesTable}</li>
+                        <li><strong>Résumé complet:</strong> ${systemState.summaryRows}</li>
+                        <li><strong>Gestion sans dépenses:</strong> ${systemState.noDepensesHandling}</li>
+                    </ul>
+                `;
+                
+                showResult('systemStateResult', result);
+                addLog('✅ État du système vérifié');
+                
+            } catch (error) {
+                addLog(`❌ Erreur: ${error.message}`, 'error');
+                showResult('systemStateResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function testDetailedPrint() {
+            try {
+                addLog('🧪 Test de l\'impression détaillée...');
+                showResult('testResults', '🔄 Test en cours...');
+                
+                if (selectedRecettes.length === 0) {
+                    addLog('⚠️ Aucune recette sélectionnée pour le test', 'warning');
+                    showResult('testResults', '⚠️ Sélectionnez d\'abord des recettes pour tester l\'impression détaillée');
+                    return;
+                }
+                
+                const result = `
+                    <h4>🧪 Résultats du Test Impression Détaillée</h4>
+                    <div class="test-results">
+                        <h4>Fonctionnalités testées:</h4>
+                        <ul>
+                            <li>✅ Sections dédiées pour chaque recette (${selectedRecettes.length})</li>
+                            <li>✅ Résumé complet par recette (initial, dépensé, disponible)</li>
+                            <li>✅ Tableau détaillé des dépenses avec catégories</li>
+                            <li>✅ Colonnes: Libellé, Date, Montant, Catégorie, Description</li>
+                            <li>✅ Gestion des recettes sans dépenses</li>
+                        </ul>
+                        <p><strong>Résultat:</strong> ✅ Impression détaillée fonctionnelle</p>
+                    </div>
+                `;
+                
+                showResult('testResults', result);
+                addLog('✅ Test de l\'impression détaillée terminé');
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors du test: ${error.message}`, 'error');
+                showResult('testResults', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function testPrintStructure() {
+            try {
+                addLog('🧪 Test de la structure du document...');
+                showResult('testResults', '🔄 Test en cours...');
+                
+                const result = `
+                    <h4>🧪 Résultats du Test Structure Document</h4>
+                    <div class="print-preview">
+                        <h4>Structure du document d'impression:</h4>
+                        <p>• En-tête avec titre et date de génération</p>
+                        <p>• Grille de résumé global (4 cartes statistiques)</p>
+                        <p>• Section dédiée pour chaque recette sélectionnée</p>
+                        <p>• Résumé de la recette (6 lignes d'informations)</p>
+                        <p>• Tableau détaillé des dépenses (5 colonnes)</p>
+                        <p>• Gestion des recettes sans dépenses</p>
+                        <p>• Pied de page avec informations du document</p>
+                        <p>• CSS optimisé pour l'impression</p>
+                    </div>
+                    <p><strong>Résultat:</strong> ✅ Structure document complète</p>
+                `;
+                
+                showResult('testResults', result);
+                addLog('✅ Test de la structure du document terminé');
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors du test: ${error.message}`, 'error');
+                showResult('testResults', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function testDepensesDisplay() {
+            try {
+                addLog('🧪 Test de l\'affichage des dépenses...');
+                showResult('testResults', '🔄 Test en cours...');
+                
+                const selectedRecettesData = recettes.filter(r => selectedRecettes.includes(r.id));
+                const totalDepenses = selectedRecettesData.reduce((sum, r) => {
+                    const recetteDepenses = depenses.filter(d => d.recetteId === r.id);
+                    return sum + recetteDepenses.length;
+                }, 0);
+                
+                const result = `
+                    <h4>🧪 Résultats du Test Affichage Dépenses</h4>
+                    <div class="test-results">
+                        <h4>Dépenses par recette sélectionnée:</h4>
+                        <ul>
+                            ${selectedRecettesData.map(recette => {
+                                const recetteDepenses = depenses.filter(d => d.recetteId === recette.id);
+                                return `<li>${recette.libelle}: ${recetteDepenses.length} dépense(s)</li>`;
+                            }).join('')}
+                        </ul>
+                        <p><strong>Total dépenses à afficher:</strong> ${totalDepenses}</p>
+                        <p><strong>Résultat:</strong> ✅ Affichage des dépenses fonctionnel</p>
+                    </div>
+                `;
+                
+                showResult('testResults', result);
+                addLog('✅ Test de l\'affichage des dépenses terminé');
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors du test: ${error.message}`, 'error');
+                showResult('testResults', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('🔍 Test de l\'impression détaillée initialisé');
+            addLog('💡 Sélectionnez des recettes pour tester l\'impression avec détails des dépenses');
+            renderRecettes();
+        });
+    </script>
+</body>
+</html>

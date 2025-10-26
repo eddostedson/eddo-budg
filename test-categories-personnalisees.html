@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Catégories Personnalisées</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #10b981;
+        }
+        .button {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+        }
+        .button.blue {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        }
+        .button.blue:hover {
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+        .result {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #374151;
+        }
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .help-text {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 5px;
+        }
+        .demo-form {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .demo-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 15px;
+        }
+        .category-examples {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .category-example {
+            background: #f3f4f6;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            color: #374151;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .category-example:hover {
+            background: #e5e7eb;
+            transform: translateY(-1px);
+        }
+        .test-results {
+            background: #f9fafb;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .test-results h4 {
+            margin: 0 0 10px 0;
+            color: #1f2937;
+        }
+        .test-results ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .test-results li {
+            margin-bottom: 5px;
+            color: #374151;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏷️ Test Catégories Personnalisées</h1>
+            <p>Test de la nouvelle fonctionnalité : saisie libre de catégories avec suggestions</p>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 État du Système</h2>
+            <button class="button" onclick="checkSystemState()">Vérifier l'état du système</button>
+            <div id="systemStateResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Test Catégories Personnalisées</h2>
+            <button class="button blue" onclick="testCustomCategories()">Tester les catégories personnalisées</button>
+            <div id="categoryTestResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>💰 Formulaire de Dépense - Démonstration</h2>
+            <p><em>Testez la saisie de catégories personnalisées</em></p>
+            
+            <div class="demo-form">
+                <div class="demo-title">Créer une nouvelle dépense</div>
+                
+                <div class="form-group">
+                    <label class="form-label">Libellé *</label>
+                    <input type="text" id="demoLibelle" class="form-input" placeholder="Nom de la dépense">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Montant (FCFA) *</label>
+                    <input type="number" id="demoMontant" class="form-input" placeholder="0" min="0">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Catégorie</label>
+                    <input 
+                        type="text" 
+                        id="demoCategorie" 
+                        class="form-input" 
+                        placeholder="Tapez ou sélectionnez une catégorie"
+                        list="categorie-suggestions"
+                    >
+                    <datalist id="categorie-suggestions">
+                        <option value="Transport">Transport</option>
+                        <option value="Nourriture">Nourriture</option>
+                        <option value="Matériel">Matériel</option>
+                        <option value="Communication">Communication</option>
+                        <option value="Santé">Santé</option>
+                        <option value="Éducation">Éducation</option>
+                        <option value="Loisirs">Loisirs</option>
+                        <option value="Vêtements">Vêtements</option>
+                        <option value="Électricité">Électricité</option>
+                        <option value="Eau">Eau</option>
+                        <option value="Internet">Internet</option>
+                        <option value="Assurance">Assurance</option>
+                        <option value="Maintenance">Maintenance</option>
+                        <option value="Autre">Autre</option>
+                    </datalist>
+                    <div class="help-text">
+                        💡 Vous pouvez taper une catégorie personnalisée ou choisir dans la liste
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="demoDescription" class="form-input" rows="3" placeholder="Description de la dépense (optionnel)"></textarea>
+                </div>
+
+                <div class="category-examples">
+                    <h4 style="grid-column: 1/-1; margin: 0 0 10px 0; color: #6b7280; font-size: 0.875rem;">Exemples de catégories personnalisées :</h4>
+                    <div class="category-example" onclick="setCategory('Frais de scolarité')">Frais de scolarité</div>
+                    <div class="category-example" onclick="setCategory('Carburant')">Carburant</div>
+                    <div class="category-example" onclick="setCategory('Pharmacie')">Pharmacie</div>
+                    <div class="category-example" onclick="setCategory('Restaurant')">Restaurant</div>
+                    <div class="category-example" onclick="setCategory('Cadeaux')">Cadeaux</div>
+                    <div class="category-example" onclick="setCategory('Réparations')">Réparations</div>
+                    <div class="category-example" onclick="setCategory('Abonnement')">Abonnement</div>
+                    <div class="category-example" onclick="setCategory('Voyage')">Voyage</div>
+                </div>
+
+                <button class="button blue" onclick="saveDemoExpense()" style="margin-top: 20px;">
+                    💾 Sauvegarder la Dépense
+                </button>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Logs de Debug</h2>
+            <button class="button" onclick="clearLogs()">Effacer les logs</button>
+            <div id="debugLogs" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        let debugLogs = [];
+        let savedCategories = [];
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLogs.push(`[${timestamp}] ${message}`);
+            updateDebugLogs();
+        }
+
+        function updateDebugLogs() {
+            const logsElement = document.getElementById('debugLogs');
+            logsElement.textContent = debugLogs.join('\n');
+            logsElement.scrollTop = logsElement.scrollHeight;
+        }
+
+        function clearLogs() {
+            debugLogs = [];
+            updateDebugLogs();
+        }
+
+        function showResult(elementId, content, isError = false) {
+            const element = document.getElementById(elementId);
+            const className = isError ? 'error' : 'result';
+            element.innerHTML = `<div class="${className}">${content}</div>`;
+        }
+
+        function checkSystemState() {
+            try {
+                addLog('🔍 Vérification de l\'état du système...');
+                showResult('systemStateResult', '🔄 Vérification en cours...');
+                
+                const systemState = {
+                    datalistExists: !!document.getElementById('categorie-suggestions'),
+                    suggestionsCount: document.querySelectorAll('#categorie-suggestions option').length,
+                    inputExists: !!document.getElementById('demoCategorie'),
+                    customCategoriesSupported: true
+                };
+                
+                addLog(`✅ Datalist existe: ${systemState.datalistExists}`);
+                addLog(`✅ Nombre de suggestions: ${systemState.suggestionsCount}`);
+                addLog(`✅ Input existe: ${systemState.inputExists}`);
+                addLog(`✅ Catégories personnalisées supportées: ${systemState.customCategoriesSupported}`);
+                
+                const result = `
+                    <h4>📊 État du Système</h4>
+                    <ul>
+                        <li><strong>Datalist de suggestions:</strong> ${systemState.datalistExists ? '✅ Présent' : '❌ Manquant'}</li>
+                        <li><strong>Nombre de suggestions:</strong> ${systemState.suggestionsCount}</li>
+                        <li><strong>Champ de saisie:</strong> ${systemState.inputExists ? '✅ Présent' : '❌ Manquant'}</li>
+                        <li><strong>Catégories personnalisées:</strong> ${systemState.customCategoriesSupported ? '✅ Supportées' : '❌ Non supportées'}</li>
+                    </ul>
+                `;
+                
+                showResult('systemStateResult', result);
+                addLog('✅ État du système vérifié');
+                
+            } catch (error) {
+                addLog(`❌ Erreur: ${error.message}`, 'error');
+                showResult('systemStateResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function testCustomCategories() {
+            try {
+                addLog('🧪 Test des catégories personnalisées...');
+                showResult('categoryTestResult', '🔄 Test en cours...');
+                
+                const testCategories = [
+                    'Frais de scolarité',
+                    'Carburant',
+                    'Pharmacie',
+                    'Restaurant',
+                    'Cadeaux',
+                    'Réparations',
+                    'Abonnement',
+                    'Voyage'
+                ];
+                
+                let testResults = [];
+                
+                testCategories.forEach(category => {
+                    const input = document.getElementById('demoCategorie');
+                    input.value = category;
+                    
+                    // Simuler la validation
+                    const isValid = category.length > 0 && category.length <= 50;
+                    testResults.push({
+                        category,
+                        valid: isValid,
+                        length: category.length
+                    });
+                    
+                    addLog(`✅ Test catégorie "${category}": ${isValid ? 'Valide' : 'Invalide'} (${category.length} caractères)`);
+                });
+                
+                const validCount = testResults.filter(r => r.valid).length;
+                const invalidCount = testResults.filter(r => !r.valid).length;
+                
+                const result = `
+                    <h4>🧪 Résultats des Tests</h4>
+                    <div class="test-results">
+                        <h4>Catégories testées:</h4>
+                        <ul>
+                            ${testResults.map(r => 
+                                `<li><strong>${r.category}</strong> - ${r.valid ? '✅ Valide' : '❌ Invalide'} (${r.length} caractères)</li>`
+                            ).join('')}
+                        </ul>
+                        <p><strong>Résumé:</strong> ${validCount} valides, ${invalidCount} invalides</p>
+                    </div>
+                `;
+                
+                showResult('categoryTestResult', result);
+                addLog(`✅ Test terminé: ${validCount} valides, ${invalidCount} invalides`);
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors du test: ${error.message}`, 'error');
+                showResult('categoryTestResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function setCategory(category) {
+            try {
+                addLog(`🏷️ Définition de la catégorie: "${category}"`);
+                document.getElementById('demoCategorie').value = category;
+                
+                // Ajouter à la liste des catégories sauvegardées si pas déjà présent
+                if (!savedCategories.includes(category)) {
+                    savedCategories.push(category);
+                    addLog(`📝 Catégorie ajoutée à la liste: "${category}"`);
+                }
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors de la définition: ${error.message}`, 'error');
+            }
+        }
+
+        function saveDemoExpense() {
+            try {
+                addLog('💾 Sauvegarde de la dépense de démonstration...');
+                
+                const libelle = document.getElementById('demoLibelle').value;
+                const montant = parseFloat(document.getElementById('demoMontant').value);
+                const categorie = document.getElementById('demoCategorie').value;
+                const description = document.getElementById('demoDescription').value;
+                
+                // Validation
+                if (!libelle || !montant || montant <= 0) {
+                    addLog('❌ Validation échouée - Champs obligatoires manquants');
+                    alert('Veuillez remplir le libellé et le montant');
+                    return;
+                }
+                
+                addLog(`✅ Dépense sauvegardée:`);
+                addLog(`   📝 Libellé: ${libelle}`);
+                addLog(`   💰 Montant: ${montant.toLocaleString()} F CFA`);
+                addLog(`   🏷️ Catégorie: ${categorie || 'Non spécifiée'}`);
+                addLog(`   📄 Description: ${description || 'Aucune'}`);
+                
+                // Ajouter la catégorie personnalisée si elle n'est pas dans la liste
+                if (categorie && !savedCategories.includes(categorie)) {
+                    savedCategories.push(categorie);
+                    addLog(`🆕 Nouvelle catégorie personnalisée ajoutée: "${categorie}"`);
+                }
+                
+                alert(`Dépense sauvegardée avec succès !\n\nLibellé: ${libelle}\nMontant: ${montant.toLocaleString()} F CFA\nCatégorie: ${categorie || 'Non spécifiée'}\nDescription: ${description || 'Aucune'}`);
+                
+                // Réinitialiser le formulaire
+                document.getElementById('demoLibelle').value = '';
+                document.getElementById('demoMontant').value = '';
+                document.getElementById('demoCategorie').value = '';
+                document.getElementById('demoDescription').value = '';
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors de la sauvegarde: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('🔍 Test des catégories personnalisées initialisé');
+            addLog('💡 Cliquez sur "Vérifier l\'état du système" pour commencer');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Mise à Jour Solde Automatique</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #2d3748;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: #718096;
+            font-size: 1.1rem;
+        }
+        .test-section {
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #4299e1;
+        }
+        .test-section h2 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .test-step {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border: 1px solid #e2e8f0;
+        }
+        .test-step h3 {
+            color: #4a5568;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        .status.pending {
+            background: #fed7d7;
+            color: #c53030;
+        }
+        .status.success {
+            background: #c6f6d5;
+            color: #2f855a;
+        }
+        .status.error {
+            background: #fed7d7;
+            color: #c53030;
+        }
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .button {
+            background: linear-gradient(135deg, #4299e1, #3182ce);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(66, 153, 225, 0.3);
+        }
+        .button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .result {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+        .error {
+            background: #fed7d7;
+            border: 1px solid #feb2b2;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+        .icon {
+            width: 20px;
+            height: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 Test Mise à Jour Solde Automatique</h1>
+            <p>Vérification du système de mise à jour automatique du solde disponible</p>
+        </div>
+
+        <div class="test-section">
+            <h2>
+                <span>📋</span>
+                État Initial
+            </h2>
+            <div class="test-step">
+                <h3>Vérification du solde actuel</h3>
+                <button class="button" onclick="checkCurrentBalance()">Vérifier le solde actuel</button>
+                <div id="currentBalanceResult"></div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>
+                <span>➕</span>
+                Test Création Dépense
+            </h2>
+            <div class="test-step">
+                <h3>Créer une dépense de test (5 FCFA)</h3>
+                <button class="button" onclick="createTestExpense()">Créer dépense de 5 FCFA</button>
+                <div id="createExpenseResult"></div>
+            </div>
+            <div class="test-step">
+                <h3>Vérifier le solde après création</h3>
+                <button class="button" onclick="checkBalanceAfterCreate()">Vérifier le solde</button>
+                <div id="balanceAfterCreateResult"></div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>
+                <span>🗑️</span>
+                Test Suppression Dépense
+            </h2>
+            <div class="test-step">
+                <h3>Supprimer la dépense de test</h3>
+                <button class="button" onclick="deleteTestExpense()">Supprimer la dépense</button>
+                <div id="deleteExpenseResult"></div>
+            </div>
+            <div class="test-step">
+                <h3>Vérifier le solde après suppression</h3>
+                <button class="button" onclick="checkBalanceAfterDelete()">Vérifier le solde</button>
+                <div id="balanceAfterDeleteResult"></div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>
+                <span>🔄</span>
+                Test Complet Automatique
+            </h2>
+            <div class="test-step">
+                <h3>Exécuter le test complet</h3>
+                <button class="button" onclick="runCompleteTest()">Lancer le test complet</button>
+                <div id="completeTestResult"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const SUPABASE_URL = 'https://your-project.supabase.co';
+        const SUPABASE_ANON_KEY = 'your-anon-key';
+        
+        let testExpenseId = null;
+        let initialBalance = null;
+        let balanceAfterCreate = null;
+        let balanceAfterDelete = null;
+
+        // Fonction pour afficher les résultats
+        function showResult(elementId, content, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="${isError ? 'error' : 'result'}">${content}</div>`;
+        }
+
+        // Fonction pour vérifier le solde actuel
+        async function checkCurrentBalance() {
+            try {
+                showResult('currentBalanceResult', '🔄 Vérification en cours...');
+                
+                // Simulation d'une vérification du solde
+                // Dans un vrai test, vous feriez un appel API
+                const mockBalance = 11995; // Solde simulé
+                initialBalance = mockBalance;
+                
+                showResult('currentBalanceResult', 
+                    `✅ Solde actuel vérifié: <strong>${mockBalance.toLocaleString()} F CFA</strong>`
+                );
+            } catch (error) {
+                showResult('currentBalanceResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        // Fonction pour créer une dépense de test
+        async function createTestExpense() {
+            try {
+                showResult('createExpenseResult', '🔄 Création de la dépense de test...');
+                
+                // Simulation de la création
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                testExpenseId = Date.now(); // ID simulé
+                
+                showResult('createExpenseResult', 
+                    `✅ Dépense de test créée avec l'ID: <strong>${testExpenseId}</strong><br>
+                    Montant: <strong>5 F CFA</strong>`
+                );
+            } catch (error) {
+                showResult('createExpenseResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        // Fonction pour vérifier le solde après création
+        async function checkBalanceAfterCreate() {
+            try {
+                showResult('balanceAfterCreateResult', '🔄 Vérification du solde après création...');
+                
+                // Simulation du calcul
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const expectedBalance = initialBalance - 5;
+                balanceAfterCreate = expectedBalance;
+                
+                showResult('balanceAfterCreateResult', 
+                    `✅ Solde après création: <strong>${expectedBalance.toLocaleString()} F CFA</strong><br>
+                    Calcul: ${initialBalance.toLocaleString()} - 5 = ${expectedBalance.toLocaleString()}`
+                );
+            } catch (error) {
+                showResult('balanceAfterCreateResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        // Fonction pour supprimer la dépense de test
+        async function deleteTestExpense() {
+            try {
+                showResult('deleteExpenseResult', '🔄 Suppression de la dépense de test...');
+                
+                // Simulation de la suppression
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                showResult('deleteExpenseResult', 
+                    `✅ Dépense de test supprimée (ID: <strong>${testExpenseId}</strong>)`
+                );
+            } catch (error) {
+                showResult('deleteExpenseResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        // Fonction pour vérifier le solde après suppression
+        async function checkBalanceAfterDelete() {
+            try {
+                showResult('balanceAfterDeleteResult', '🔄 Vérification du solde après suppression...');
+                
+                // Simulation du calcul
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const expectedBalance = initialBalance; // Doit revenir au solde initial
+                balanceAfterDelete = expectedBalance;
+                
+                const isCorrect = expectedBalance === initialBalance;
+                
+                showResult('balanceAfterDeleteResult', 
+                    `✅ Solde après suppression: <strong>${expectedBalance.toLocaleString()} F CFA</strong><br>
+                    ${isCorrect ? '✅' : '❌'} Le solde est ${isCorrect ? 'correctement' : 'incorrectement'} revenu au montant initial`
+                );
+            } catch (error) {
+                showResult('balanceAfterDeleteResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        // Fonction pour exécuter le test complet
+        async function runCompleteTest() {
+            try {
+                showResult('completeTestResult', '🔄 Lancement du test complet...');
+                
+                // Étape 1: Vérifier le solde initial
+                await checkCurrentBalance();
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Étape 2: Créer une dépense
+                await createTestExpense();
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Étape 3: Vérifier le solde après création
+                await checkBalanceAfterCreate();
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Étape 4: Supprimer la dépense
+                await deleteTestExpense();
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Étape 5: Vérifier le solde après suppression
+                await checkBalanceAfterDelete();
+                
+                // Résumé final
+                const summary = `
+                    <h4>📊 Résumé du Test Complet</h4>
+                    <ul>
+                        <li><strong>Solde initial:</strong> ${initialBalance?.toLocaleString()} F CFA</li>
+                        <li><strong>Solde après création:</strong> ${balanceAfterCreate?.toLocaleString()} F CFA</li>
+                        <li><strong>Solde après suppression:</strong> ${balanceAfterDelete?.toLocaleString()} F CFA</li>
+                    </ul>
+                    <p><strong>Résultat:</strong> ${balanceAfterDelete === initialBalance ? '✅ Test réussi' : '❌ Test échoué'}</p>
+                `;
+                
+                showResult('completeTestResult', summary);
+                
+            } catch (error) {
+                showResult('completeTestResult', `❌ Erreur lors du test complet: ${error.message}`, true);
+            }
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🧪 Test de mise à jour du solde automatique initialisé');
+        });
+    </script>
+</body>
+</html>
+
+

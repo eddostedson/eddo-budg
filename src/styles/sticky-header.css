@@ -1,0 +1,88 @@
+/* Styles pour le header sticky */
+.top-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  transition: all 0.3s ease;
+}
+
+/* Animation de slide pour le header */
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.top-header.animate-in {
+  animation: slideDown 0.3s ease-out;
+}
+
+/* Effet de glassmorphism amélioré */
+.top-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  backdrop-filter: blur(20px);
+  border-radius: 0;
+  z-index: -1;
+}
+
+/* Indicateur de scroll animé */
+.scroll-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
+}
+
+.scroll-indicator:hover {
+  opacity: 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .top-header {
+    left: 0;
+    right: 0;
+  }
+}
+
+/* Effet de parallax pour le contenu */
+.main-content {
+  transition: transform 0.1s ease-out;
+}
+
+/* Amélioration de la lisibilité */
+.top-header .text-white {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Animation des icônes de navigation */
+.top-header nav a {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.top-header nav a:hover {
+  transform: translateY(-1px);
+}
+
+/* Effet de focus pour les inputs */
+.top-header input:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+

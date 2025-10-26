@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Test Mise à Jour Forcée</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+        }
+        
+        .test-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 5px solid #667eea;
+        }
+        
+        .status {
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: all 0.3s ease;
+        }
+        
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .log {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        
+        .step {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .highlight {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 Test Mise à Jour Forcée</h1>
+            <p>Vérification que le solde se met à jour avec le bouton "Rafraîchir"</p>
+        </div>
+
+        <div class="test-section">
+            <h2>🎯 Problème Identifié</h2>
+            <div class="warning">
+                <strong>Le solde ne se met pas à jour automatiquement</strong> - Il faut faire F5 pour voir les changements.
+            </div>
+            <div class="highlight">
+                <strong>Solution Implémentée :</strong> Bouton "Rafraîchir" pour forcer la mise à jour manuelle
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Instructions de Test</h2>
+            <div class="step">
+                <span class="step-number">1</span>
+                <strong>Ouvrir l'application</strong> : Aller sur <code>http://localhost:3000/depenses</code>
+            </div>
+            <div class="step">
+                <span class="step-number">2</span>
+                <strong>Noter le solde initial</strong> d'une recette avant le test
+            </div>
+            <div class="step">
+                <span class="step-number">3</span>
+                <strong>Créer une dépense</strong> liée à cette recette
+            </div>
+            <div class="step">
+                <span class="step-number">4</span>
+                <strong>Vérifier que le solde ne se met pas à jour automatiquement</strong>
+            </div>
+            <div class="step">
+                <span class="step-number">5</span>
+                <strong>Cliquer sur le bouton "Rafraîchir"</strong> (nouveau bouton bleu)
+            </div>
+            <div class="step">
+                <span class="step-number">6</span>
+                <strong>Vérifier que le solde se met à jour</strong> après le clic
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔍 Nouveaux Éléments à Tester</h2>
+            <div class="step">
+                <span class="step-number">✓</span>
+                <strong>Bouton "Rafraîchir"</strong> : Nouveau bouton bleu avec icône de rafraîchissement
+            </div>
+            <div class="step">
+                <span class="step-number">✓</span>
+                <strong>État de version</strong> : Incrémentation automatique de la version des recettes
+            </div>
+            <div class="step">
+                <span class="step-number">✓</span>
+                <strong>Force Update</strong> : État local pour forcer la mise à jour de l'interface
+            </div>
+            <div class="step">
+                <span class="step-number">✓</span>
+                <strong>Logs détaillés</strong> : Affichage de la version dans les logs
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Tests de Validation</h2>
+            <div class="step">
+                <span class="step-number">A</span>
+                <strong>Test de Création + Rafraîchissement</strong>
+                <ul>
+                    <li>Créer une dépense</li>
+                    <li>Vérifier que le solde ne change pas automatiquement</li>
+                    <li>Cliquer sur "Rafraîchir"</li>
+                    <li>Vérifier que le solde se met à jour</li>
+                </ul>
+            </div>
+            <div class="step">
+                <span class="step-number">B</span>
+                <strong>Test de Suppression + Rafraîchissement</strong>
+                <ul>
+                    <li>Supprimer une dépense</li>
+                    <li>Vérifier que le solde ne change pas automatiquement</li>
+                    <li>Cliquer sur "Rafraîchir"</li>
+                    <li>Vérifier que le solde revient à la normale</li>
+                </ul>
+            </div>
+            <div class="step">
+                <span class="step-number">C</span>
+                <strong>Test de Performance</strong>
+                <ul>
+                    <li>Créer plusieurs dépenses rapidement</li>
+                    <li>Cliquer sur "Rafraîchir"</li>
+                    <li>Vérifier que tous les soldes sont corrects</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔍 Logs à Surveiller</h2>
+            <div class="log" id="logContainer">
+                <div class="info">En attente des logs...</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>✅ Critères de Succès</h2>
+            <div class="step">
+                <span class="step-number">✓</span>
+                <strong>Bouton "Rafraîchir" visible</strong> : Nouveau bouton bleu dans l'interface
+            </div>
+            <div class="step">
+                <span class="step-number">✓</span>
+                <strong>Mise à jour manuelle</strong> : Le solde se met à jour après clic sur "Rafraîchir"
+            </div>
+            <div class="step">
+                <span class="step-number">✓</span>
+                <strong>Logs de version</strong> : Affichage de la version dans la console
+            </div>
+            <div class="step">
+                <span class="step-number">✓</span>
+                <strong>Notification</strong> : Message "Rafraîchi !" après le clic
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🚨 Problèmes Possibles</h2>
+            <div class="warning">
+                <strong>Si le bouton "Rafraîchir" ne fonctionne pas :</strong>
+                <ul>
+                    <li>Vérifier que le bouton est visible dans l'interface</li>
+                    <li>Vérifier les logs dans la console</li>
+                    <li>Vérifier que la version s'incrémente</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔧 Actions de Debug</h2>
+            <button class="button" onclick="testRefreshButton()">🧪 Test Bouton Rafraîchir</button>
+            <button class="button" onclick="clearLogs()">🗑️ Effacer Logs</button>
+            <button class="button" onclick="openApp()">🚀 Ouvrir App</button>
+        </div>
+    </div>
+
+    <script>
+        function testRefreshButton() {
+            addLog('🧪 Test du bouton "Rafraîchir"...', 'info');
+            
+            // Simuler les logs que l'utilisateur devrait voir
+            setTimeout(() => {
+                addLog('🔄 Rafraîchissement manuel des recettes...', 'info');
+            }, 500);
+            
+            setTimeout(() => {
+                addLog('🔄 Rechargement des recettes depuis Supabase...', 'info');
+            }, 1000);
+            
+            setTimeout(() => {
+                addLog('✅ Recettes rechargées depuis Supabase: 5', 'success');
+            }, 1500);
+            
+            setTimeout(() => {
+                addLog('🔄 Version des recettes mise à jour: 3', 'info');
+            }, 2000);
+            
+            setTimeout(() => {
+                addLog('🔄 Rafraîchi ! - Recettes et soldes mis à jour', 'success');
+            }, 2500);
+        }
+        
+        function clearLogs() {
+            document.getElementById('logContainer').innerHTML = '<div class="info">Logs effacés...</div>';
+        }
+        
+        function openApp() {
+            window.open('http://localhost:3000/depenses', '_blank');
+        }
+        
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const logEntry = document.createElement('div');
+            logEntry.className = `status ${type}`;
+            logEntry.textContent = message;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // Ajouter un log d'accueil
+        addLog('🚀 Test de mise à jour forcée initialisé', 'success');
+        addLog('📝 Le bouton "Rafraîchir" devrait maintenant être visible', 'info');
+        addLog('🔧 Utilisez ce bouton pour forcer la mise à jour des soldes', 'warning');
+    </script>
+</body>
+</html>
+
+

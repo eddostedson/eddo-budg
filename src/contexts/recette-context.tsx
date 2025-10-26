@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { Recette } from '@/lib/shared-data'
 import { RecetteService } from '@/lib/supabase/database'
+import { activityLogService } from '@/lib/activity-log-service'
 
 interface RecetteContextType {
   recettes: Recette[]
@@ -22,6 +23,7 @@ const RecetteContext = createContext<RecetteContextType | undefined>(undefined)
 
 export function RecetteProvider({ children }: { children: ReactNode }) {
   const [recettes, setRecettes] = useState<Recette[]>([])
+  const [version, setVersion] = useState(0) // État de version pour forcer la mise à jour
 
   // Fonction pour recharger les recettes depuis Supabase
   const refreshRecettes = async () => {
@@ -29,25 +31,17 @@ export function RecetteProvider({ children }: { children: ReactNode }) {
       console.log('🔄 Rechargement des recettes depuis Supabase...')
       const supabaseRecettes = await RecetteService.getRecettes()
       
-      console.log('✅ Recettes rechargées depuis Supabase:', supabaseRecettes.length)
-      console.log('📊 Détails des recettes:', supabaseRecettes.map(r => ({
-        libelle: r.libelle,
-        montant: r.montant,
-        soldeDisponible: r.soldeDisponible
-      })))
-      
       // S'assurer que les recettes sont triées par date de création (plus récentes en haut)
       const sortedRecettes = supabaseRecettes.sort((a, b) => 
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )
       
-      // Debug: Afficher les dates de création pour vérifier le tri
-      console.log('🔍 Tri des recettes par date de création:')
-      sortedRecettes.forEach((recette, index) => {
-        console.log(`${index + 1}. ${recette.libelle} - Créé le: ${new Date(recette.createdAt).toLocaleString('fr-FR')}`)
-      })
-      
+      // Mettre à jour les recettes une seule fois
       setRecettes(sortedRecettes)
+      setVersion(prev => prev + 1) // Incrémenter la version pour forcer la mise à jour
+      
+      console.log('✅ Recettes rechargées depuis Supabase:', sortedRecettes.length)
+      console.log(`🔄 Version des recettes mise à jour: ${version + 1}`)
       
       // Mettre à jour localStorage avec les nouvelles données
       if (typeof window !== 'undefined') {
@@ -87,6 +81,9 @@ export function RecetteProvider({ children }: { children: ReactNode }) {
       if (newRecette) {
         console.log('✅ Recette créée avec succès:', newRecette.id)
         
+        // Logger l'activité
+        activityLogService.logRecetteCreate(newRecette)
+        
         // Ajouter immédiatement à l'état local pour un feedback instantané
         setRecettes(prev => {
           const updated = [newRecette, ...prev]
@@ -111,8 +108,16 @@ export function RecetteProvider({ children }: { children: ReactNode }) {
   }
   
   const updateRecette = async (id: string, updates: Partial<Recette>) => {
+    // Récupérer l'ancienne recette pour le logging
+    const oldRecette = recettes.find(r => r.id === id)
+    
     const updatedRecette = await RecetteService.updateRecette(id, updates)
     if (updatedRecette) {
+      // Logger l'activité
+      if (oldRecette) {
+        activityLogService.logRecetteUpdate(id, oldRecette, updatedRecette)
+      }
+      
       setRecettes(prev => prev.map(r => r.id === id ? updatedRecette : r))
     }
   }
@@ -121,11 +126,19 @@ export function RecetteProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🗑️ Suppression de la recette:', id)
       
+      // Récupérer la recette avant suppression pour le logging
+      const recetteToDelete = recettes.find(r => r.id === id)
+      
       // 1. Tentative de suppression en base de données D'ABORD
       const success = await RecetteService.deleteRecette(id)
       
       if (success) {
         console.log('✅ Recette supprimée avec succès en base de données')
+        
+        // Logger l'activité
+        if (recetteToDelete) {
+          activityLogService.logRecetteDelete(recetteToDelete)
+        }
         
         // 2. Suppression de l'état local seulement si succès en base
         setRecettes(prev => {
@@ -141,7 +154,7 @@ export function RecetteProvider({ children }: { children: ReactNode }) {
         }, 1000)
       } else {
         console.error('❌ Échec de la suppression en base de données')
-        throw new Error('Échec de la suppression')
+        throw new Error('Impossible de supprimer cette recette. Vérifiez que vous avez les permissions nécessaires.')
       }
       
     } catch (error) {

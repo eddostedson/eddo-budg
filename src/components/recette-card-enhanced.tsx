@@ -3,149 +3,183 @@
 
 import React from 'react'
 import { Recette } from '@/lib/shared-data'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatCurrencyHarmonized } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { EditIcon, Trash2Icon, EyeIcon, DollarSignIcon, AlertTriangleIcon, XCircleIcon } from 'lucide-react'
-import SoldeDisponibleEnhanced from './solde-disponible-enhanced'
+import { EditIcon, Trash2Icon, EyeIcon, AlertTriangleIcon } from 'lucide-react'
 
 interface RecetteCardEnhancedProps {
   recette: Recette
   onEdit?: (recette: Recette) => void
   onDelete?: (id: string) => void
   onView?: (recette: Recette) => void
+  isSelected?: boolean
+  onToggleSelection?: (recetteId: string) => void
+  showSelection?: boolean
 }
 
 const RecetteCardEnhanced: React.FC<RecetteCardEnhancedProps> = ({
   recette,
   onEdit,
   onDelete,
-  onView
+  onView,
+  isSelected = false,
+  onToggleSelection,
+  showSelection = false
 }) => {
   const totalDepenses = recette.montant - recette.soldeDisponible
   const pourcentageUtilise = (totalDepenses / recette.montant) * 100
 
-  // Fonction pour déterminer la couleur de la bande latérale
-  const getAvailabilityColorClass = (recette: Recette) => {
-    const pourcentageDisponible = (recette.soldeDisponible / recette.montant) * 100
-    if (recette.soldeDisponible === 0) {
-      return 'from-red-700 to-red-800' // Rouge - Épuisé
-    } else if (pourcentageDisponible >= 50) {
-      return 'from-green-700 to-green-800' // Vert - Élevé
-    } else if (pourcentageDisponible >= 15) {
-      return 'from-orange-600 to-orange-700' // Orange - Moyen
-    } else {
-      return 'from-red-600 to-red-700' // Rouge - Faible
-    }
-  }
-
-  // Fonction pour l'icône de statut
-  const getStatusIcon = (recette: Recette) => {
-    const pourcentageDisponible = (recette.soldeDisponible / recette.montant) * 100
-    if (recette.soldeDisponible === 0) return <XCircleIcon className="h-4 w-4 text-red-100" />
-    if (pourcentageDisponible < 15) return <AlertTriangleIcon className="h-4 w-4 text-red-100" />
-    if (pourcentageDisponible < 50) return <AlertTriangleIcon className="h-4 w-4 text-orange-100" />
-    return <DollarSignIcon className="h-4 w-4 text-green-100" />
-  }
   
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -2, scale: 1.01 }}
+      whileHover={{ y: -4, scale: 1.02 }}
       transition={{ duration: 0.3 }}
-      className="relative bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 flex cursor-pointer"
+      className={`relative bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer h-80 ${
+        isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+      }`}
       onClick={() => onView && onView(recette)}
     >
-      {/* Bande latérale gauche colorée */}
-      <div className={`w-3 bg-gradient-to-b ${getAvailabilityColorClass(recette)} rounded-l-xl flex items-center justify-center`}>
-        <motion.div
-          animate={{ rotate: [0, 360] }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="text-white"
-        >
-          {getStatusIcon(recette)}
-        </motion.div>
+      {/* Barre de statut colorée avec icône */}
+      <div className={`absolute left-0 top-0 bottom-0 w-2 ${
+        recette.soldeDisponible === recette.montant ? 'bg-gradient-to-b from-green-500 to-green-600' :
+        recette.soldeDisponible > recette.montant * 0.5 ? 'bg-gradient-to-b from-yellow-500 to-yellow-600' :
+        recette.soldeDisponible > recette.montant * 0.2 ? 'bg-gradient-to-b from-orange-500 to-orange-600' : 'bg-gradient-to-b from-red-500 to-red-600'
+      }`}>
+        {recette.soldeDisponible < recette.montant * 0.2 && (
+          <div className="absolute top-3 left-1/2 transform -translate-x-1/2">
+            <AlertTriangleIcon className="w-4 h-4 text-white" />
+          </div>
+        )}
       </div>
 
-      {/* Contenu principal */}
-      <div className="flex-1 p-4 flex flex-col justify-between">
-        {/* En-tête */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center space-x-3">
-            <div>
-              <h3 className="text-lg font-bold text-gray-800">{recette.libelle}</h3>
-              <p className="text-sm text-gray-500">Initial: {formatCurrency(recette.montant)}</p>
-            </div>
-          </div>
-          <Badge variant="secondary" className="text-xs px-2 py-1">
-            {recette.statut}
-          </Badge>
-        </div>
-
-        {/* Solde Disponible compact */}
-        <div className="mb-3">
-          <SoldeDisponibleEnhanced
-            montant={recette.soldeDisponible}
-            montantInitial={recette.montant}
-            className="!p-2"
+      {/* Checkbox de sélection */}
+      {showSelection && (
+        <div 
+          className="absolute top-4 right-4 z-10"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelection && onToggleSelection(recette.id);
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            readOnly
+            className="w-5 h-5 text-blue-600 bg-white border-2 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer"
           />
         </div>
+      )}
 
-        {/* Informations et actions */}
-        <div className="flex justify-between items-end">
-          {/* Statistiques */}
-          <div className="flex-1 grid grid-cols-2 gap-3 text-xs">
-            <div className="bg-gray-50 rounded-lg p-2">
-              <div className="text-gray-600 mb-1">Dépensé</div>
-              <div className="font-bold text-red-600">
-                {formatCurrency(totalDepenses)}
-              </div>
+      <div className="p-6 h-full flex flex-col">
+        {/* En-tête avec statut */}
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex-1 min-w-0 pr-2">
+            <h3 
+              className="text-xl font-bold text-gray-900 truncate cursor-help hover:text-blue-600 transition-colors mb-2" 
+              title={recette.libelle}
+            >
+              {recette.libelle}
+            </h3>
+            <div className="flex items-center space-x-2">
+              <Badge 
+                variant="secondary" 
+                className={`text-xs px-3 py-1 ${
+                  recette.statut === 'reçue' ? 'bg-green-100 text-green-800' :
+                  recette.statut === 'en attente' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}
+              >
+                {recette.statut}
+              </Badge>
+              <span className="text-xs text-gray-500">
+                {new Date(recette.dateReception).toLocaleDateString('fr-FR')}
+              </span>
             </div>
-            <div className="bg-gray-50 rounded-lg p-2">
-              <div className="text-gray-600 mb-1">Restant</div>
-              <div className="font-bold text-green-600">
-                {formatCurrency(recette.soldeDisponible)}
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex space-x-1 ml-4">
-            {onView && (
-              <Button size="icon" variant="ghost" onClick={() => onView(recette)} className="h-8 w-8">
-                <EyeIcon className="h-4 w-4" />
-              </Button>
-            )}
-            {onEdit && (
-              <Button size="icon" variant="ghost" onClick={() => onEdit(recette)} className="h-8 w-8">
-                <EditIcon className="h-4 w-4" />
-              </Button>
-            )}
-            {onDelete && (
-              <Button size="icon" variant="ghost" onClick={() => onDelete(recette.id)} className="h-8 w-8 text-red-500 hover:text-red-700">
-                <Trash2Icon className="h-4 w-4" />
-              </Button>
-            )}
           </div>
         </div>
+
+        {/* Section principale avec informations complètes */}
+        <div className="flex-1 space-y-4">
+          {/* Montant initial */}
+          <div className="bg-gray-50 rounded-xl p-4">
+            <div className="text-sm text-gray-600 mb-1">Montant Initial</div>
+            <div className="text-2xl font-bold text-gray-900">
+              {formatCurrencyHarmonized(recette.montant)}
+            </div>
+          </div>
+
+          {/* Solde disponible avec pourcentage */}
+          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white bg-opacity-10 rounded-full -translate-y-10 translate-x-10"></div>
+            <div className="relative">
+              <div className="text-sm opacity-90 mb-2">Solde Disponible</div>
+              <div className="text-3xl font-bold mb-2">
+                {formatCurrencyHarmonized(recette.soldeDisponible)}
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="text-sm opacity-90">
+                  {Math.round((recette.soldeDisponible / recette.montant) * 100)}% disponible
+                </div>
+                <div className="bg-white bg-opacity-20 rounded-full px-3 py-1 text-xs font-medium">
+                  Disponible
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Dépenses et restant */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-red-50 rounded-xl p-3 border border-red-100">
+              <div className="text-xs text-red-600 mb-1">Dépensé</div>
+              <div className="text-lg font-bold text-red-700">
+                {formatCurrencyHarmonized(totalDepenses)}
+              </div>
+            </div>
+            <div className="bg-green-50 rounded-xl p-3 border border-green-100">
+              <div className="text-xs text-green-600 mb-1">Restant</div>
+              <div className="text-lg font-bold text-green-700">
+                {formatCurrencyHarmonized(recette.soldeDisponible)}
+              </div>
+            </div>
+          </div>
+
+          {/* Description si disponible */}
+          {recette.description && (
+            <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+              <div className="text-xs text-blue-600 mb-1">Description</div>
+              <div className="text-sm text-blue-800 line-clamp-2">
+                {recette.description}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-end space-x-2 mt-4 pt-4 border-t border-gray-100">
+          {onView && (
+            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onView(recette); }} className="h-8">
+              <EyeIcon className="h-4 w-4 mr-1" />
+              Voir
+            </Button>
+          )}
+          {onEdit && (
+            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onEdit(recette); }} className="h-8">
+              <EditIcon className="h-4 w-4 mr-1" />
+              Modifier
+            </Button>
+          )}
+          {onDelete && (
+            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onDelete(recette.id); }} className="h-8 text-red-600 border-red-200 hover:bg-red-50">
+              <Trash2Icon className="h-4 w-4 mr-1" />
+              Supprimer
+            </Button>
+          )}
+        </div>
       </div>
-      
-      {/* Effet de bordure animée */}
-      <motion.div
-        animate={{ 
-          background: [
-            'linear-gradient(45deg, #3b82f6, #8b5cf6, #06b6d4)',
-            'linear-gradient(45deg, #8b5cf6, #06b6d4, #3b82f6)',
-            'linear-gradient(45deg, #06b6d4, #3b82f6, #8b5cf6)'
-          ]
-        }}
-        transition={{ duration: 3, repeat: Infinity }}
-        className="absolute inset-0 rounded-xl p-[1px] -z-10"
-      >
-        <div className="w-full h-full bg-white rounded-xl" />
-      </motion.div>
     </motion.div>
   )
 }

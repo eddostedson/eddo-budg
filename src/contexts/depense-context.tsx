@@ -5,6 +5,8 @@ import { Depense } from '@/lib/shared-data'
 import { DepenseService } from '@/lib/supabase/database'
 import { FastDepenseService } from '@/lib/supabase/fast-depense-service'
 import { OfflineDepenseService } from '@/lib/supabase/offline-depense-service'
+import { RecetteService } from '@/lib/supabase/database'
+import { activityLogService } from '@/lib/activity-log-service'
 
 interface DepenseContextType {
   depenses: Depense[]
@@ -59,6 +61,70 @@ export function DepenseProvider({ children }: { children: ReactNode }) {
     refreshDepenses()
   }, [])
 
+  // Fonction pour mettre à jour le solde disponible d'une recette (VERSION AMÉLIORÉE)
+  const updateRecetteSoldeDisponible = async (recetteId: string) => {
+    try {
+      console.log('🔍 Début de la mise à jour du solde pour la recette:', recetteId)
+      
+      // 1. RÉCUPÉRER LES DONNÉES FRAÎCHES DE LA BASE (sans cache)
+      console.log('🔄 Récupération des données fraîches depuis la base...')
+      
+      // Récupérer toutes les dépenses liées à cette recette depuis la base
+      const toutesDepenses = await DepenseService.getDepenses()
+      const depensesLiees = toutesDepenses.filter(d => d.recetteId === recetteId)
+      console.log('📊 Dépenses liées trouvées:', depensesLiees.length)
+      console.log('💰 Détail des dépenses:', depensesLiees.map(d => ({ 
+        id: d.id, 
+        libelle: d.libelle, 
+        montant: d.montant,
+        date: d.date 
+      })))
+      
+      const totalDepenses = depensesLiees.reduce((sum, depense) => sum + depense.montant, 0)
+      console.log('💸 Total des dépenses calculé:', totalDepenses)
+      
+      // Récupérer toutes les recettes pour trouver celle qui nous intéresse
+      const recettes = await RecetteService.getRecettes()
+      const recette = recettes.find(r => r.id === recetteId)
+      
+      if (!recette) {
+        console.warn('⚠️ Recette non trouvée:', recetteId)
+        return
+      }
+      
+      console.log('📋 Recette trouvée:', { 
+        id: recette.id,
+        libelle: recette.libelle, 
+        montant: recette.montant, 
+        soldeActuel: recette.soldeDisponible 
+      })
+      
+      // 2. CALCULER LE NOUVEAU SOLDE
+      const nouveauSolde = recette.montant - totalDepenses
+      console.log(`🧮 Calcul détaillé:`)
+      console.log(`   - Montant initial: ${recette.montant}`)
+      console.log(`   - Total dépenses: ${totalDepenses}`)
+      console.log(`   - Nouveau solde: ${nouveauSolde}`)
+      console.log(`   - Ancien solde: ${recette.soldeDisponible}`)
+      console.log(`   - Différence: ${nouveauSolde - recette.soldeDisponible}`)
+      
+      // 3. METTRE À JOUR LE SOLDE DISPONIBLE EN BASE
+      console.log('💾 Mise à jour en base de données...')
+      const result = await RecetteService.updateRecette(recetteId, {
+        soldeDisponible: nouveauSolde
+      })
+      
+      if (result) {
+        console.log(`✅ Solde disponible mis à jour avec succès: ${nouveauSolde}`)
+        console.log('💡 Le cache local des recettes sera mis à jour lors du prochain rafraîchissement')
+      } else {
+        console.error('❌ Échec de la mise à jour du solde en base')
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la mise à jour du solde:', error)
+    }
+  }
+
   // Ajouter une dépense (MODE HYBRIDE OPTIMISÉ - RAPIDE + FIABLE)
   const addDepense = async (depense: Omit<Depense, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
@@ -93,6 +159,9 @@ export function DepenseProvider({ children }: { children: ReactNode }) {
         const newDepense = await Promise.race([syncPromise, timeoutPromise]) as any
         
         if (newDepense && newDepense.id) {
+          // Logger l'activité
+          activityLogService.logDepenseCreate(newDepense)
+          
           // Remplacer la dépense temporaire par la vraie
           setDepenses(prev => prev.map(d => 
             d.id === tempId ? newDepense : d
@@ -108,6 +177,37 @@ export function DepenseProvider({ children }: { children: ReactNode }) {
         console.warn('⚠️ Dépense temporaire conservée - synchronisation échouée')
       }
       
+      // 3. METTRE À JOUR LE SOLDE DISPONIBLE DE LA RECETTE (APPROCHE DIRECTE)
+      if (depense.recetteId) {
+        try {
+          console.log('🔄 Mise à jour du solde disponible pour la recette:', depense.recetteId)
+          console.log('💰 Montant de la dépense créée:', depense.montant)
+          
+          // Récupérer toutes les dépenses liées à cette recette
+          const toutesDepenses = await DepenseService.getDepenses()
+          const depensesLiees = toutesDepenses.filter(d => d.recetteId === depense.recetteId)
+          const totalDepenses = depensesLiees.reduce((sum, d) => sum + d.montant, 0)
+          
+          // Récupérer la recette
+          const recettes = await RecetteService.getRecettes()
+          const recette = recettes.find(r => r.id === depense.recetteId)
+          
+          if (recette) {
+            const nouveauSolde = recette.montant - totalDepenses
+            console.log(`🧮 Calcul direct: ${recette.montant} - ${totalDepenses} = ${nouveauSolde}`)
+            
+            // Mettre à jour directement en base
+            await RecetteService.updateRecette(depense.recetteId, {
+              soldeDisponible: nouveauSolde
+            })
+            
+            console.log(`✅ Solde mis à jour directement: ${nouveauSolde}`)
+          }
+        } catch (soldeError) {
+          console.warn('⚠️ Erreur lors de la mise à jour du solde:', soldeError)
+        }
+      }
+      
       return tempDepense
     } catch (error) {
       console.error('❌ Erreur lors de l\'ajout de la dépense:', error)
@@ -116,41 +216,125 @@ export function DepenseProvider({ children }: { children: ReactNode }) {
   }
 
   const updateDepense = async (id: number, updates: Partial<Depense>) => {
+    // Récupérer l'ancienne dépense pour le logging
+    const oldDepense = depenses.find(d => d.id === id)
+    const recetteId = oldDepense?.recetteId
+    
     const success = await DepenseService.updateDepense(id, updates)
     if (success) {
+      // Récupérer la nouvelle dépense après mise à jour
+      const updatedDepenses = await DepenseService.getDepenses()
+      const newDepense = updatedDepenses.find(d => d.id === id)
+      
+      // Logger l'activité
+      if (oldDepense && newDepense) {
+        activityLogService.logDepenseUpdate(id.toString(), oldDepense, newDepense)
+      }
+      
+      // METTRE À JOUR LE SOLDE DISPONIBLE DE LA RECETTE (APPROCHE DIRECTE)
+      if (recetteId) {
+        try {
+          console.log('🔄 Mise à jour du solde disponible après modification pour la recette:', recetteId)
+          
+          // Récupérer toutes les dépenses liées à cette recette
+          const toutesDepenses = await DepenseService.getDepenses()
+          const depensesLiees = toutesDepenses.filter(d => d.recetteId === recetteId)
+          const totalDepenses = depensesLiees.reduce((sum, d) => sum + d.montant, 0)
+          
+          // Récupérer la recette
+          const recettes = await RecetteService.getRecettes()
+          const recette = recettes.find(r => r.id === recetteId)
+          
+          if (recette) {
+            const nouveauSolde = recette.montant - totalDepenses
+            console.log(`🧮 Calcul direct après modification: ${recette.montant} - ${totalDepenses} = ${nouveauSolde}`)
+            
+            // Mettre à jour directement en base
+            await RecetteService.updateRecette(recetteId, {
+              soldeDisponible: nouveauSolde
+            })
+            
+            console.log(`✅ Solde mis à jour directement après modification: ${nouveauSolde}`)
+          }
+        } catch (soldeError) {
+          console.warn('⚠️ Erreur lors de la mise à jour du solde après modification:', soldeError)
+        }
+      }
+      
       await refreshDepenses()
     }
   }
 
-  // Supprimer une dépense (SUPPRESSION INSTANTANÉE)
+  // Supprimer une dépense (SUPPRESSION SYNCHRONE)
   const deleteDepense = async (id: number) => {
     console.log('🗑️ Suppression de la dépense:', id)
     
-    // 1. Suppression IMMÉDIATE de l'interface (pas de clignotement)
-    setDepenses(prev => {
-      const filtered = prev.filter(d => d.id !== id)
-      console.log(`✅ Dépense ${id} supprimée de l'interface. Avant: ${prev.length}, Après: ${filtered.length}`)
-      return filtered
-    })
-    
-    // 2. Suppression en base de données en arrière-plan (silencieuse)
-    DepenseService.deleteDepense(id)
-      .then(success => {
-        if (success) {
-          console.log('✅ Dépense supprimée en base de données')
-        } else {
-          console.warn('⚠️ Échec de la suppression en base, rafraîchissement...')
-          // Rafraîchir silencieusement en cas d'échec
-          setTimeout(() => refreshDepenses(), 1000)
+    try {
+      // 1. Récupérer les infos de la dépense avant suppression pour mettre à jour le solde
+      const depenseToDelete = depenses.find(d => d.id === id)
+      const recetteId = depenseToDelete?.recetteId
+      
+      // 2. Suppression IMMÉDIATE de l'interface (pas de clignotement)
+      setDepenses(prev => {
+        const filtered = prev.filter(d => d.id !== id)
+        console.log(`✅ Dépense ${id} supprimée de l'interface. Avant: ${prev.length}, Après: ${filtered.length}`)
+        return filtered
+      })
+      
+      // 3. Suppression en base de données (ATTENDRE LA FIN)
+      const success = await DepenseService.deleteDepense(id)
+      
+      if (success) {
+        console.log('✅ Dépense supprimée en base de données')
+        
+        // Logger l'activité
+        if (depenseToDelete) {
+          activityLogService.logDepenseDelete(depenseToDelete)
         }
-      })
-      .catch(error => {
-        console.warn('⚠️ Erreur suppression en base:', error)
-        // Rafraîchir silencieusement en cas d'erreur
-        setTimeout(() => refreshDepenses(), 1000)
-      })
-    
-    console.log('✅ Suppression traitée avec succès')
+        
+        // 4. METTRE À JOUR LE SOLDE DISPONIBLE DE LA RECETTE (APPROCHE DIRECTE)
+        if (recetteId) {
+          try {
+            console.log('🔄 Mise à jour du solde disponible après suppression pour la recette:', recetteId)
+            
+            // Récupérer toutes les dépenses liées à cette recette
+            const toutesDepenses = await DepenseService.getDepenses()
+            const depensesLiees = toutesDepenses.filter(d => d.recetteId === recetteId)
+            const totalDepenses = depensesLiees.reduce((sum, d) => sum + d.montant, 0)
+            
+            // Récupérer la recette
+            const recettes = await RecetteService.getRecettes()
+            const recette = recettes.find(r => r.id === recetteId)
+            
+            if (recette) {
+              const nouveauSolde = recette.montant - totalDepenses
+              console.log(`🧮 Calcul direct: ${recette.montant} - ${totalDepenses} = ${nouveauSolde}`)
+              
+              // Mettre à jour directement en base
+              await RecetteService.updateRecette(recetteId, {
+                soldeDisponible: nouveauSolde
+              })
+              
+              console.log(`✅ Solde mis à jour directement: ${nouveauSolde}`)
+            }
+          } catch (soldeError) {
+            console.warn('⚠️ Erreur lors de la mise à jour du solde après suppression:', soldeError)
+          }
+        }
+        
+        console.log('✅ Suppression traitée avec succès')
+      } else {
+        console.warn('⚠️ Échec de la suppression en base, rafraîchissement...')
+        // Rafraîchir silencieusement en cas d'échec
+        await refreshDepenses()
+        throw new Error('Échec de la suppression en base de données')
+      }
+    } catch (error) {
+      console.error('❌ Erreur critique lors de la suppression:', error)
+      // En cas d'erreur critique, rafraîchir pour restaurer la cohérence
+      await refreshDepenses()
+      throw error
+    }
   }
 
   // Obtenir les dépenses d'un budget spécifique

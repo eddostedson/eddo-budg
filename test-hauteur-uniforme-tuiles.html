@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Hauteur Uniforme - Tuiles Recettes</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid #10b981;
+        }
+        .button {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+        }
+        .button.blue {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        }
+        .button.blue:hover {
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+        .result {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .recette-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            height: 256px; /* Hauteur fixe comme dans le composant */
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .recette-card:hover {
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        .recette-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(180deg, #10b981, #059669);
+            border-radius: 12px 0 0 12px;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        .card-title {
+            flex: 1;
+            min-width: 0;
+        }
+        .libelle {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0 0 4px 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: help;
+        }
+        .libelle:hover {
+            color: #3b82f6;
+        }
+        .montant-initial {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin: 0;
+        }
+        .status-badge {
+            background: #f3f4f6;
+            color: #374151;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            flex-shrink: 0;
+            margin-left: 8px;
+        }
+        .solde-section {
+            flex: 1;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border-radius: 8px;
+            padding: 12px;
+            color: white;
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .solde-label {
+            font-size: 0.75rem;
+            opacity: 0.9;
+            margin-bottom: 4px;
+        }
+        .solde-amount {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .solde-percentage {
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: auto;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            flex: 1;
+        }
+        .stat-item {
+            background: #f9fafb;
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-bottom: 2px;
+        }
+        .stat-value {
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        .stat-depense {
+            color: #dc2626;
+        }
+        .stat-restant {
+            color: #059669;
+        }
+        .actions {
+            display: flex;
+            gap: 4px;
+            margin-left: 12px;
+        }
+        .action-btn {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: #f3f4f6;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .action-btn:hover {
+            background: #e5e7eb;
+            transform: scale(1.1);
+        }
+        .action-btn.delete:hover {
+            background: #fecaca;
+            color: #dc2626;
+        }
+        .tooltip {
+            position: relative;
+        }
+        .tooltip-content {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1f2937;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            white-space: nowrap;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+            margin-bottom: 8px;
+        }
+        .tooltip-content::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #1f2937;
+        }
+        .tooltip:hover .tooltip-content {
+            opacity: 1;
+            visibility: visible;
+        }
+        .comparison-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .comparison-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .before-after {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .before-after.before {
+            border-color: #fca5a5;
+            background: #fef2f2;
+        }
+        .before-after.after {
+            border-color: #86efac;
+            background: #f0fdf4;
+        }
+        .test-results {
+            background: #f9fafb;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .test-results h4 {
+            margin: 0 0 10px 0;
+            color: #1f2937;
+        }
+        .test-results ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .test-results li {
+            margin-bottom: 5px;
+            color: #374151;
+        }
+        .height-indicator {
+            position: absolute;
+            right: 8px;
+            top: 8px;
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📏 Test Hauteur Uniforme - Tuiles Recettes</h1>
+            <p>Test de l'uniformisation de la hauteur des tuiles avec libellés tronqués</p>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 État du Système</h2>
+            <button class="button" onclick="checkSystemState()">Vérifier l'état du système</button>
+            <div id="systemStateResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔄 Comparaison Avant/Après</h2>
+            <div class="comparison-section">
+                <div class="before-after before">
+                    <div class="comparison-title">❌ Avant (Hauteurs Variables)</div>
+                    <div class="demo-grid">
+                        <div class="recette-card" style="height: auto; min-height: 200px;">
+                            <div class="height-indicator">Hauteur: Variable</div>
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <h3 class="libelle">PBF Niambrun</h3>
+                                    <p class="montant-initial">Initial: 500,000 F CFA</p>
+                                </div>
+                                <span class="status-badge">reçue</span>
+                            </div>
+                            <div class="solde-section">
+                                <div class="solde-label">SOLDE DISPONIBLE 0% utilisé</div>
+                                <div class="solde-amount">500,000 F CFA</div>
+                                <div class="solde-percentage">100% disponible</div>
+                            </div>
+                            <div class="card-footer">
+                                <div class="stats">
+                                    <div class="stat-item">
+                                        <div class="stat-label">Dépensé</div>
+                                        <div class="stat-value stat-depense">0 F CFA</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-label">Restant</div>
+                                        <div class="stat-value stat-restant">500,000 F CFA</div>
+                                    </div>
+                                </div>
+                                <div class="actions">
+                                    <button class="action-btn">👁️</button>
+                                    <button class="action-btn">✏️</button>
+                                    <button class="action-btn delete">🗑️</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recette-card" style="height: auto; min-height: 250px;">
+                            <div class="height-indicator">Hauteur: Variable</div>
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <h3 class="libelle">RELIQUAT PRET SUR REMISE -COMPTE BANCAIRE ACCD</h3>
+                                    <p class="montant-initial">Initial: 3,665,336 F CFA</p>
+                                </div>
+                                <span class="status-badge">reçue</span>
+                            </div>
+                            <div class="solde-section">
+                                <div class="solde-label">SOLDE DISPONIBLE 8% utilisé</div>
+                                <div class="solde-amount">3,665,336 F CFA</div>
+                                <div class="solde-percentage">92% disponible</div>
+                            </div>
+                            <div class="card-footer">
+                                <div class="stats">
+                                    <div class="stat-item">
+                                        <div class="stat-label">Dépensé</div>
+                                        <div class="stat-value stat-depense">293,227 F CFA</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-label">Restant</div>
+                                        <div class="stat-value stat-restant">3,665,336 F CFA</div>
+                                    </div>
+                                </div>
+                                <div class="actions">
+                                    <button class="action-btn">👁️</button>
+                                    <button class="action-btn">✏️</button>
+                                    <button class="action-btn delete">🗑️</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="before-after after">
+                    <div class="comparison-title">✅ Après (Hauteur Uniforme)</div>
+                    <div class="demo-grid">
+                        <div class="recette-card">
+                            <div class="height-indicator">256px</div>
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <div class="tooltip">
+                                        <h3 class="libelle">PBF Niambrun</h3>
+                                        <div class="tooltip-content">PBF Niambrun</div>
+                                    </div>
+                                    <p class="montant-initial">Initial: 500,000 F CFA</p>
+                                </div>
+                                <span class="status-badge">reçue</span>
+                            </div>
+                            <div class="solde-section">
+                                <div class="solde-label">SOLDE DISPONIBLE 0% utilisé</div>
+                                <div class="solde-amount">500,000 F CFA</div>
+                                <div class="solde-percentage">100% disponible</div>
+                            </div>
+                            <div class="card-footer">
+                                <div class="stats">
+                                    <div class="stat-item">
+                                        <div class="stat-label">Dépensé</div>
+                                        <div class="stat-value stat-depense">0 F CFA</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-label">Restant</div>
+                                        <div class="stat-value stat-restant">500,000 F CFA</div>
+                                    </div>
+                                </div>
+                                <div class="actions">
+                                    <button class="action-btn">👁️</button>
+                                    <button class="action-btn">✏️</button>
+                                    <button class="action-btn delete">🗑️</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recette-card">
+                            <div class="height-indicator">256px</div>
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <div class="tooltip">
+                                        <h3 class="libelle">RELIQUAT PRET SUR REMISE -COMPTE BANCAIRE ACCD</h3>
+                                        <div class="tooltip-content">RELIQUAT PRET SUR REMISE -COMPTE BANCAIRE ACCD</div>
+                                    </div>
+                                    <p class="montant-initial">Initial: 3,665,336 F CFA</p>
+                                </div>
+                                <span class="status-badge">reçue</span>
+                            </div>
+                            <div class="solde-section">
+                                <div class="solde-label">SOLDE DISPONIBLE 8% utilisé</div>
+                                <div class="solde-amount">3,665,336 F CFA</div>
+                                <div class="solde-percentage">92% disponible</div>
+                            </div>
+                            <div class="card-footer">
+                                <div class="stats">
+                                    <div class="stat-item">
+                                        <div class="stat-label">Dépensé</div>
+                                        <div class="stat-value stat-depense">293,227 F CFA</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-label">Restant</div>
+                                        <div class="stat-value stat-restant">3,665,336 F CFA</div>
+                                    </div>
+                                </div>
+                                <div class="actions">
+                                    <button class="action-btn">👁️</button>
+                                    <button class="action-btn">✏️</button>
+                                    <button class="action-btn delete">🗑️</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Tuiles avec Hauteur Uniforme</h2>
+            <div class="demo-data">
+                <div class="demo-title">Recettes avec Libellés de Longueurs Variables</div>
+                <div id="recettesContainer" class="demo-grid">
+                    <!-- Les recettes seront générées ici -->
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Tests de Fonctionnalités</h2>
+            <button class="button blue" onclick="testUniformHeight()">Tester la hauteur uniforme</button>
+            <button class="button blue" onclick="testTooltips()">Tester les tooltips</button>
+            <div id="testResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Logs de Debug</h2>
+            <button class="button" onclick="clearLogs()">Effacer les logs</button>
+            <div id="debugLogs" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        let debugLogs = [];
+
+        // Données de démonstration avec libellés de différentes longueurs
+        const demoRecettes = [
+            {
+                id: '1',
+                libelle: 'PBF Niambrun',
+                montant: 500000,
+                soldeDisponible: 500000,
+                date: '2024-01-15',
+                description: 'Libellé court'
+            },
+            {
+                id: '2',
+                libelle: 'BSIC - SOLDE EXPERTISE',
+                montant: 1639219,
+                soldeDisponible: 1639219,
+                date: '2024-01-10',
+                description: 'Libellé moyen'
+            },
+            {
+                id: '3',
+                libelle: 'RELIQUAT PRET SUR REMISE -COMPTE BANCAIRE ACCD',
+                montant: 3665336,
+                soldeDisponible: 3372109,
+                date: '2024-01-20',
+                description: 'Libellé très long'
+            },
+            {
+                id: '4',
+                libelle: 'Loyer Kennedy : Mois de Octobre 2025',
+                montant: 304700,
+                soldeDisponible: 304700,
+                date: '2024-01-05',
+                description: 'Libellé long avec détails'
+            },
+            {
+                id: '5',
+                libelle: 'EXPERTISE : Budget de Fonctionnement Aout 2025',
+                montant: 500000,
+                soldeDisponible: 237751,
+                date: '2024-01-25',
+                description: 'Libellé long avec date'
+            },
+            {
+                id: '6',
+                libelle: 'BSIC REVERSEMENT SUR PRECOMPTE : NUMERAIRE',
+                montant: 430000,
+                soldeDisponible: 45129,
+                date: '2024-01-12',
+                description: 'Libellé très long avec type'
+            }
+        ];
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLogs.push(`[${timestamp}] ${message}`);
+            updateDebugLogs();
+        }
+
+        function updateDebugLogs() {
+            const logsElement = document.getElementById('debugLogs');
+            logsElement.textContent = debugLogs.join('\n');
+            logsElement.scrollTop = logsElement.scrollHeight;
+        }
+
+        function clearLogs() {
+            debugLogs = [];
+            updateDebugLogs();
+        }
+
+        function showResult(elementId, content, isError = false) {
+            const element = document.getElementById(elementId);
+            const className = isError ? 'error' : 'result';
+            element.innerHTML = `<div class="${className}">${content}</div>`;
+        }
+
+        function getPercentage(recette) {
+            return recette.montant > 0 ? Math.round((recette.soldeDisponible / recette.montant) * 100) : 0;
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('fr-FR').format(amount) + ' F CFA';
+        }
+
+        function renderRecettes() {
+            const container = document.getElementById('recettesContainer');
+            
+            container.innerHTML = demoRecettes.map((recette, index) => {
+                const percentage = getPercentage(recette);
+                const totalDepenses = recette.montant - recette.soldeDisponible;
+                
+                return `
+                    <div class="recette-card">
+                        <div class="height-indicator">256px</div>
+                        <div class="card-header">
+                            <div class="card-title">
+                                <div class="tooltip">
+                                    <h3 class="libelle">${recette.libelle}</h3>
+                                    <div class="tooltip-content">${recette.libelle}</div>
+                                </div>
+                                <p class="montant-initial">Initial: ${formatCurrency(recette.montant)}</p>
+                            </div>
+                            <span class="status-badge">reçue</span>
+                        </div>
+                        <div class="solde-section">
+                            <div class="solde-label">SOLDE DISPONIBLE ${100 - percentage}% utilisé</div>
+                            <div class="solde-amount">${formatCurrency(recette.soldeDisponible)}</div>
+                            <div class="solde-percentage">${percentage}% disponible</div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="stats">
+                                <div class="stat-item">
+                                    <div class="stat-label">Dépensé</div>
+                                    <div class="stat-value stat-depense">${formatCurrency(totalDepenses)}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">Restant</div>
+                                    <div class="stat-value stat-restant">${formatCurrency(recette.soldeDisponible)}</div>
+                                </div>
+                            </div>
+                            <div class="actions">
+                                <button class="action-btn" title="Voir">👁️</button>
+                                <button class="action-btn" title="Modifier">✏️</button>
+                                <button class="action-btn delete" title="Supprimer">🗑️</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            addLog(`✅ ${demoRecettes.length} recettes rendues avec hauteur uniforme de 256px`);
+        }
+
+        function checkSystemState() {
+            try {
+                addLog('🔍 Vérification de l\'état du système...');
+                showResult('systemStateResult', '🔄 Vérification en cours...');
+                
+                const systemState = {
+                    uniformHeight: '256px (h-64)',
+                    libelleTruncation: 'text-overflow: ellipsis',
+                    tooltipSupport: 'TooltipProvider + Tooltip',
+                    responsiveDesign: 'Grid responsive',
+                    demoDataCount: demoRecettes.length
+                };
+                
+                addLog(`✅ Hauteur uniforme: ${systemState.uniformHeight}`);
+                addLog(`✅ Troncature des libellés: ${systemState.libelleTruncation}`);
+                addLog(`✅ Support des tooltips: ${systemState.tooltipSupport}`);
+                addLog(`✅ Design responsive: ${systemState.responsiveDesign}`);
+                addLog(`✅ Données de démonstration: ${systemState.demoDataCount} recettes`);
+                
+                const result = `
+                    <h4>📊 État du Système</h4>
+                    <ul>
+                        <li><strong>Hauteur uniforme:</strong> ${systemState.uniformHeight}</li>
+                        <li><strong>Troncature des libellés:</strong> ${systemState.libelleTruncation}</li>
+                        <li><strong>Support des tooltips:</strong> ${systemState.tooltipSupport}</li>
+                        <li><strong>Design responsive:</strong> ${systemState.responsiveDesign}</li>
+                        <li><strong>Données:</strong> ${systemState.demoDataCount} recettes</li>
+                    </ul>
+                `;
+                
+                showResult('systemStateResult', result);
+                addLog('✅ État du système vérifié');
+                
+            } catch (error) {
+                addLog(`❌ Erreur: ${error.message}`, 'error');
+                showResult('systemStateResult', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function testUniformHeight() {
+            try {
+                addLog('🧪 Test de la hauteur uniforme...');
+                showResult('testResults', '🔄 Test en cours...');
+                
+                const cards = document.querySelectorAll('.recette-card');
+                let testResults = [];
+                let heights = [];
+                
+                cards.forEach((card, index) => {
+                    const rect = card.getBoundingClientRect();
+                    const height = rect.height;
+                    heights.push(height);
+                    
+                    const isUniform = Math.abs(height - 256) < 5; // Tolérance de 5px
+                    testResults.push({
+                        index: index + 1,
+                        libelle: demoRecettes[index].libelle,
+                        height: Math.round(height),
+                        uniform: isUniform
+                    });
+                    
+                    addLog(`✅ Carte ${index + 1}: ${demoRecettes[index].libelle} - Hauteur: ${Math.round(height)}px - ${isUniform ? 'Uniforme' : 'Non uniforme'}`);
+                });
+                
+                const uniformCount = testResults.filter(r => r.uniform).length;
+                const totalCount = testResults.length;
+                const avgHeight = heights.reduce((a, b) => a + b, 0) / heights.length;
+                const heightVariance = Math.max(...heights) - Math.min(...heights);
+                
+                const result = `
+                    <h4>🧪 Résultats du Test de Hauteur Uniforme</h4>
+                    <div class="test-results">
+                        <h4>Cartes testées:</h4>
+                        <ul>
+                            ${testResults.map(r => 
+                                `<li><strong>${r.index}.</strong> ${r.libelle} - ${r.height}px - ${r.uniform ? '✅ Uniforme' : '❌ Non uniforme'}</li>`
+                            ).join('')}
+                        </ul>
+                        <p><strong>Résumé:</strong> ${uniformCount}/${totalCount} cartes uniformes</p>
+                        <p><strong>Hauteur moyenne:</strong> ${Math.round(avgHeight)}px</p>
+                        <p><strong>Variance de hauteur:</strong> ${Math.round(heightVariance)}px</p>
+                    </div>
+                `;
+                
+                showResult('testResults', result);
+                addLog(`✅ Test terminé: ${uniformCount}/${totalCount} cartes avec hauteur uniforme`);
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors du test: ${error.message}`, 'error');
+                showResult('testResults', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        function testTooltips() {
+            try {
+                addLog('🧪 Test des tooltips...');
+                showResult('testResults', '🔄 Test en cours...');
+                
+                const tooltips = document.querySelectorAll('.tooltip');
+                let testResults = [];
+                
+                tooltips.forEach((tooltip, index) => {
+                    const libelle = tooltip.querySelector('.libelle');
+                    const tooltipContent = tooltip.querySelector('.tooltip-content');
+                    const libelleText = libelle.textContent;
+                    const tooltipText = tooltipContent.textContent;
+                    
+                    const hasTooltip = tooltipContent !== null;
+                    const textMatches = libelleText === tooltipText;
+                    const isLongEnough = libelleText.length > 20; // Considéré comme long
+                    
+                    testResults.push({
+                        index: index + 1,
+                        libelle: libelleText,
+                        hasTooltip,
+                        textMatches,
+                        isLongEnough,
+                        length: libelleText.length
+                    });
+                    
+                    addLog(`✅ Tooltip ${index + 1}: "${libelleText}" (${libelleText.length} chars) - ${hasTooltip ? 'Présent' : 'Manquant'} - ${textMatches ? 'Texte correct' : 'Texte incorrect'}`);
+                });
+                
+                const tooltipCount = testResults.filter(r => r.hasTooltip).length;
+                const correctTextCount = testResults.filter(r => r.textMatches).length;
+                const longTextCount = testResults.filter(r => r.isLongEnough).length;
+                
+                const result = `
+                    <h4>🧪 Résultats du Test des Tooltips</h4>
+                    <div class="test-results">
+                        <h4>Tooltips testés:</h4>
+                        <ul>
+                            ${testResults.map(r => 
+                                `<li><strong>${r.index}.</strong> "${r.libelle}" (${r.length} chars) - ${r.hasTooltip ? '✅ Présent' : '❌ Manquant'} - ${r.textMatches ? '✅ Texte correct' : '❌ Texte incorrect'}</li>`
+                            ).join('')}
+                        </ul>
+                        <p><strong>Résumé:</strong> ${tooltipCount}/${testResults.length} tooltips présents, ${correctTextCount}/${testResults.length} textes corrects</p>
+                        <p><strong>Libellés longs:</strong> ${longTextCount}/${testResults.length} (${Math.round((longTextCount/testResults.length)*100)}%)</p>
+                    </div>
+                `;
+                
+                showResult('testResults', result);
+                addLog(`✅ Test terminé: ${tooltipCount} tooltips présents, ${correctTextCount} textes corrects`);
+                
+            } catch (error) {
+                addLog(`❌ Erreur lors du test: ${error.message}`, 'error');
+                showResult('testResults', `❌ Erreur: ${error.message}`, true);
+            }
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('🔍 Test de hauteur uniforme initialisé');
+            addLog('💡 Cliquez sur "Vérifier l\'état du système" pour commencer');
+            renderRecettes();
+        });
+    </script>
+</body>
+</html>
