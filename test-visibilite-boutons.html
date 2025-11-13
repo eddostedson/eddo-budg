@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Visibilité Boutons</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .button-demo {
+            display: inline-block;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .button-outline {
+            background-color: white;
+            color: #333;
+            border: 1px solid #ccc;
+        }
+        .button-outline:hover {
+            background-color: #f5f5f5;
+        }
+        .button-save {
+            background-color: #2563eb;
+            color: white;
+            border: 1px solid #2563eb;
+        }
+        .button-save:hover {
+            background-color: #1d4ed8;
+        }
+        .button-old {
+            background-color: #000;
+            color: #333;
+            border: 1px solid #000;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .code {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Test de Visibilité des Boutons</h1>
+        
+        <div class="status success">
+            ✅ <strong>Problème résolu !</strong><br>
+            Le bouton "Sauvegarder" était invisible à cause d'un texte sombre sur fond sombre. 
+            Maintenant il a un fond bleu avec du texte blanc.
+        </div>
+
+        <div class="test-section">
+            <h2>❌ Avant (Problème)</h2>
+            <p>Le bouton "Sauvegarder" était invisible :</p>
+            <div class="button-demo button-old">Sauvegarder</div>
+            <p><em>Texte sombre sur fond noir = invisible !</em></p>
+        </div>
+
+        <div class="test-section">
+            <h2>✅ Après (Corrigé)</h2>
+            <p>Le bouton "Sauvegarder" est maintenant visible :</p>
+            <div class="button-demo button-outline">Annuler</div>
+            <div class="button-demo button-save">Sauvegarder</div>
+            <p><em>Texte blanc sur fond bleu = parfaitement visible !</em></p>
+        </div>
+
+        <div class="test-section">
+            <h2>🎨 Styles appliqués</h2>
+            <div class="code">
+                &lt;Button 
+                  variant="default" 
+                  size="sm" 
+                  onClick={handleSave} 
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                &gt;
+                  Sauvegarder
+                &lt;/Button&gt;
+            </div>
+            <p><strong>Classes CSS :</strong></p>
+            <ul>
+                <li><code>bg-blue-600</code> : Fond bleu</li>
+                <li><code>hover:bg-blue-700</code> : Fond bleu plus foncé au survol</li>
+                <li><code>text-white</code> : Texte blanc</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Pages corrigées</h2>
+            <p>Le problème a été corrigé dans toutes les pages de détail :</p>
+            <ul>
+                <li>✅ <code>/locataires/[id]</code> - Page détail locataire</li>
+                <li>✅ <code>/proprietes/[id]</code> - Page détail propriété</li>
+                <li>✅ <code>/contrats/[id]</code> - Page détail contrat</li>
+                <li>✅ <code>/reçus/[id]</code> - Page détail reçu</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>🎯 Test en action</h2>
+            <p>Maintenant vous pouvez :</p>
+            <ol>
+                <li>Aller sur n'importe quelle page de détail</li>
+                <li>Cliquer sur "Modifier"</li>
+                <li>Voir le bouton "Sauvegarder" parfaitement visible en bleu</li>
+                <li>Cliquer dessus pour sauvegarder</li>
+            </ol>
+        </div>
+
+        <div class="status success">
+            🎉 <strong>Le bouton "Sauvegarder" est maintenant parfaitement visible !</strong><br>
+            Fond bleu avec texte blanc pour une excellente lisibilité.
+        </div>
+    </div>
+</body>
+</html>
+
+
+
+
+

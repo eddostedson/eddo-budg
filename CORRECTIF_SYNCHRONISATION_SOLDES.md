@@ -123,3 +123,6 @@ setForceUpdate(prev => prev + 1)
 Le bouton "Rafraîchir" devrait maintenant synchroniser tous les soldes affichés dans l'interface !
 
 
+
+
+

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Heure Modification Dépenses</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .test-section {
+            margin-bottom: 32px;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+        .test-button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin: 8px;
+            transition: background-color 0.2s;
+        }
+        .test-button:hover {
+            background: #2563eb;
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+        .notification-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .notification-title {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        .notification-message {
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .notification-time {
+            color: #9ca3af;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .log {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 16px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🕐 Test Heure Modification Dépenses</h1>
+        <p>Ce test simule l'affichage de l'heure de modification dans les notifications de dépenses.</p>
+
+        <div class="test-section">
+            <h3>📝 Fonction formatTimeAgo</h3>
+            <p>Test de la fonction de formatage du temps relatif :</p>
+            <button class="test-button" onclick="testFormatTimeAgo()">Tester formatTimeAgo</button>
+            <div id="timeAgoResults" class="log"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔔 Notifications avec Heure</h3>
+            <p>Test des notifications de modification de dépenses avec heure :</p>
+            <button class="test-button" onclick="testDepenseUpdatedNow()">Modification maintenant</button>
+            <button class="test-button" onclick="testDepenseUpdated5Min()">Modification il y a 5 min</button>
+            <button class="test-button" onclick="testDepenseUpdated2Hours()">Modification il y a 2h</button>
+            <button class="test-button" onclick="testDepenseUpdatedYesterday()">Modification hier</button>
+            <button class="test-button" onclick="testDepenseUpdated3Days()">Modification il y a 3 jours</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Logs de Test</h3>
+            <div id="testLogs" class="log"></div>
+            <button class="test-button" onclick="clearLogs()">Effacer les logs</button>
+        </div>
+    </div>
+
+    <script>
+        // Simulation de la fonction formatTimeAgo
+        function formatTimeAgo(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+
+            if (diffInHours < 1) {
+                const diffInMinutes = Math.floor(diffInHours * 60);
+                return `Il y a ${diffInMinutes} min`;
+            } else if (diffInHours < 24) {
+                return `Il y a ${Math.floor(diffInHours)}h`;
+            } else if (diffInHours < 48) {
+                return 'Hier';
+            } else {
+                return date.toLocaleDateString('fr-FR', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+        }
+
+        // Simulation de la fonction showDepenseUpdated
+        function showDepenseUpdated(libelle, montant, updatedAt) {
+            const timeAgo = formatTimeAgo(updatedAt);
+            const notification = {
+                title: '✏️ Dépense Modifiée !',
+                message: `${libelle} mise à jour avec un montant de ${montant.toLocaleString()} F CFA (${timeAgo})`,
+                time: timeAgo
+            };
+            
+            displayNotification(notification);
+            addLog(`🔔 Notification: ${notification.message}`);
+        }
+
+        function displayNotification(notification) {
+            // Supprimer les notifications existantes
+            const existingNotifications = document.querySelectorAll('.notification');
+            existingNotifications.forEach(n => n.remove());
+
+            // Créer la nouvelle notification
+            const notificationDiv = document.createElement('div');
+            notificationDiv.className = 'notification';
+            notificationDiv.innerHTML = `
+                <div class="notification-header">
+                    <span>${notification.title}</span>
+                </div>
+                <div class="notification-message">${notification.message}</div>
+                <div class="notification-time">${notification.time}</div>
+            `;
+
+            document.body.appendChild(notificationDiv);
+
+            // Auto-suppression après 5 secondes
+            setTimeout(() => {
+                if (notificationDiv.parentNode) {
+                    notificationDiv.remove();
+                }
+            }, 5000);
+        }
+
+        function addLog(message) {
+            const logDiv = document.getElementById('testLogs');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('testLogs').textContent = '';
+        }
+
+        // Tests de formatTimeAgo
+        function testFormatTimeAgo() {
+            const resultsDiv = document.getElementById('timeAgoResults');
+            const now = new Date();
+            
+            const testCases = [
+                { time: new Date(now.getTime() - 2 * 60 * 1000), label: 'Il y a 2 minutes' },
+                { time: new Date(now.getTime() - 30 * 60 * 1000), label: 'Il y a 30 minutes' },
+                { time: new Date(now.getTime() - 2 * 60 * 60 * 1000), label: 'Il y a 2 heures' },
+                { time: new Date(now.getTime() - 25 * 60 * 60 * 1000), label: 'Hier' },
+                { time: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000), label: 'Il y a 3 jours' }
+            ];
+
+            let results = 'Résultats des tests formatTimeAgo:\n\n';
+            testCases.forEach(testCase => {
+                const result = formatTimeAgo(testCase.time);
+                results += `${testCase.label}: "${result}"\n`;
+            });
+
+            resultsDiv.textContent = results;
+            addLog('✅ Tests formatTimeAgo terminés');
+        }
+
+        // Tests de notifications
+        function testDepenseUpdatedNow() {
+            const now = new Date().toISOString();
+            showDepenseUpdated('Test Dépense', 50000, now);
+        }
+
+        function testDepenseUpdated5Min() {
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+            showDepenseUpdated('Test Dépense', 75000, fiveMinutesAgo);
+        }
+
+        function testDepenseUpdated2Hours() {
+            const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+            showDepenseUpdated('Test Dépense', 100000, twoHoursAgo);
+        }
+
+        function testDepenseUpdatedYesterday() {
+            const yesterday = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+            showDepenseUpdated('Test Dépense', 125000, yesterday);
+        }
+
+        function testDepenseUpdated3Days() {
+            const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+            showDepenseUpdated('Test Dépense', 150000, threeDaysAgo);
+        }
+
+        // Initialisation
+        addLog('🚀 Test d\'heure de modification des dépenses initialisé');
+        addLog('💡 Cliquez sur les boutons pour tester les différentes fonctionnalités');
+    </script>
+</body>
+</html>
+
+
+
+
+

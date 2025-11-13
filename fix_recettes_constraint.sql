@@ -46,3 +46,6 @@ SELECT 'Contrainte recettes_solde_disponible_check supprimée avec succès!' AS 
 
 
 
+
+
+

@@ -122,3 +122,6 @@ COMMENT ON COLUMN backup_logs.duration IS 'Durée de l\'opération en millisecon
 
 
 
+
+
+

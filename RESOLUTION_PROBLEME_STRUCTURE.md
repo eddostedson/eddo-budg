@@ -109,3 +109,6 @@ ROLLBACK;
 Si vous avez des questions sur la structure de votre base de données ou si vous préférez une approche différente, je peux vous aider à adapter le code à votre structure existante.
 
 
+
+
+

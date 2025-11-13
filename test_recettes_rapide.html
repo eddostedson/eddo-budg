@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Recettes Rapide</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Test Rapide Recettes</h1>
+    <div id="results"></div>
+
+    <script>
+        const supabaseUrl = 'https://judrexutbqlfutjbtenf.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1ZHJleHV0YnFsZnV0amJ0ZW5mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwODAwODgsImV4cCI6MjA3NDY1NjA4OH0.C7B9zKsQqLUvLuaPi2RbrhdLPvoJdnwpsYaRJhkRMmU'
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+        
+        async function test() {
+            const resultsDiv = document.getElementById('results')
+            
+            const { data: { user }, error: authError } = await supabase.auth.getUser()
+            if (authError || !user) {
+                resultsDiv.innerHTML = '<p style="color:red">❌ Non connecté</p>'
+                return
+            }
+            
+            resultsDiv.innerHTML += `<p>✅ Connecté: ${user.email}</p>`
+            
+            const { data, error } = await supabase
+                .from('recettes')
+                .select('*')
+                .eq('user_id', user.id)
+            
+            if (error) {
+                resultsDiv.innerHTML += `<p style="color:red">❌ Erreur: ${error.message}</p>`
+            } else {
+                resultsDiv.innerHTML += `<p>📊 Recettes trouvées: ${data.length}</p>`
+                resultsDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>'
+                
+                const totalAmount = data.reduce((sum, r) => sum + (r.amount || r.montant || 0), 0)
+                const totalSolde = data.reduce((sum, r) => sum + (r.solde_disponible || 0), 0)
+                
+                resultsDiv.innerHTML += `<p>💰 Total Amount: ${totalAmount} F CFA</p>`
+                resultsDiv.innerHTML += `<p>💳 Total Solde: ${totalSolde} F CFA</p>`
+            }
+        }
+        
+        test()
+    </script>
+</body>
+</html>
+
+
+

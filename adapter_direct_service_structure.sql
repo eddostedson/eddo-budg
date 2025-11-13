@@ -43,3 +43,6 @@ AND is_nullable = 'NO'
 ORDER BY ordinal_position;
 
 
+
+
+

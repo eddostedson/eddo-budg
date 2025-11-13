@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnostic Complet - Recettes Manquantes</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .warning { background: #fff3cd; border-color: #ffeaa7; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+        .btn { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .btn:hover { background: #0056b3; }
+        .btn-success { background: #28a745; }
+        .btn-warning { background: #ffc107; color: #212529; }
+        .btn-danger { background: #dc3545; }
+        .btn-info { background: #17a2b8; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+        th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+        th { background: #f8f9fa; font-weight: bold; }
+        .log { background: #000; color: #0f0; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; }
+        .step { margin: 10px 0; padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa; }
+        .step.success { border-left-color: #28a745; background: #d4edda; }
+        .step.error { border-left-color: #dc3545; background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Diagnostic Complet - Recettes Manquantes</h1>
+        <p>Ce script va effectuer un diagnostic approfondi pour retrouver vos recettes perdues.</p>
+        
+        <div class="section">
+            <h3>🚀 Diagnostic Automatique</h3>
+            <button class="btn btn-success" onclick="runFullDiagnostic()">Lancer le Diagnostic Complet</button>
+            <button class="btn btn-info" onclick="clearLogs()">Effacer les Logs</button>
+            <div id="diagnostic-log" class="log" style="display: none;"></div>
+        </div>
+
+        <div class="section">
+            <h3>📊 Résultats du Diagnostic</h3>
+            <div id="diagnostic-results"></div>
+        </div>
+
+        <div class="section">
+            <h3>🔧 Actions de Réparation</h3>
+            <button class="btn btn-warning" onclick="createMissingTable()">Créer Table Manquante</button>
+            <button class="btn btn-info" onclick="syncData()">Synchroniser les Données</button>
+            <button class="btn btn-success" onclick="createTestRecette()">Créer Recette de Test</button>
+            <div id="repair-results"></div>
+        </div>
+
+        <div class="section">
+            <h3>📋 Toutes les Tables Disponibles</h3>
+            <button class="btn" onclick="listAllTables()">Lister Toutes les Tables</button>
+            <div id="tables-result"></div>
+        </div>
+
+        <div class="section">
+            <h3>🔍 Recherche Avancée</h3>
+            <input type="text" id="search-term" placeholder="Rechercher une recette..." style="padding: 8px; margin: 5px; width: 300px;">
+            <button class="btn" onclick="advancedSearch()">Rechercher</button>
+            <div id="search-results"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration Supabase
+        const supabaseUrl = 'https://judrexutbqlfutjbtenf.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1ZHJleHV0YnFsZnV0amJ0ZW5mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwODAwODgsImV4cCI6MjA3NDY1NjA4OH0.C7B9zKsQqLUvLuaPi2RbrhdLPvoJdnwpsYaRJhkRMmU'
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+        
+        let diagnosticLog = []
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString()
+            const logEntry = `[${timestamp}] ${message}`
+            diagnosticLog.push(logEntry)
+            
+            const logDiv = document.getElementById('diagnostic-log')
+            logDiv.style.display = 'block'
+            logDiv.innerHTML = diagnosticLog.join('\n')
+            logDiv.scrollTop = logDiv.scrollHeight
+            
+            console.log(logEntry)
+        }
+
+        function clearLogs() {
+            diagnosticLog = []
+            document.getElementById('diagnostic-log').innerHTML = ''
+            document.getElementById('diagnostic-results').innerHTML = ''
+        }
+
+        async function runFullDiagnostic() {
+            clearLogs()
+            log('🚀 Début du diagnostic complet...')
+            
+            const resultsDiv = document.getElementById('diagnostic-results')
+            resultsDiv.innerHTML = '<div class="step">🔄 Diagnostic en cours...</div>'
+            
+            let steps = []
+            
+            try {
+                // Étape 1: Vérifier l'authentification
+                log('Étape 1: Vérification de l\'authentification...')
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                if (authError || !user) {
+                    steps.push({ status: 'error', message: '❌ Erreur d\'authentification: ' + (authError?.message || 'Utilisateur non connecté') })
+                    log('❌ Échec de l\'authentification: ' + (authError?.message || 'Utilisateur non connecté'))
+                } else {
+                    steps.push({ status: 'success', message: '✅ Authentification OK - Utilisateur: ' + user.email })
+                    log('✅ Authentification réussie: ' + user.email + ' (ID: ' + user.id + ')')
+                }
+
+                // Étape 2: Vérifier l'existence de la table recettes
+                log('Étape 2: Vérification de l\'existence de la table recettes...')
+                const { data: recettesData, error: recettesError } = await supabase
+                    .from('recettes')
+                    .select('*')
+                    .limit(1)
+                
+                if (recettesError) {
+                    steps.push({ status: 'error', message: '❌ Table recettes inaccessible: ' + recettesError.message })
+                    log('❌ Erreur table recettes: ' + recettesError.message)
+                } else {
+                    steps.push({ status: 'success', message: '✅ Table recettes accessible' })
+                    log('✅ Table recettes accessible')
+                }
+
+                // Étape 3: Compter les recettes
+                log('Étape 3: Comptage des recettes...')
+                const { count, error: countError } = await supabase
+                    .from('recettes')
+                    .select('*', { count: 'exact', head: true })
+                
+                if (countError) {
+                    steps.push({ status: 'error', message: '❌ Erreur comptage: ' + countError.message })
+                    log('❌ Erreur comptage: ' + countError.message)
+                } else {
+                    steps.push({ status: 'info', message: '📊 Nombre total de recettes: ' + count })
+                    log('📊 Nombre total de recettes: ' + count)
+                }
+
+                // Étape 4: Récupérer toutes les recettes
+                log('Étape 4: Récupération de toutes les recettes...')
+                const { data: allRecettes, error: allError } = await supabase
+                    .from('recettes')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                
+                if (allError) {
+                    steps.push({ status: 'error', message: '❌ Erreur récupération: ' + allError.message })
+                    log('❌ Erreur récupération: ' + allError.message)
+                } else {
+                    steps.push({ status: 'success', message: '✅ Récupération réussie: ' + (allRecettes?.length || 0) + ' recettes' })
+                    log('✅ Récupération réussie: ' + (allRecettes?.length || 0) + ' recettes')
+                    
+                    if (allRecettes && allRecettes.length > 0) {
+                        log('📋 Détail des recettes:')
+                        allRecettes.forEach((recette, index) => {
+                            const libelle = recette.libelle || recette.description || 'N/A'
+                            const montant = recette.montant || recette.amount || 0
+                            log(`  ${index + 1}. ${libelle} - ${montant} F CFA`)
+                        })
+                    }
+                }
+
+                // Étape 5: Rechercher "Salaire octobre"
+                log('Étape 5: Recherche spécifique "Salaire octobre"...')
+                const searchTerms = ['salaire octobre', 'octobre', 'salaire']
+                let foundRecettes = []
+                
+                for (const term of searchTerms) {
+                    const { data: searchData, error: searchError } = await supabase
+                        .from('recettes')
+                        .select('*')
+                        .or(`libelle.ilike.%${term}%,description.ilike.%${term}%`)
+                    
+                    if (!searchError && searchData) {
+                        foundRecettes = [...foundRecettes, ...searchData]
+                    }
+                }
+                
+                if (foundRecettes.length > 0) {
+                    steps.push({ status: 'success', message: '✅ Recettes "Salaire octobre" trouvées: ' + foundRecettes.length })
+                    log('✅ Recettes "Salaire octobre" trouvées: ' + foundRecettes.length)
+                    foundRecettes.forEach(recette => {
+                        log('  - ' + (recette.libelle || recette.description) + ' - ' + (recette.montant || recette.amount) + ' F CFA')
+                    })
+                } else {
+                    steps.push({ status: 'warning', message: '⚠️ Aucune recette "Salaire octobre" trouvée' })
+                    log('⚠️ Aucune recette "Salaire octobre" trouvée')
+                }
+
+                // Étape 6: Vérifier les permissions RLS
+                log('Étape 6: Vérification des permissions RLS...')
+                const { data: rlsData, error: rlsError } = await supabase
+                    .rpc('get_table_info', { table_name: 'recettes' })
+                    .catch(() => ({ data: null, error: { message: 'Fonction RPC non disponible' } }))
+                
+                if (rlsError) {
+                    steps.push({ status: 'warning', message: '⚠️ Impossible de vérifier RLS: ' + rlsError.message })
+                    log('⚠️ Impossible de vérifier RLS: ' + rlsError.message)
+                } else {
+                    steps.push({ status: 'info', message: 'ℹ️ Vérification RLS effectuée' })
+                    log('ℹ️ Vérification RLS effectuée')
+                }
+
+                // Afficher les résultats
+                let resultsHtml = '<h4>Résultats du Diagnostic:</h4>'
+                steps.forEach(step => {
+                    const stepClass = step.status === 'success' ? 'success' : 
+                                    step.status === 'error' ? 'error' : 
+                                    step.status === 'warning' ? 'warning' : 'info'
+                    resultsHtml += `<div class="step ${stepClass}">${step.message}</div>`
+                })
+                
+                resultsDiv.innerHTML = resultsHtml
+                log('✅ Diagnostic terminé!')
+                
+            } catch (error) {
+                log('❌ Erreur critique: ' + error.message)
+                steps.push({ status: 'error', message: '❌ Erreur critique: ' + error.message })
+                resultsDiv.innerHTML = '<div class="step error">❌ Erreur critique: ' + error.message + '</div>'
+            }
+        }
+
+        async function listAllTables() {
+            const resultDiv = document.getElementById('tables-result')
+            resultDiv.innerHTML = '<p>🔄 Récupération des tables...</p>'
+            
+            try {
+                // Essayer de récupérer des informations sur les tables
+                const tables = ['recettes', 'depenses', 'budgets', 'users', 'profiles']
+                let results = '<h4>Tables disponibles:</h4><table><tr><th>Table</th><th>Statut</th><th>Colonnes</th></tr>'
+                
+                for (const table of tables) {
+                    try {
+                        const { data, error } = await supabase
+                            .from(table)
+                            .select('*')
+                            .limit(1)
+                        
+                        if (error) {
+                            results += `<tr><td>${table}</td><td>❌ ${error.message}</td><td>-</td></tr>`
+                        } else {
+                            const columns = data && data.length > 0 ? Object.keys(data[0]).join(', ') : 'Aucune donnée'
+                            results += `<tr><td>${table}</td><td>✅ Accessible</td><td>${columns}</td></tr>`
+                        }
+                    } catch (err) {
+                        results += `<tr><td>${table}</td><td>❌ ${err.message}</td><td>-</td></tr>`
+                    }
+                }
+                
+                results += '</table>'
+                resultDiv.innerHTML = results
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Erreur: ${error.message}</div>`
+            }
+        }
+
+        async function advancedSearch() {
+            const searchTerm = document.getElementById('search-term').value
+            const resultDiv = document.getElementById('search-results')
+            
+            if (!searchTerm) {
+                resultDiv.innerHTML = '<div class="warning">Veuillez entrer un terme de recherche</div>'
+                return
+            }
+            
+            resultDiv.innerHTML = '<p>🔄 Recherche en cours...</p>'
+            
+            try {
+                const { data, error } = await supabase
+                    .from('recettes')
+                    .select('*')
+                    .or(`libelle.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`)
+                
+                if (error) {
+                    resultDiv.innerHTML = `<div class="error">Erreur: ${error.message}</div>`
+                    return
+                }
+                
+                if (!data || data.length === 0) {
+                    resultDiv.innerHTML = `<div class="warning">Aucune recette trouvée pour "${searchTerm}"</div>`
+                    return
+                }
+                
+                let table = `<h4>Résultats pour "${searchTerm}" (${data.length} trouvée(s)):</h4><table><tr><th>ID</th><th>Libellé</th><th>Montant</th><th>Date</th><th>Statut</th></tr>`
+                
+                data.forEach(recette => {
+                    const libelle = recette.libelle || recette.description || 'N/A'
+                    const montant = recette.montant || recette.amount || 0
+                    const date = recette.date_reception || recette.receipt_date || recette.created_at || 'N/A'
+                    const statut = recette.statut || 'N/A'
+                    
+                    table += `<tr>
+                        <td>${recette.id}</td>
+                        <td>${libelle}</td>
+                        <td>${montant} F CFA</td>
+                        <td>${date}</td>
+                        <td>${statut}</td>
+                    </tr>`
+                })
+                
+                table += '</table>'
+                resultDiv.innerHTML = table
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Erreur: ${error.message}</div>`
+            }
+        }
+
+        async function createTestRecette() {
+            const resultDiv = document.getElementById('repair-results')
+            resultDiv.innerHTML = '<p>🔄 Création d\'une recette de test...</p>'
+            
+            try {
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                if (authError || !user) {
+                    resultDiv.innerHTML = `<div class="error">Erreur d'authentification: ${authError?.message}</div>`
+                    return
+                }
+                
+                const testRecette = {
+                    user_id: user.id,
+                    libelle: 'Test Recette - ' + new Date().toLocaleString(),
+                    montant: 100000,
+                    solde_disponible: 100000,
+                    date_reception: new Date().toISOString().split('T')[0],
+                    statut: 'reçue'
+                }
+                
+                const { data, error } = await supabase
+                    .from('recettes')
+                    .insert(testRecette)
+                    .select()
+                    .single()
+                
+                if (error) {
+                    resultDiv.innerHTML = `<div class="error">Erreur de création: ${error.message}</div>`
+                } else {
+                    resultDiv.innerHTML = `<div class="success">✅ Recette de test créée avec succès!<br><pre>${JSON.stringify(data, null, 2)}</pre></div>`
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Erreur: ${error.message}</div>`
+            }
+        }
+
+        async function createMissingTable() {
+            const resultDiv = document.getElementById('repair-results')
+            resultDiv.innerHTML = '<div class="warning">⚠️ Cette fonction nécessite des privilèges administrateur. Veuillez exécuter les migrations SQL appropriées.</div>'
+        }
+
+        async function syncData() {
+            const resultDiv = document.getElementById('repair-results')
+            resultDiv.innerHTML = '<p>🔄 Synchronisation des données...</p>'
+            
+            try {
+                // Forcer le rechargement des données
+                const { data, error } = await supabase
+                    .from('recettes')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                
+                if (error) {
+                    resultDiv.innerHTML = `<div class="error">Erreur de synchronisation: ${error.message}</div>`
+                } else {
+                    resultDiv.innerHTML = `<div class="success">✅ Synchronisation réussie! ${data?.length || 0} recettes trouvées.</div>`
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Erreur: ${error.message}</div>`
+            }
+        }
+
+        // Auto-diagnostic au chargement
+        window.onload = function() {
+            runFullDiagnostic()
+        }
+    </script>
+</body>
+</html>
+
+
+

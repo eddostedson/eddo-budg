@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
-import { useRecettes } from '@/contexts/recette-context'
+import { useRecettes } from '@/contexts/recette-context-direct'
 import { useDepenses } from '@/contexts/depense-context'
 import { AIFinancialService, type AIInsight } from '@/lib/ai-service'
 

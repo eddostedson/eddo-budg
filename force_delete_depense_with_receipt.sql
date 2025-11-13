@@ -42,3 +42,6 @@ WHERE id = 'DEPENSE_ID'  -- Remplacez par l'ID réel
 
 
 
+
+
+

@@ -88,3 +88,6 @@ WHERE tgrelid = 'recettes'::regclass
 AND NOT tgisinternal;
 
 
+
+
+

@@ -114,3 +114,6 @@ WHERE r.id = (SELECT id FROM recettes LIMIT 1)
 GROUP BY r.id, r.description, r.amount, r.solde_disponible;
 
 
+
+
+

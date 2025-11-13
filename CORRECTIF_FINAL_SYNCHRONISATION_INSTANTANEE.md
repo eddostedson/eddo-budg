@@ -233,3 +233,6 @@ setForceUpdate(prev => prev + 1)
 Le système devrait maintenant être **instantané** partout, sans aucun délai visible ! ⚡🚀
 
 
+
+
+

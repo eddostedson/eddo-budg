@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNotes } from '@/contexts/notes-context'
-import { useRecettes } from '@/contexts/recette-context'
+import { useRecettes } from '@/contexts/recette-context-direct'
 import { useNotifications } from '@/contexts/notification-context'
 import { useConfirm } from '@/components/modern-confirm'
 import { Note, NoteFormData, ConvertNoteToRecetteData, ConvertNoteToDepenseData } from '@/types/notes'

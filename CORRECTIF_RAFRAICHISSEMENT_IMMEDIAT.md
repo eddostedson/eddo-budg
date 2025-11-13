@@ -187,3 +187,6 @@ Interface de test pour vérifier que la mise à jour fonctionne en temps réel :
 Le solde devrait maintenant se mettre à jour **immédiatement** dans l'interface sans nécessiter de rafraîchir la page !
 
 
+
+
+

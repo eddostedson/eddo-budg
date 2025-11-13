@@ -99,3 +99,6 @@ SELECT 'Migration de clôture des recettes terminée avec succès.' AS status;
 
 
 
+
+
+

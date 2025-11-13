@@ -75,3 +75,6 @@ AND column_name IN ('user_id', 'description', 'amount', 'receipt_date', 'solde_d
 ORDER BY ordinal_position;
 
 
+
+
+

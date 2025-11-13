@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Recettes - Console Interactive</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 5px solid #667eea;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 5px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
+        .result {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            margin-top: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .error {
+            color: #ff4444;
+        }
+        .success {
+            color: #00ff00;
+        }
+        .warning {
+            color: #ffaa00;
+        }
+        .info {
+            color: #4444ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug Recettes - Diagnostic Complet</h1>
+        
+        <div class="section">
+            <h3>Configuration Supabase</h3>
+            <input type="text" id="supabaseUrl" placeholder="URL Supabase" style="width: 100%; padding: 10px; margin: 5px 0;">
+            <input type="text" id="supabaseKey" placeholder="Clé Anon Supabase" style="width: 100%; padding: 10px; margin: 5px 0;">
+            <button onclick="initSupabase()">🔌 Connecter Supabase</button>
+        </div>
+
+        <div class="section">
+            <h3>Tests de Diagnostic</h3>
+            <button onclick="testAuth()">1. 🔐 Vérifier Authentification</button>
+            <button onclick="testRecettesRaw()">2. 📊 Récupérer Recettes Brutes</button>
+            <button onclick="testMapping()">3. 🔄 Tester Mapping</button>
+            <button onclick="testCalculTotal()">4. 💰 Calculer Total</button>
+            <button onclick="runAllTests()">▶️ Tout Exécuter</button>
+        </div>
+
+        <div class="section">
+            <h3>Résultats</h3>
+            <div id="results" class="result">En attente des tests...</div>
+        </div>
+    </div>
+
+    <script>
+        let supabase = null;
+        let recettesData = null;
+
+        function log(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                'info': '#4444ff',
+                'success': '#00ff00',
+                'error': '#ff4444',
+                'warning': '#ffaa00'
+            };
+            const color = colors[type] || '#00ff00';
+            resultsDiv.innerHTML += `<span style="color: ${color}">[${timestamp}] ${message}</span>\n`;
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function clear() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        function initSupabase() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+
+            if (!url || !key) {
+                log('❌ Veuillez remplir l\'URL et la clé Supabase', 'error');
+                return;
+            }
+
+            try {
+                supabase = window.supabase.createClient(url, key);
+                log('✅ Supabase initialisé avec succès', 'success');
+            } catch (error) {
+                log(`❌ Erreur d'initialisation: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAuth() {
+            clear();
+            log('🔍 Test 1: Vérification de l\'authentification...', 'info');
+
+            if (!supabase) {
+                log('❌ Supabase non initialisé', 'error');
+                return;
+            }
+
+            try {
+                const { data: { user }, error } = await supabase.auth.getUser();
+                
+                if (error) {
+                    log(`❌ Erreur d'authentification: ${error.message}`, 'error');
+                    return;
+                }
+
+                if (!user) {
+                    log('❌ Aucun utilisateur connecté', 'error');
+                    log('💡 Connectez-vous d\'abord dans votre application', 'warning');
+                    return;
+                }
+
+                log('✅ Utilisateur connecté:', 'success');
+                log(`   - ID: ${user.id}`, 'success');
+                log(`   - Email: ${user.email}`, 'success');
+                log(`   - Créé le: ${new Date(user.created_at).toLocaleString()}`, 'success');
+                
+                return user;
+            } catch (error) {
+                log(`❌ Erreur inattendue: ${error.message}`, 'error');
+            }
+        }
+
+        async function testRecettesRaw() {
+            clear();
+            log('🔍 Test 2: Récupération des recettes brutes...', 'info');
+
+            if (!supabase) {
+                log('❌ Supabase non initialisé', 'error');
+                return;
+            }
+
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                
+                if (!user) {
+                    log('❌ Non authentifié', 'error');
+                    return;
+                }
+
+                log(`🔐 Utilisateur: ${user.email}`, 'info');
+
+                const { data, error } = await supabase
+                    .from('recettes')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false });
+
+                if (error) {
+                    log(`❌ Erreur SQL: ${error.message}`, 'error');
+                    log(`   Code: ${error.code}`, 'error');
+                    log(`   Détails: ${error.details}`, 'error');
+                    return;
+                }
+
+                log(`✅ Recettes récupérées: ${data?.length || 0}`, 'success');
+                
+                if (data && data.length > 0) {
+                    recettesData = data;
+                    log('\n📋 Structure de la première recette:', 'info');
+                    log(JSON.stringify(data[0], null, 2), 'info');
+                    
+                    log('\n🔑 Colonnes disponibles:', 'info');
+                    Object.keys(data[0]).forEach(key => {
+                        const value = data[0][key];
+                        const type = typeof value;
+                        log(`   - ${key}: ${type} = ${value}`, 'info');
+                    });
+
+                    log('\n📊 Statistiques:', 'info');
+                    log(`   - Nombre de recettes: ${data.length}`, 'success');
+                    
+                    // Vérifier les colonnes de montant
+                    const hasAmount = 'amount' in data[0];
+                    const hasMontant = 'montant' in data[0];
+                    log(`   - Colonne 'amount': ${hasAmount ? '✅ OUI' : '❌ NON'}`, hasAmount ? 'success' : 'error');
+                    log(`   - Colonne 'montant': ${hasMontant ? '✅ OUI' : '❌ NON'}`, hasMontant ? 'success' : 'error');
+
+                    if (hasAmount) {
+                        const amounts = data.map(r => r.amount).filter(a => a != null);
+                        log(`   - Valeurs 'amount' non-null: ${amounts.length}`, 'info');
+                        if (amounts.length > 0) {
+                            log(`   - Premier amount: ${amounts[0]} (type: ${typeof amounts[0]})`, 'info');
+                        }
+                    }
+
+                    if (hasMontant) {
+                        const montants = data.map(r => r.montant).filter(m => m != null);
+                        log(`   - Valeurs 'montant' non-null: ${montants.length}`, 'info');
+                        if (montants.length > 0) {
+                            log(`   - Premier montant: ${montants[0]} (type: ${typeof montants[0]})`, 'info');
+                        }
+                    }
+                } else {
+                    log('⚠️ Aucune recette trouvée', 'warning');
+                    log('💡 Vérifiez que des recettes existent pour cet utilisateur', 'warning');
+                }
+
+                return data;
+            } catch (error) {
+                log(`❌ Erreur inattendue: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        async function testMapping() {
+            clear();
+            log('🔍 Test 3: Test du mapping des données...', 'info');
+
+            if (!recettesData) {
+                log('⚠️ Exécutez d\'abord le Test 2', 'warning');
+                await testRecettesRaw();
+            }
+
+            if (!recettesData || recettesData.length === 0) {
+                log('❌ Aucune donnée à mapper', 'error');
+                return;
+            }
+
+            log('\n🔄 Application du mapping (comme dans le code)...', 'info');
+
+            const mappedRecettes = recettesData.map((recette, index) => {
+                const mapped = {
+                    id: recette.id,
+                    userId: recette.user_id,
+                    libelle: recette.description || recette.libelle || 'Sans titre',
+                    montant: parseFloat(recette.amount || recette.montant || 0),
+                    soldeDisponible: parseFloat(recette.solde_disponible || recette.soldeDisponible || 0),
+                    description: recette.description || recette.libelle || '',
+                    date: recette.receipt_date || recette.date || recette.created_at,
+                    statut: recette.statut || 'Reçue',
+                };
+
+                if (index === 0) {
+                    log('\n📝 Mapping de la première recette:', 'info');
+                    log(`   Brut:`, 'info');
+                    log(`      - amount: ${recette.amount}`, 'info');
+                    log(`      - montant: ${recette.montant}`, 'info');
+                    log(`      - description: ${recette.description}`, 'info');
+                    log(`      - libelle: ${recette.libelle}`, 'info');
+                    log(`   Mappé:`, 'success');
+                    log(`      - montant: ${mapped.montant} (type: ${typeof mapped.montant})`, 'success');
+                    log(`      - libelle: ${mapped.libelle}`, 'success');
+                    log(`      - soldeDisponible: ${mapped.soldeDisponible}`, 'success');
+                }
+
+                return mapped;
+            });
+
+            log(`\n✅ ${mappedRecettes.length} recettes mappées`, 'success');
+
+            // Vérifier les montants
+            const montantsNonZero = mappedRecettes.filter(r => r.montant > 0);
+            log(`\n💰 Analyse des montants:`, 'info');
+            log(`   - Recettes avec montant > 0: ${montantsNonZero.length}`, montantsNonZero.length > 0 ? 'success' : 'error');
+            log(`   - Recettes avec montant = 0: ${mappedRecettes.length - montantsNonZero.length}`, 'warning');
+
+            if (montantsNonZero.length === 0) {
+                log('\n❌ PROBLÈME IDENTIFIÉ: Tous les montants sont à 0!', 'error');
+                log('   Causes possibles:', 'warning');
+                log('   1. La colonne "amount" n\'existe pas dans la base', 'warning');
+                log('   2. La colonne "montant" n\'existe pas dans la base', 'warning');
+                log('   3. Les valeurs sont NULL', 'warning');
+                log('   4. Les valeurs ne sont pas numériques', 'warning');
+            }
+
+            return mappedRecettes;
+        }
+
+        async function testCalculTotal() {
+            clear();
+            log('🔍 Test 4: Calcul du total (comme dans l\'app)...', 'info');
+
+            if (!recettesData) {
+                log('⚠️ Exécutez d\'abord le Test 2', 'warning');
+                await testRecettesRaw();
+            }
+
+            const mappedRecettes = recettesData.map(recette => ({
+                montant: parseFloat(recette.amount || recette.montant || 0),
+            }));
+
+            log(`📊 Nombre de recettes: ${mappedRecettes.length}`, 'info');
+
+            const totalRecettes = mappedRecettes.reduce((sum, r) => {
+                const montant = r.montant || 0;
+                log(`   + ${montant}`, 'info');
+                return sum + montant;
+            }, 0);
+
+            log(`\n💰 TOTAL CALCULÉ: ${totalRecettes.toLocaleString('fr-FR')} F CFA`, totalRecettes > 0 ? 'success' : 'error');
+
+            if (totalRecettes === 0) {
+                log('\n❌ PROBLÈME CONFIRMÉ: Le total est 0!', 'error');
+                log('\n🔍 Vérification détaillée des 3 premières recettes:', 'warning');
+                
+                recettesData.slice(0, 3).forEach((recette, index) => {
+                    log(`\n   Recette ${index + 1}:`, 'info');
+                    log(`      - recette.amount = ${recette.amount} (${typeof recette.amount})`, 'info');
+                    log(`      - recette.montant = ${recette.montant} (${typeof recette.montant})`, 'info');
+                    log(`      - parseFloat(recette.amount || recette.montant || 0) = ${parseFloat(recette.amount || recette.montant || 0)}`, 'info');
+                });
+            } else {
+                log('✅ Le calcul fonctionne correctement!', 'success');
+            }
+
+            return totalRecettes;
+        }
+
+        async function runAllTests() {
+            clear();
+            log('🚀 Exécution de tous les tests...\n', 'info');
+            
+            await testAuth();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testRecettesRaw();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testMapping();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testCalculTotal();
+            
+            log('\n✅ Tous les tests terminés!', 'success');
+        }
+
+        // Auto-remplir avec les valeurs du localStorage si disponibles
+        window.onload = () => {
+            const savedUrl = localStorage.getItem('supabaseUrl');
+            const savedKey = localStorage.getItem('supabaseKey');
+            
+            if (savedUrl) document.getElementById('supabaseUrl').value = savedUrl;
+            if (savedKey) document.getElementById('supabaseKey').value = savedKey;
+        };
+
+        // Sauvegarder les valeurs
+        document.getElementById('supabaseUrl')?.addEventListener('change', (e) => {
+            localStorage.setItem('supabaseUrl', e.target.value);
+        });
+        document.getElementById('supabaseKey')?.addEventListener('change', (e) => {
+            localStorage.setItem('supabaseKey', e.target.value);
+        });
+    </script>
+</body>
+</html>
+
+
+

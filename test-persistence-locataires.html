@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Persistance Locataires</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border-left: 4px solid;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border-color: #28a745;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-color: #dc3545;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border-color: #17a2b8;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border-color: #ffc107;
+        }
+        .code {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            margin: 15px 0;
+            border-left: 4px solid #007bff;
+            overflow-x: auto;
+        }
+        .test-steps {
+            background-color: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .test-steps ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .test-steps li {
+            margin: 8px 0;
+        }
+        .highlight {
+            background-color: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Test Persistance Locataires - Problèmes Corrigés</h1>
+        
+        <div class="status success">
+            ✅ <strong>Problèmes identifiés et corrigés !</strong><br>
+            Les modifications et suppressions sont maintenant persistantes grâce à localStorage.
+        </div>
+
+        <div class="status error">
+            ❌ <strong>Problèmes précédents :</strong><br>
+            • <strong>Modification :</strong> Message affiché mais données non sauvegardées<br>
+            • <strong>Suppression :</strong> Locataire disparaît temporairement mais revient après F5
+        </div>
+
+        <div class="status success">
+            ✅ <strong>Solutions implémentées :</strong><br>
+            • <strong>Chargement depuis localStorage :</strong> Les données sont maintenant chargées depuis le stockage local<br>
+            • <strong>Sauvegarde persistante :</strong> Les modifications sont sauvegardées dans localStorage<br>
+            • <strong>Suppression définitive :</strong> Les suppressions sont persistantes même après F5
+        </div>
+
+        <h2>🔍 Détails des corrections :</h2>
+
+        <div class="status info">
+            <h3>📝 Page de détail des locataires :</h3>
+            <div class="code">
+// Chargement depuis localStorage
+const savedTenants = JSON.parse(localStorage.getItem('tenants') || '[]')
+let tenantData = savedTenants.find((t: any) => t.id === tenantId)
+
+// Si pas trouvé, créer des données par défaut
+if (!tenantData) {
+  tenantData = { /* données par défaut */ }
+  localStorage.setItem('tenants', JSON.stringify([...savedTenants, tenantData]))
+}
+            </div>
+        </div>
+
+        <div class="status info">
+            <h3>💾 Sauvegarde des modifications :</h3>
+            <div class="code">
+// Sauvegarder dans localStorage
+const updatedTenants = existingTenants.map((t: any) => 
+  t.id === tenant.id ? updatedTenant : t
+)
+localStorage.setItem('tenants', JSON.stringify(updatedTenants))
+            </div>
+        </div>
+
+        <div class="status info">
+            <h3>🗑️ Suppression persistante :</h3>
+            <div class="code">
+// Supprimer de l'état local ET de localStorage
+setTenants(prev => prev.filter(t => t.id !== showDeleteDialog))
+const updatedTenants = tenants.filter(t => t.id !== showDeleteDialog)
+localStorage.setItem('tenants', JSON.stringify(updatedTenants))
+            </div>
+        </div>
+
+        <h2>🧪 Tests à effectuer :</h2>
+
+        <div class="test-steps">
+            <h3>Test 1 : Modification d'un locataire</h3>
+            <ol>
+                <li>Aller sur <code>http://localhost:3001/locataires</code></li>
+                <li>Cliquer sur <span class="highlight">"Voir"</span> pour un locataire</li>
+                <li>Cliquer sur <span class="highlight">"Modifier"</span></li>
+                <li>Changer le nom ou l'email</li>
+                <li>Cliquer sur <span class="highlight">"Sauvegarder"</span></li>
+                <li>Vérifier que le message de succès s'affiche</li>
+                <li>Retourner à la liste et vérifier que les modifications sont visibles</li>
+                <li>Faire <span class="highlight">F5</span> et vérifier que les modifications persistent</li>
+            </ol>
+        </div>
+
+        <div class="test-steps">
+            <h3>Test 2 : Suppression d'un locataire</h3>
+            <ol>
+                <li>Aller sur <code>http://localhost:3001/locataires</code></li>
+                <li>Cliquer sur <span class="highlight">"Supprimer"</span> (icône poubelle) pour un locataire</li>
+                <li>Confirmer la suppression dans le dialog</li>
+                <li>Vérifier que le locataire disparaît de la liste</li>
+                <li>Faire <span class="highlight">F5</span> et vérifier que le locataire reste supprimé</li>
+                <li>Aller sur la page de détail du locataire supprimé et vérifier qu'il n'apparaît plus</li>
+            </ol>
+        </div>
+
+        <div class="test-steps">
+            <h3>Test 3 : Persistance après redémarrage</h3>
+            <ol>
+                <li>Modifier un locataire</li>
+                <li>Supprimer un autre locataire</li>
+                <li>Fermer complètement le navigateur</li>
+                <li>Rouvrir et aller sur <code>http://localhost:3001/locataires</code></li>
+                <li>Vérifier que toutes les modifications et suppressions sont conservées</li>
+            </ol>
+        </div>
+
+        <div class="status warning">
+            ⚠️ <strong>Note importante :</strong><br>
+            Les données sont stockées dans le localStorage du navigateur. Si vous videz le cache ou utilisez un mode privé, les données seront perdues. Dans une vraie application, ces données seraient stockées dans une base de données.
+        </div>
+
+        <div class="status success">
+            🎉 <strong>Résultat attendu :</strong><br>
+            • Les modifications sont maintenant <strong>vraiment sauvegardées</strong><br>
+            • Les suppressions sont <strong>définitives</strong> même après F5<br>
+            • Toutes les données persistent entre les sessions<br>
+            • L'expérience utilisateur est maintenant cohérente et fiable
+        </div>
+
+        <div class="code">
+            <strong>URLs de test :</strong><br>
+            • Liste : http://localhost:3001/locataires<br>
+            • Détail : http://localhost:3001/locataires/1<br>
+            • Édition : http://localhost:3001/locataires/1?edit=true
+        </div>
+    </div>
+</body>
+</html>
+
+
+
+
+

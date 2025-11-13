@@ -85,6 +85,41 @@ export function isRecetteUtilisable(recette: Recette): boolean {
   return recette.soldeDisponible > 0 && recette.statut !== 'annulée'
 }
 
+// ✅ Interface pour les COMPTES BANCAIRES (Portefeuilles)
+export interface CompteBancaire {
+  id: string
+  userId?: string
+  nom: string
+  numeroCompte?: string
+  banque?: string
+  typeCompte: 'courant' | 'epargne' | 'entreprise'
+  typePortefeuille: 'compte_bancaire' | 'mobile_money' | 'especes' | 'autre'
+  soldeInitial: number
+  soldeActuel: number
+  devise: string
+  actif: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+// ✅ Interface pour les TRANSACTIONS BANCAIRES
+export interface TransactionBancaire {
+  id: string
+  userId?: string
+  compteId: string
+  typeTransaction: 'credit' | 'debit'
+  montant: number
+  soldeAvant: number
+  soldeApres: number
+  libelle: string
+  description?: string
+  reference?: string
+  categorie?: string
+  dateTransaction: string
+  createdAt: string
+  updatedAt: string
+}
+
 // ✅ Interface pour les DÉPENSES
 export interface Depense {
   id: number
@@ -97,6 +132,24 @@ export interface Depense {
   categorie?: string
   receiptUrl?: string // Nouveau: URL du reçu uploadé
   receiptFileName?: string // Nouveau: nom du fichier reçu
+  createdAt: string
+  updatedAt: string
+}
+
+// ✅ Interface pour les REÇUS
+export interface Receipt {
+  id: string
+  userId?: string
+  transactionId?: string
+  compteId: string
+  nomLocataire: string
+  villa: string
+  periode: string // Date formatée
+  montant: number
+  dateTransaction: string
+  libelle?: string
+  description?: string
+  qrCodeData?: string
   createdAt: string
   updatedAt: string
 }

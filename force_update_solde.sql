@@ -78,3 +78,6 @@ HAVING ABS(r.solde_disponible - (r.amount - COALESCE(SUM(d.montant), 0))) > 0.01
 ORDER BY ecart DESC;
 
 
+
+
+

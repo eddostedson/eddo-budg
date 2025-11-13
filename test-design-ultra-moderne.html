@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design Ultra-Moderne - Budget Manager</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 50%, #f1f5f9 100%);
+            min-height: 100vh;
+            color: #1e293b;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            border-radius: 0 0 2rem 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5rem 2rem;
+        }
+        
+        .back-btn {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 0.75rem 1.5rem;
+            border-radius: 1rem;
+            color: #64748b;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .back-btn:hover {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: rgba(59, 130, 246, 0.2);
+            transform: translateX(-4px);
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .user-avatar {
+            width: 3rem;
+            height: 3rem;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4);
+        }
+        
+        .user-name {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #1e293b, #475569);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .user-subtitle {
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 0.75rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 1rem;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-outline {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #64748b;
+        }
+        
+        .btn-outline:hover {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: rgba(59, 130, 246, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            border: none;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            transform: translateY(-2px);
+            box-shadow: 0 20px 40px -10px rgba(59, 130, 246, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #ec4899);
+            color: white;
+            border: none;
+        }
+        
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #dc2626, #db2777);
+            transform: translateY(-2px);
+            box-shadow: 0 20px 40px -10px rgba(239, 68, 68, 0.4);
+        }
+        
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+        }
+        
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            transition: all 0.5s ease;
+            overflow: hidden;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 35px 60px -12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 1.5rem;
+        }
+        
+        .card-title {
+            display: flex;
+            align-items: center;
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .card-icon {
+            width: 2rem;
+            height: 2rem;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.75rem;
+            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4);
+        }
+        
+        .card-content {
+            padding: 1.5rem;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .form-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+        
+        .form-input {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1), 0 20px 40px -10px rgba(0, 0, 0, 0.15);
+        }
+        
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        
+        .status-badge {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: inline-block;
+            box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4);
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            color: #64748b;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .info-value {
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .floating-elements {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+        .floating-circle {
+            position: absolute;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        .floating-circle:nth-child(1) {
+            width: 200px;
+            height: 200px;
+            top: 10%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+        
+        .floating-circle:nth-child(2) {
+            width: 150px;
+            height: 150px;
+            top: 60%;
+            right: 10%;
+            animation-delay: 2s;
+        }
+        
+        .floating-circle:nth-child(3) {
+            width: 100px;
+            height: 100px;
+            bottom: 20%;
+            left: 20%;
+            animation-delay: 4s;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body>
+    <div class="floating-elements">
+        <div class="floating-circle"></div>
+        <div class="floating-circle"></div>
+        <div class="floating-circle"></div>
+    </div>
+    
+    <div class="container">
+        <!-- Header Ultra-Moderne -->
+        <div class="header">
+            <div class="header-content">
+                <div style="display: flex; align-items: center;">
+                    <a href="#" class="back-btn">
+                        ← Retour
+                    </a>
+                    <div class="user-info">
+                        <div class="user-avatar">
+                            👤
+                        </div>
+                        <div>
+                            <div class="user-name">Jean DUPONT</div>
+                            <div class="user-subtitle">Détails du locataire</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-outline">
+                        ✏️ Modifier
+                    </button>
+                    <button class="btn btn-danger">
+                        🗑️ Supprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Contenu Principal -->
+        <div class="content-grid">
+            <div class="main-content">
+                <!-- Carte Informations Personnelles -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <div class="card-icon">👤</div>
+                            Informations personnelles
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Prénom</label>
+                                <input type="text" class="form-input" value="Jean" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Nom</label>
+                                <input type="text" class="form-input" value="DUPONT" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-input" value="jean.dupont@email.com" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Téléphone</label>
+                                <input type="tel" class="form-input" value="+225 07 12 34 56 78" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Adresse</label>
+                                <input type="text" class="form-input" value="Rue Kennedy, Cocody" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Ville</label>
+                                <input type="text" class="form-input" value="Abidjan" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Carte Informations Professionnelles -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <div class="card-icon">💼</div>
+                            Informations professionnelles
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Profession</label>
+                                <input type="text" class="form-input" value="Ingénieur" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Employeur</label>
+                                <input type="text" class="form-input" value="Société ABC" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Type de pièce d'identité</label>
+                                <select class="form-input">
+                                    <option>CNI</option>
+                                    <option>Passeport</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Numéro de pièce d'identité</label>
+                                <input type="text" class="form-input" value="CI123456789" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Carte Statut -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <div class="card-icon">📊</div>
+                            Statut
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div class="status-badge pulse-animation">Actif</div>
+                    </div>
+                </div>
+                
+                <!-- Carte Propriété -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <div class="card-icon">🏠</div>
+                            Propriété
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div class="info-item">
+                            <span class="info-label">Nom</span>
+                            <span class="info-value">Appartement Kennedy</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Adresse</span>
+                            <span class="info-value">Rue Kennedy, Cocody</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Ville</span>
+                            <span class="info-value">Abidjan</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Loyer</span>
+                            <span class="info-value gradient-text">120,000 F CFA</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Carte Contrat -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <div class="card-icon">📋</div>
+                            Contrat
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div class="info-item">
+                            <span class="info-label">Numéro</span>
+                            <span class="info-value">#2025-001</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Début</span>
+                            <span class="info-value">01/01/2025</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Fin</span>
+                            <span class="info-value">31/12/2025</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Statut</span>
+                            <span class="status-badge">Actif</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+
+
+
+
+

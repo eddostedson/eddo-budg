@@ -2,7 +2,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useRecettes } from '@/contexts/recette-context'
+import { useRecettes } from '@/contexts/recette-context-direct'
 import { useDepenses } from '@/contexts/depense-context'
 import { formatCurrency } from '@/lib/utils'
 import { motion } from 'framer-motion'

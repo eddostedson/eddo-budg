@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Bouton Modifier - Fonctionnalité Corrigée</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border-left: 4px solid;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border-color: #28a745;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-color: #dc3545;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border-color: #17a2b8;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border-color: #ffc107;
+        }
+        .code {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            margin: 15px 0;
+            border-left: 4px solid #007bff;
+            overflow-x: auto;
+        }
+        .test-steps {
+            background-color: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .test-steps ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .test-steps li {
+            margin: 8px 0;
+        }
+        .highlight {
+            background-color: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .button-demo {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        .button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .button-view {
+            background-color: #007bff;
+            color: white;
+        }
+        .button-edit {
+            background-color: #28a745;
+            color: white;
+        }
+        .button-delete {
+            background-color: #dc3545;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Test Bouton Modifier - Fonctionnalité Corrigée</h1>
+        
+        <div class="status success">
+            ✅ <strong>Problème identifié et corrigé !</strong><br>
+            Le bouton "Modifier" active maintenant correctement le mode édition.
+        </div>
+
+        <div class="status error">
+            ❌ <strong>Problème précédent :</strong><br>
+            Le bouton "Modifier" avait la même fonctionnalité que "Voir" - il affichait la page de détail mais n'activait pas le mode édition.
+        </div>
+
+        <div class="status success">
+            ✅ <strong>Solution implémentée :</strong><br>
+            • <strong>Détection du paramètre URL :</strong> La page détecte maintenant correctement `?edit=true`<br>
+            • <strong>Activation du mode édition :</strong> Le mode édition s'active automatiquement<br>
+            • <strong>Pré-remplissage du formulaire :</strong> Les champs sont pré-remplis avec les données existantes
+        </div>
+
+        <h2>🔍 Détails de la correction :</h2>
+
+        <div class="status info">
+            <h3>📝 Code corrigé :</h3>
+            <div class="code">
+// Vérifier si on doit activer le mode édition
+useEffect(() => {
+  if (searchParams.get('edit') === 'true' && tenant) {
+    setIsEditing(true)
+    // Mettre à jour le formulaire d'édition avec les données du locataire
+    setEditForm({
+      first_name: tenant.first_name,
+      last_name: tenant.last_name,
+      email: tenant.email || '',
+      // ... autres champs
+    })
+  }
+}, [searchParams, tenant])
+            </div>
+        </div>
+
+        <div class="status info">
+            <h3>🎯 Différences entre les boutons :</h3>
+            <div class="button-demo">
+                <button class="button button-view">
+                    👁️ Voir
+                </button>
+                <span>→ Affiche la page de détail en mode lecture</span>
+            </div>
+            <div class="button-demo">
+                <button class="button button-edit">
+                    ✏️ Modifier
+                </button>
+                <span>→ Affiche la page de détail en mode édition</span>
+            </div>
+            <div class="button-demo">
+                <button class="button button-delete">
+                    🗑️ Supprimer
+                </button>
+                <span>→ Ouvre le dialog de confirmation</span>
+            </div>
+        </div>
+
+        <h2>🧪 Tests à effectuer :</h2>
+
+        <div class="test-steps">
+            <h3>Test 1 : Bouton "Voir"</h3>
+            <ol>
+                <li>Aller sur <code>http://localhost:3001/locataires</code></li>
+                <li>Cliquer sur <span class="highlight">"Voir"</span> (icône œil)</li>
+                <li>Vérifier que la page de détail s'affiche en mode lecture</li>
+                <li>Vérifier que les champs ne sont pas éditables</li>
+                <li>Vérifier que le bouton "Modifier" est visible</li>
+            </ol>
+        </div>
+
+        <div class="test-steps">
+            <h3>Test 2 : Bouton "Modifier"</h3>
+            <ol>
+                <li>Aller sur <code>http://localhost:3001/locataires</code></li>
+                <li>Cliquer sur <span class="highlight">"Modifier"</span> (icône crayon)</li>
+                <li>Vérifier que la page de détail s'affiche en mode édition</li>
+                <li>Vérifier que les champs sont éditables</li>
+                <li>Vérifier que les boutons "Sauvegarder" et "Annuler" sont visibles</li>
+                <li>Modifier un champ et cliquer sur "Sauvegarder"</li>
+                <li>Vérifier que les modifications sont sauvegardées</li>
+            </ol>
+        </div>
+
+        <div class="test-steps">
+            <h3>Test 3 : URL directe avec paramètre edit</h3>
+            <ol>
+                <li>Aller directement sur <code>http://localhost:3001/locataires/1?edit=true</code></li>
+                <li>Vérifier que la page s'ouvre directement en mode édition</li>
+                <li>Vérifier que tous les champs sont pré-remplis</li>
+                <li>Vérifier que les boutons d'édition sont visibles</li>
+            </ol>
+        </div>
+
+        <div class="status warning">
+            ⚠️ <strong>Points importants :</strong><br>
+            • Le mode édition ne s'active que si les données du locataire sont chargées<br>
+            • Le formulaire est automatiquement pré-rempli avec les données existantes<br>
+            • Les modifications sont sauvegardées dans localStorage
+        </div>
+
+        <div class="status success">
+            🎉 <strong>Résultat attendu :</strong><br>
+            • <strong>"Voir"</strong> → Mode lecture (champs non éditables)<br>
+            • <strong>"Modifier"</strong> → Mode édition (champs éditables + boutons sauvegarder/annuler)<br>
+            • <strong>"Supprimer"</strong> → Dialog de confirmation<br>
+            • Toutes les fonctionnalités sont maintenant distinctes et opérationnelles
+        </div>
+
+        <div class="code">
+            <strong>URLs de test :</strong><br>
+            • Liste : http://localhost:3001/locataires<br>
+            • Détail (lecture) : http://localhost:3001/locataires/1<br>
+            • Détail (édition) : http://localhost:3001/locataires/1?edit=true
+        </div>
+    </div>
+</body>
+</html>
+
+
+
+
+

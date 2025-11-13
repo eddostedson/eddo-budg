@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurer Recettes depuis Sauvegarde</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .warning { background: #fff3cd; border-color: #ffeaa7; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        .btn { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .btn:hover { background: #0056b3; }
+        .btn-success { background: #28a745; }
+        .btn-warning { background: #ffc107; color: #212529; }
+        .btn-danger { background: #dc3545; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+        th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+        th { background: #f8f9fa; font-weight: bold; }
+        .log { background: #000; color: #0f0; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; }
+        .step { margin: 10px 0; padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa; }
+        .step.success { border-left-color: #28a745; background: #d4edda; }
+        .step.error { border-left-color: #dc3545; background: #f8d7da; }
+        .step.warning { border-left-color: #ffc107; background: #fff3cd; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Restaurer Recettes depuis Sauvegarde</h1>
+        <p>Vos recettes sont dans la table de sauvegarde. Restaurons-les dans la table principale.</p>
+        
+        <div class="section">
+            <h3>1. 🔐 Connexion</h3>
+            <button class="btn" onclick="checkAuth()">Vérifier la Connexion</button>
+            <div id="auth-status"></div>
+        </div>
+
+        <div class="section">
+            <h3>2. 📊 Vérifier les Tables</h3>
+            <button class="btn" onclick="checkTables()">Vérifier Tables Principale et Sauvegarde</button>
+            <div id="tables-status"></div>
+        </div>
+
+        <div class="section">
+            <h3>3. 🔍 Voir les Données de Sauvegarde</h3>
+            <button class="btn" onclick="viewBackupData()">Voir Données de Sauvegarde</button>
+            <div id="backup-data"></div>
+        </div>
+
+        <div class="section">
+            <h3>4. ⚡ Restaurer les Données</h3>
+            <button class="btn btn-success" onclick="restoreData()">Restaurer Toutes les Recettes</button>
+            <button class="btn btn-warning" onclick="restoreSalaireOctobre()">Restaurer Seulement "Salaire Octobre"</button>
+            <div id="restore-status"></div>
+        </div>
+
+        <div class="section">
+            <h3>5. ✅ Vérifier la Restauration</h3>
+            <button class="btn" onclick="verifyRestoration()">Vérifier la Table Principale</button>
+            <div id="verification-status"></div>
+        </div>
+
+        <div class="section">
+            <h3>📋 Logs de Diagnostic</h3>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration Supabase
+        const supabaseUrl = 'https://judrexutbqlfutjbtenf.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1ZHJleHV0YnFsZnV0amJ0ZW5mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwODAwODgsImV4cCI6MjA3NDY1NjA4OH0.C7B9zKsQqLUvLuaPi2RbrhdLPvoJdnwpsYaRJhkRMmU'
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString()
+            const logDiv = document.getElementById('log')
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`
+            logDiv.scrollTop = logDiv.scrollHeight
+            console.log(message)
+        }
+
+        async function checkAuth() {
+            const statusDiv = document.getElementById('auth-status')
+            statusDiv.innerHTML = '<p>🔄 Vérification de la connexion...</p>'
+            log('Vérification de l\'authentification...')
+            
+            try {
+                const { data: { user }, error } = await supabase.auth.getUser()
+                if (error || !user) {
+                    statusDiv.innerHTML = '<div class="error">❌ Non connecté. Veuillez vous connecter d\'abord.</div>'
+                    log('❌ Utilisateur non connecté')
+                } else {
+                    statusDiv.innerHTML = `<div class="success">✅ Connecté: ${user.email} (ID: ${user.id})</div>`
+                    log(`✅ Utilisateur connecté: ${user.email}`)
+                }
+            } catch (err) {
+                statusDiv.innerHTML = `<div class="error">❌ Erreur: ${err.message}</div>`
+                log(`❌ Erreur: ${err.message}`)
+            }
+        }
+
+        async function checkTables() {
+            const statusDiv = document.getElementById('tables-status')
+            statusDiv.innerHTML = '<p>🔄 Vérification des tables...</p>'
+            log('Vérification des tables principale et de sauvegarde...')
+            
+            try {
+                // Vérifier table principale
+                const { data: mainData, error: mainError } = await supabase
+                    .from('recettes')
+                    .select('*', { count: 'exact', head: true })
+                
+                // Trouver la table de sauvegarde la plus récente
+                const backupTables = [
+                    'recettes_backup_2025_10_07_10_06_19',
+                    'recettes_backup_auto',
+                    'recettes_backup_manual',
+                    'recettes_original'
+                ]
+                
+                let latestBackupTable = null
+                let latestBackupCount = 0
+                let backupResults = ''
+                
+                for (const tableName of backupTables) {
+                    try {
+                        const { data: backupData, error: backupError } = await supabase
+                            .from(tableName)
+                            .select('*', { count: 'exact', head: true })
+                        
+                        if (!backupError && backupData !== null) {
+                            // Essayer de récupérer la date de création la plus récente
+                            const { data: latestRecord } = await supabase
+                                .from(tableName)
+                                .select('created_at')
+                                .order('created_at', { ascending: false })
+                                .limit(1)
+                                .single()
+                            
+                            const latestDate = latestRecord?.created_at ? 
+                                new Date(latestRecord.created_at).toLocaleString() : 'Date inconnue'
+                            
+                            backupResults += `<div class="success">✅ ${tableName}: ${backupData} enregistrements (Dernière: ${latestDate})</div>`
+                            log(`✅ ${tableName}: ${backupData} enregistrements (Dernière: ${latestDate})`)
+                            
+                            if (backupData > latestBackupCount) {
+                                latestBackupCount = backupData
+                                latestBackupTable = tableName
+                            }
+                        } else {
+                            backupResults += `<div class="warning">⚠️ ${tableName}: ${backupError?.message || 'Inaccessible'}</div>`
+                            log(`⚠️ ${tableName}: ${backupError?.message || 'Inaccessible'}`)
+                        }
+                    } catch (err) {
+                        backupResults += `<div class="error">❌ ${tableName}: ${err.message}</div>`
+                        log(`❌ ${tableName}: ${err.message}`)
+                    }
+                }
+                
+                let results = '<h4>État des tables:</h4>'
+                
+                if (mainError) {
+                    results += `<div class="error">❌ Table principale (recettes): ${mainError.message}</div>`
+                    log(`❌ Erreur table principale: ${mainError.message}`)
+                } else {
+                    results += `<div class="success">✅ Table principale (recettes): ${mainData || 0} enregistrements</div>`
+                    log(`✅ Table principale: ${mainData || 0} enregistrements`)
+                }
+                
+                results += '<h5>Tables de sauvegarde:</h5>' + backupResults
+                
+                if (latestBackupTable) {
+                    results += `<div class="info"><strong>📅 Table de sauvegarde la plus récente: ${latestBackupTable} (${latestBackupCount} enregistrements)</strong></div>`
+                    log(`📅 Table la plus récente: ${latestBackupTable} avec ${latestBackupCount} enregistrements`)
+                    
+                    // Stocker la table la plus récente pour les autres fonctions
+                    window.latestBackupTable = latestBackupTable
+                } else {
+                    results += `<div class="error">❌ Aucune table de sauvegarde accessible</div>`
+                    log('❌ Aucune table de sauvegarde accessible')
+                }
+                
+                statusDiv.innerHTML = results
+                
+            } catch (err) {
+                statusDiv.innerHTML = `<div class="error">❌ Erreur: ${err.message}</div>`
+                log(`❌ Erreur: ${err.message}`)
+            }
+        }
+
+        async function viewBackupData() {
+            const dataDiv = document.getElementById('backup-data')
+            dataDiv.innerHTML = '<p>🔄 Récupération des données de sauvegarde...</p>'
+            log('Récupération des données de sauvegarde...')
+            
+            try {
+                // Utiliser la table de sauvegarde la plus récente
+                const backupTable = window.latestBackupTable || 'recettes_backup_auto'
+                log(`Utilisation de la table: ${backupTable}`)
+                
+                const { data, error } = await supabase
+                    .from(backupTable)
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(20)
+                
+                if (error) {
+                    dataDiv.innerHTML = `<div class="error">❌ Erreur: ${error.message}</div>`
+                    log(`❌ Erreur: ${error.message}`)
+                    return
+                }
+                
+                if (!data || data.length === 0) {
+                    dataDiv.innerHTML = '<div class="warning">⚠️ Aucune donnée de sauvegarde trouvée</div>'
+                    log('⚠️ Aucune donnée de sauvegarde')
+                    return
+                }
+                
+                let table = `<h4>Données de sauvegarde (${data.length} enregistrements):</h4><table><tr><th>Description</th><th>Montant</th><th>Solde</th><th>Date</th><th>Raison</th></tr>`
+                
+                data.forEach(recette => {
+                    table += `<tr>
+                        <td>${recette.description || 'N/A'}</td>
+                        <td>${recette.amo || recette.amount || 0} F CFA</td>
+                        <td>${recette.solde_disponible || 0} F CFA</td>
+                        <td>${recette.created_at || 'N/A'}</td>
+                        <td>${recette.backup_reason || 'N/A'}</td>
+                    </tr>`
+                })
+                
+                table += '</table>'
+                dataDiv.innerHTML = table
+                log(`✅ ${data.length} enregistrements de sauvegarde affichés`)
+                
+            } catch (err) {
+                dataDiv.innerHTML = `<div class="error">❌ Erreur: ${err.message}</div>`
+                log(`❌ Erreur: ${err.message}`)
+            }
+        }
+
+        async function restoreData() {
+            const statusDiv = document.getElementById('restore-status')
+            statusDiv.innerHTML = '<p>🔄 Restauration de toutes les recettes...</p>'
+            log('Début de la restauration de toutes les recettes...')
+            
+            try {
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                if (authError || !user) {
+                    statusDiv.innerHTML = '<div class="error">❌ Vous devez être connecté</div>'
+                    log('❌ Utilisateur non connecté')
+                    return
+                }
+                
+                // Utiliser la table de sauvegarde la plus récente
+                const backupTable = window.latestBackupTable || 'recettes_backup_auto'
+                log(`Restauration depuis la table: ${backupTable}`)
+                
+                // Récupérer toutes les données de sauvegarde
+                const { data: backupData, error: backupError } = await supabase
+                    .from(backupTable)
+                    .select('*')
+                
+                if (backupError) {
+                    statusDiv.innerHTML = `<div class="error">❌ Erreur récupération sauvegarde: ${backupError.message}</div>`
+                    log(`❌ Erreur: ${backupError.message}`)
+                    return
+                }
+                
+                if (!backupData || backupData.length === 0) {
+                    statusDiv.innerHTML = '<div class="warning">⚠️ Aucune donnée de sauvegarde à restaurer</div>'
+                    log('⚠️ Aucune donnée de sauvegarde')
+                    return
+                }
+                
+                log(`Restauration de ${backupData.length} recettes...`)
+                
+                // Restaurer chaque recette
+                let successCount = 0
+                let errorCount = 0
+                
+                for (const backupRecette of backupData) {
+                    try {
+                        // Essayer avec la structure description/amount
+                        const { error: insertError } = await supabase
+                            .from('recettes')
+                            .insert({
+                                user_id: user.id,
+                                description: backupRecette.description,
+                                amount: backupRecette.amo || backupRecette.amount,
+                                solde_disponible: backupRecette.solde_disponible,
+                                receipt_date: backupRecette.created_at ? backupRecette.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
+                            })
+                        
+                        if (insertError) {
+                            log(`❌ Erreur insertion ${backupRecette.description}: ${insertError.message}`)
+                            errorCount++
+                        } else {
+                            log(`✅ Restauré: ${backupRecette.description}`)
+                            successCount++
+                        }
+                    } catch (err) {
+                        log(`❌ Erreur ${backupRecette.description}: ${err.message}`)
+                        errorCount++
+                    }
+                }
+                
+                statusDiv.innerHTML = `<div class="success">✅ Restauration terminée!<br>Succès: ${successCount}<br>Erreurs: ${errorCount}</div>`
+                log(`✅ Restauration terminée: ${successCount} succès, ${errorCount} erreurs`)
+                
+            } catch (err) {
+                statusDiv.innerHTML = `<div class="error">❌ Erreur: ${err.message}</div>`
+                log(`❌ Erreur: ${err.message}`)
+            }
+        }
+
+        async function restoreSalaireOctobre() {
+            const statusDiv = document.getElementById('restore-status')
+            statusDiv.innerHTML = '<p>🔄 Restauration de "Salaire Octobre"...</p>'
+            log('Restauration spécifique de "Salaire Octobre"...')
+            
+            try {
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+                if (authError || !user) {
+                    statusDiv.innerHTML = '<div class="error">❌ Vous devez être connecté</div>'
+                    log('❌ Utilisateur non connecté')
+                    return
+                }
+                
+                // Utiliser la table de sauvegarde la plus récente
+                const backupTable = window.latestBackupTable || 'recettes_backup_auto'
+                log(`Recherche dans la table: ${backupTable}`)
+                
+                // Chercher "Salaire Octobre" dans la sauvegarde
+                const { data: backupData, error: backupError } = await supabase
+                    .from(backupTable)
+                    .select('*')
+                    .ilike('description', '%salaire%octobre%')
+                
+                if (backupError) {
+                    statusDiv.innerHTML = `<div class="error">❌ Erreur recherche: ${backupError.message}</div>`
+                    log(`❌ Erreur: ${backupError.message}`)
+                    return
+                }
+                
+                if (!backupData || backupData.length === 0) {
+                    statusDiv.innerHTML = '<div class="warning">⚠️ "Salaire Octobre" non trouvé dans la sauvegarde</div>'
+                    log('⚠️ "Salaire Octobre" non trouvé')
+                    return
+                }
+                
+                const salaireRecette = backupData[0]
+                log(`Trouvé: ${salaireRecette.description} - ${salaireRecette.amo} F CFA`)
+                
+                // Restaurer la recette
+                const { error: insertError } = await supabase
+                    .from('recettes')
+                    .insert({
+                        user_id: user.id,
+                        description: salaireRecette.description,
+                        amount: salaireRecette.amo || salaireRecette.amount,
+                        solde_disponible: salaireRecette.solde_disponible,
+                        receipt_date: salaireRecette.created_at ? salaireRecette.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
+                    })
+                
+                if (insertError) {
+                    statusDiv.innerHTML = `<div class="error">❌ Erreur insertion: ${insertError.message}</div>`
+                    log(`❌ Erreur insertion: ${insertError.message}`)
+                } else {
+                    statusDiv.innerHTML = `<div class="success">✅ "Salaire Octobre" restauré avec succès!<br>Montant: ${salaireRecette.amo} F CFA</div>`
+                    log(`✅ "Salaire Octobre" restauré: ${salaireRecette.amo} F CFA`)
+                }
+                
+            } catch (err) {
+                statusDiv.innerHTML = `<div class="error">❌ Erreur: ${err.message}</div>`
+                log(`❌ Erreur: ${err.message}`)
+            }
+        }
+
+        async function verifyRestoration() {
+            const statusDiv = document.getElementById('verification-status')
+            statusDiv.innerHTML = '<p>🔄 Vérification de la restauration...</p>'
+            log('Vérification de la table principale après restauration...')
+            
+            try {
+                const { data, error } = await supabase
+                    .from('recettes')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                
+                if (error) {
+                    statusDiv.innerHTML = `<div class="error">❌ Erreur: ${error.message}</div>`
+                    log(`❌ Erreur: ${error.message}`)
+                    return
+                }
+                
+                if (!data || data.length === 0) {
+                    statusDiv.innerHTML = '<div class="warning">⚠️ Aucune recette dans la table principale</div>'
+                    log('⚠️ Table principale vide')
+                    return
+                }
+                
+                let table = `<h4>Recettes restaurées (${data.length}):</h4><table><tr><th>Description</th><th>Montant</th><th>Solde</th><th>Date</th></tr>`
+                
+                data.forEach(recette => {
+                    table += `<tr>
+                        <td>${recette.description || 'N/A'}</td>
+                        <td>${recette.amount || 0} F CFA</td>
+                        <td>${recette.solde_disponible || 0} F CFA</td>
+                        <td>${recette.receipt_date || 'N/A'}</td>
+                    </tr>`
+                })
+                
+                table += '</table>'
+                statusDiv.innerHTML = table
+                log(`✅ ${data.length} recettes trouvées dans la table principale`)
+                
+            } catch (err) {
+                statusDiv.innerHTML = `<div class="error">❌ Erreur: ${err.message}</div>`
+                log(`❌ Erreur: ${err.message}`)
+            }
+        }
+
+        // Auto-vérification au chargement
+        window.onload = async function() {
+            log('Démarrage de l\'outil de restauration...')
+            await checkAuth()
+            await checkTables()
+        }
+    </script>
+</body>
+</html>

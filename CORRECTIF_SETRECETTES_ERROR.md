@@ -131,3 +131,6 @@ if (result) {
 L'erreur `setRecettes is not defined` est maintenant corrigée et l'application devrait fonctionner normalement !
 
 
+
+
+

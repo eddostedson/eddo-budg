@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/supabase/browser'
-import { useToast } from '@/contexts/toast-context'
+// import { useToast } from '@/contexts/toast-context' // Supprimé
 import { EyeIcon, EyeOffIcon } from 'lucide-react'
 // Composant de réinitialisation de mot de passe
 const ResetPasswordModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
@@ -114,7 +114,7 @@ export default function AuthPage() {
   const [mode, setMode] = useState<AuthMode>('signin')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const { showSuccess, showError } = useToast()
+  // const { showSuccess, showError } = useToast() // Supprimé
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -167,13 +167,11 @@ export default function AuthPage() {
       if (mode === 'signup') {
         if (formData.password !== formData.confirmPassword) {
           setMessage({ type: 'error', text: 'Les mots de passe ne correspondent pas' })
-          showError('Erreur de validation', 'Les mots de passe ne correspondent pas')
           setLoading(false)
           return
         }
         if (formData.password.length < 6) {
           setMessage({ type: 'error', text: 'Le mot de passe doit contenir au moins 6 caractères' })
-          showError('Mot de passe trop court', 'Le mot de passe doit contenir au moins 6 caractères')
           setLoading(false)
           return
         }
@@ -186,13 +184,11 @@ export default function AuthPage() {
 
         if (error) {
           setMessage({ type: 'error', text: error.message })
-          showError('Erreur d\'inscription', error.message)
         } else {
           setMessage({
             type: 'success',
             text: 'Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse.'
           })
-          showSuccess('Inscription réussie !', 'Vérifie ta boîte mail pour confirmer ton adresse.')
           setFormData({ email: '', password: '', confirmPassword: '' })
         }
       } else {
@@ -207,7 +203,6 @@ export default function AuthPage() {
           // Créer le profil s'il n'existe pas
           await fetch('/api/ensure-profile', { cache: 'no-store' }).catch(() => {})
           setMessage({ type: 'success', text: 'Connexion réussie ! Redirection...' })
-          showSuccess('Connexion réussie !', `Bienvenue ${data.user.email} !`)
           // ✅ Vider les champs après connexion réussie
           clearFields()
           setTimeout(() => {

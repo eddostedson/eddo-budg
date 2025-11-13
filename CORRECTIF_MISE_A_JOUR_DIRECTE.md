@@ -210,3 +210,6 @@ Script SQL pour tester la mise à jour du solde directement en base de données 
 Le système de mise à jour du solde devrait maintenant fonctionner correctement avec une approche plus directe et transparente !
 
 
+
+
+

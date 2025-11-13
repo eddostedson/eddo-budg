@@ -119,3 +119,6 @@ CREATE INDEX IF NOT EXISTS idx_recettes_date_reception ON recettes(date_receptio
 CREATE INDEX IF NOT EXISTS idx_recettes_statut ON recettes(statut);
 
 
+
+
+

@@ -12,9 +12,12 @@ class ActivityLogService {
   // Charger les logs depuis le localStorage
   private loadLogs(): void {
     try {
-      const stored = localStorage.getItem(this.STORAGE_KEY)
-      if (stored) {
-        this.logs = JSON.parse(stored)
+      // Vérifier si localStorage est disponible (côté client)
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = localStorage.getItem(this.STORAGE_KEY)
+        if (stored) {
+          this.logs = JSON.parse(stored)
+        }
       }
     } catch (error) {
       console.error('Erreur lors du chargement des logs:', error)
@@ -25,7 +28,10 @@ class ActivityLogService {
   // Sauvegarder les logs dans le localStorage
   private saveLogs(): void {
     try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.logs))
+      // Vérifier si localStorage est disponible (côté client)
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.logs))
+      }
     } catch (error) {
       console.error('Erreur lors de la sauvegarde des logs:', error)
     }

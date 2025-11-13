@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
-import { useRecettes } from '@/contexts/recette-context'
-import { useDepenses } from '@/contexts/depense-context'
+import { useRecettes } from '@/contexts/recette-context-direct'
+import { useDepenses } from '@/contexts/depense-context-direct'
 
 interface Message {
   id: string
@@ -386,6 +386,7 @@ export default function AIChatPage() {
     </div>
   )
 }
+
 
 
 
