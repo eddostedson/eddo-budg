@@ -88,16 +88,30 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
   // 🔄 RECHARGER LES TRANSACTIONS
   const refreshTransactions = async (compteId?: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      // Vérifier l'authentification
+      const { data: authData, error: authError } = await supabase.auth.getUser()
+      
+      if (authError) {
+        console.error('❌ Erreur d\'authentification:', {
+          message: authError.message,
+          status: authError.status,
+          error: authError
+        })
         setTransactions([])
         return
       }
 
+      if (!authData?.user) {
+        console.warn('⚠️ Aucun utilisateur connecté')
+        setTransactions([])
+        return
+      }
+
+      // Construire la requête
       let query = supabase
         .from('transactions_bancaires')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', authData.user.id)
         .order('date_transaction', { ascending: false })
 
       if (compteId) {
@@ -107,31 +121,52 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       const { data, error } = await query
 
       if (error) {
-        console.error('❌ Erreur lors du chargement des transactions:', error)
+        console.error('❌ Erreur lors du chargement des transactions:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          error: error
+        })
         setTransactions([])
         return
       }
 
-      const mappedTransactions = (data || []).map(transaction => ({
-        id: transaction.id,
-        userId: transaction.user_id,
-        compteId: transaction.compte_id,
-        typeTransaction: transaction.type_transaction as 'credit' | 'debit',
-        montant: parseFloat(transaction.montant || 0),
-        soldeAvant: parseFloat(transaction.solde_avant || 0),
-        soldeApres: parseFloat(transaction.solde_apres || 0),
-        libelle: transaction.libelle,
-        description: transaction.description,
-        reference: transaction.reference,
-        categorie: transaction.categorie,
-        dateTransaction: transaction.date_transaction,
-        createdAt: transaction.created_at,
-        updatedAt: transaction.updated_at
-      }))
+      // Mapper les transactions
+      try {
+        const mappedTransactions = (data || []).map(transaction => ({
+          id: transaction.id,
+          userId: transaction.user_id,
+          compteId: transaction.compte_id,
+          typeTransaction: transaction.type_transaction as 'credit' | 'debit',
+          montant: parseFloat(transaction.montant || 0),
+          soldeAvant: parseFloat(transaction.solde_avant || 0),
+          soldeApres: parseFloat(transaction.solde_apres || 0),
+          libelle: transaction.libelle,
+          description: transaction.description,
+          reference: transaction.reference,
+          categorie: transaction.categorie,
+          dateTransaction: transaction.date_transaction,
+          createdAt: transaction.created_at,
+          updatedAt: transaction.updated_at
+        }))
 
-      setTransactions(mappedTransactions)
+        setTransactions(mappedTransactions)
+      } catch (mappingError) {
+        console.error('❌ Erreur lors du mapping des transactions:', {
+          error: mappingError,
+          data: data
+        })
+        setTransactions([])
+      }
     } catch (error) {
-      console.error('❌ Erreur inattendue:', error)
+      console.error('❌ Erreur inattendue lors du chargement des transactions:', {
+        error: error instanceof Error ? {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        } : error
+      })
       setTransactions([])
     }
   }
