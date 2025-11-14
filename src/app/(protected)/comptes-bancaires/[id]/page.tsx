@@ -129,6 +129,96 @@ export default function CompteBancaireDetailPage() {
     })
   }
 
+  // Fonction pour surligner le texte correspondant à la recherche
+  const highlightText = (text: string, search: string) => {
+    if (!search || !text) return text
+    
+    const searchNormalized = search.trim().replace(/\s+/g, ' ')
+    const textNormalized = text.replace(/\s+/g, ' ')
+    
+    // Créer une regex insensible à la casse pour trouver toutes les occurrences
+    const regex = new RegExp(`(${searchNormalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+    const parts = textNormalized.split(regex)
+    
+    return (
+      <>
+        {parts.map((part, index) => {
+          // Vérifier si cette partie correspond à la recherche (insensible à la casse)
+          if (part.toLowerCase() === searchNormalized.toLowerCase()) {
+            return (
+              <mark key={index} className="bg-yellow-300 text-gray-900 font-semibold px-1 rounded">
+                {part}
+              </mark>
+            )
+          }
+          return <span key={index}>{part}</span>
+        })}
+      </>
+    )
+  }
+
+  // Fonction pour surligner le montant si la recherche correspond
+  const highlightAmount = (amount: number, search: string) => {
+    if (!search) {
+      return formatCurrency(amount)
+    }
+    
+    const isNumericSearch = /^[\d\s.,]+$/.test(search.trim())
+    if (!isNumericSearch) {
+      return formatCurrency(amount)
+    }
+    
+    // Normaliser la recherche
+    const searchNormalise = search
+      .toLowerCase()
+      .replace(/f cfa/gi, '')
+      .replace(/\s/g, '')
+      .replace(/\./g, '')
+      .replace(/,/g, '')
+      .trim()
+    
+    if (!searchNormalise) {
+      return formatCurrency(amount)
+    }
+    
+    const montantStr = Math.round(amount).toString()
+    const matches = montantStr === searchNormalise
+    
+    if (matches) {
+      const formatted = formatCurrency(amount)
+      // Le montant formaté contient des espaces comme séparateurs de milliers
+      // On doit surligner la partie numérique correspondante
+      // Exemple: "2 000 F CFA" pour 2000
+      
+      // Créer une regex pour trouver le nombre dans le texte formaté (en ignorant les espaces)
+      const numberInFormatted = formatted.match(/[\d\s]+/)?.[0] || ''
+      const numberWithoutSpaces = numberInFormatted.replace(/\s/g, '')
+      
+      if (numberWithoutSpaces === montantStr) {
+        // Surligner le nombre dans le texte formaté
+        const parts = formatted.split(/([\d\s]+)/)
+        
+        return (
+          <>
+            {parts.map((part, index) => {
+              const partWithoutSpaces = part.replace(/\s/g, '')
+              if (partWithoutSpaces === montantStr && /[\d\s]+/.test(part)) {
+                return (
+                  <mark key={index} className="bg-yellow-300 text-gray-900 font-semibold px-1 rounded">
+                    {part}
+                  </mark>
+                )
+              }
+              return <span key={index}>{part}</span>
+            })}
+          </>
+        )
+      }
+    }
+    
+    return formatCurrency(amount)
+  }
+
   const handleCrediter = () => {
     setTransactionType('credit')
     setEditingTransaction(null)
@@ -568,13 +658,17 @@ export default function CompteBancaireDetailPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div>
-                          <div className="font-medium text-gray-800">{transaction.libelle}</div>
+                          <div className="font-medium text-gray-800">
+                            {searchFilter ? highlightText(transaction.libelle || '', searchFilter) : transaction.libelle}
+                          </div>
                           {transaction.description && (
-                            <div className="text-xs text-gray-500 mt-1">{transaction.description}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {searchFilter ? highlightText(transaction.description, searchFilter) : transaction.description}
+                            </div>
                           )}
                           {transaction.categorie && (
                             <div className="text-xs text-blue-600 mt-1 font-medium">
-                              {transaction.categorie}
+                              {searchFilter ? highlightText(transaction.categorie, searchFilter) : transaction.categorie}
                             </div>
                           )}
                           {transaction.reference && (
@@ -586,7 +680,7 @@ export default function CompteBancaireDetailPage() {
                         transaction.typeTransaction === 'credit' ? 'text-green-600' : 'text-red-600'
                       }`}>
                         {transaction.typeTransaction === 'credit' ? '+' : '-'}
-                        {formatCurrency(transaction.montant)}
+                        {searchFilter ? highlightAmount(transaction.montant, searchFilter) : formatCurrency(transaction.montant)}
                       </td>
                       <td className="px-6 py-4 text-right text-sm text-gray-600">
                         {formatCurrency(transaction.soldeAvant)}
