@@ -78,35 +78,45 @@ export default function CompteBancaireDetailPage() {
   const filteredTransactions = compteTransactions.filter(transaction => {
     if (!searchFilter) return true
     
-    const searchLower = searchFilter.toLowerCase().trim()
-    const libelleStr = transaction.libelle?.toLowerCase() || ''
+    // Normaliser la recherche : enlever les espaces multiples et convertir en minuscules
+    const searchNormalized = searchFilter.toLowerCase().trim().replace(/\s+/g, ' ')
     
-    // Recherche dans le libellé (recherche partielle)
-    const matchesLibelle = libelleStr.includes(searchLower)
+    // Normaliser le libellé pour la recherche (enlever les espaces multiples)
+    const libelleStr = (transaction.libelle || '').toLowerCase().replace(/\s+/g, ' ')
+    const matchesLibelle = libelleStr.includes(searchNormalized)
     
-    // Recherche exacte dans le montant
-    // Normaliser la recherche en enlevant tous les séparateurs (espaces, points, virgules)
-    const searchNormalise = searchLower
-      .replace(/f cfa/gi, '')
-      .replace(/\s/g, '')
-      .replace(/\./g, '')
-      .replace(/,/g, '')
-      .trim()
+    // Recherche dans la description si elle existe
+    const descriptionStr = (transaction.description || '').toLowerCase().replace(/\s+/g, ' ')
+    const matchesDescription = descriptionStr.includes(searchNormalized)
     
-    // Vérifier si la recherche ressemble à un nombre
-    const isNumericSearch = /^[\d\s.,]+$/.test(searchFilter)
+    // Recherche dans la catégorie si elle existe
+    const categorieStr = (transaction.categorie || '').toLowerCase().replace(/\s+/g, ' ')
+    const matchesCategorie = categorieStr.includes(searchNormalized)
+    
+    // Recherche exacte dans le montant (seulement si la recherche ressemble à un nombre)
+    const isNumericSearch = /^[\d\s.,]+$/.test(searchFilter.trim())
     let matchesMontant = false
     
-    if (isNumericSearch && searchNormalise) {
-      // Convertir le montant en string et comparer exactement
-      // Le montant est un nombre, donc on le convertit directement en string
-      const montantStr = Math.round(transaction.montant).toString()
+    if (isNumericSearch) {
+      // Normaliser la recherche en enlevant tous les séparateurs (espaces, points, virgules)
+      const searchNormalise = searchNormalized
+        .replace(/f cfa/gi, '')
+        .replace(/\s/g, '')
+        .replace(/\./g, '')
+        .replace(/,/g, '')
+        .trim()
       
-      // Comparaison exacte : la recherche normalisée doit correspondre exactement au montant
-      matchesMontant = montantStr === searchNormalise
+      if (searchNormalise) {
+        // Convertir le montant en string et comparer exactement
+        const montantStr = Math.round(transaction.montant).toString()
+        
+        // Comparaison exacte : la recherche normalisée doit correspondre exactement au montant
+        matchesMontant = montantStr === searchNormalise
+      }
     }
     
-    return matchesLibelle || matchesMontant
+    // Retourner true si au moins un critère correspond
+    return matchesLibelle || matchesDescription || matchesCategorie || matchesMontant
   })
 
   const formatDate = (dateString: string) => {
