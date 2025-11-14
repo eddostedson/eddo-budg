@@ -23,6 +23,15 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { TransactionFormDialog } from '@/components/transaction-form-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 
 export default function CompteBancaireDetailPage() {
   const params = useParams()
@@ -45,6 +54,8 @@ export default function CompteBancaireDetailPage() {
   const [transactionType, setTransactionType] = useState<'credit' | 'debit'>('credit')
   const [editingTransaction, setEditingTransaction] = useState<TransactionBancaire | null>(null)
   const [searchFilter, setSearchFilter] = useState('')
+  const [showPrintDialog, setShowPrintDialog] = useState(false)
+  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait')
 
   useEffect(() => {
     if (comptes.length > 0) {
@@ -293,15 +304,30 @@ export default function CompteBancaireDetailPage() {
     )
   }
 
-  const totalCredits = compteTransactions
+  // Calculer les totaux pour toutes les transactions
+  const totalCreditsAll = compteTransactions
     .filter(t => t.typeTransaction === 'credit')
     .reduce((sum, t) => sum + t.montant, 0)
   
-  const totalDebits = compteTransactions
+  const totalDebitsAll = compteTransactions
     .filter(t => t.typeTransaction === 'debit')
     .reduce((sum, t) => sum + t.montant, 0)
 
-  const handlePrint = () => {
+  // Calculer les totaux pour les transactions filtrées (si recherche active)
+  const totalCreditsFiltered = filteredTransactions
+    .filter(t => t.typeTransaction === 'credit')
+    .reduce((sum, t) => sum + t.montant, 0)
+  
+  const totalDebitsFiltered = filteredTransactions
+    .filter(t => t.typeTransaction === 'debit')
+    .reduce((sum, t) => sum + t.montant, 0)
+
+  // Utiliser les totaux filtrés si une recherche est active, sinon tous les totaux
+  const totalCredits = searchFilter ? totalCreditsFiltered : totalCreditsAll
+  const totalDebits = searchFilter ? totalDebitsFiltered : totalDebitsAll
+  const soldeDisponible = totalCredits - totalDebits
+
+  const handlePrint = (orientation: 'portrait' | 'landscape' = 'portrait') => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
 
@@ -312,7 +338,7 @@ export default function CompteBancaireDetailPage() {
           <title>Relevé de Compte - ${compte?.nom}</title>
           <style>
             @page {
-              size: A4;
+              size: A4 ${orientation === 'landscape' ? 'landscape' : 'portrait'};
               margin: 20mm;
             }
             body {
@@ -518,8 +544,17 @@ export default function CompteBancaireDetailPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-100 text-sm mb-1">Solde Actuel</p>
-                <p className="text-3xl font-bold">{formatCurrency(compte.soldeActuel)}</p>
+                <p className="text-green-100 text-sm mb-1">
+                  {searchFilter ? 'Solde Disponible (Filtré)' : 'Solde Actuel'}
+                </p>
+                <p className="text-3xl font-bold">
+                  {searchFilter ? formatCurrency(soldeDisponible) : formatCurrency(compte.soldeActuel)}
+                </p>
+                {searchFilter && (
+                  <p className="text-green-200 text-xs mt-1">
+                    {filteredTransactions.length} transaction(s) trouvée(s)
+                  </p>
+                )}
               </div>
               <Building2Icon className="h-12 w-12 text-green-200" />
             </div>
@@ -530,8 +565,15 @@ export default function CompteBancaireDetailPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-100 text-sm mb-1">Total Crédits</p>
+                <p className="text-blue-100 text-sm mb-1">
+                  {searchFilter ? 'Total Crédits (Filtré)' : 'Total Crédits'}
+                </p>
                 <p className="text-3xl font-bold">{formatCurrency(totalCredits)}</p>
+                {searchFilter && (
+                  <p className="text-blue-200 text-xs mt-1">
+                    Sur {compteTransactions.filter(t => t.typeTransaction === 'credit').length} crédit(s)
+                  </p>
+                )}
               </div>
               <TrendingUpIcon className="h-12 w-12 text-blue-200" />
             </div>
@@ -542,8 +584,15 @@ export default function CompteBancaireDetailPage() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-red-100 text-sm mb-1">Total Débits</p>
+                <p className="text-red-100 text-sm mb-1">
+                  {searchFilter ? 'Total Débits (Filtré)' : 'Total Débits'}
+                </p>
                 <p className="text-3xl font-bold">{formatCurrency(totalDebits)}</p>
+                {searchFilter && (
+                  <p className="text-red-200 text-xs mt-1">
+                    Sur {compteTransactions.filter(t => t.typeTransaction === 'debit').length} débit(s)
+                  </p>
+                )}
               </div>
               <TrendingDownIcon className="h-12 w-12 text-red-200" />
             </div>
@@ -574,7 +623,7 @@ export default function CompteBancaireDetailPage() {
             <CardTitle>Historique des Transactions</CardTitle>
             {compteTransactions.length > 0 && (
               <Button
-                onClick={handlePrint}
+                onClick={() => setShowPrintDialog(true)}
                 variant="outline"
                 className="flex items-center gap-2"
               >
@@ -734,6 +783,60 @@ export default function CompteBancaireDetailPage() {
         type={transactionType}
         transactionToEdit={editingTransaction}
       />
+
+      {/* Dialogue de sélection d'orientation pour l'impression */}
+      <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Options d'impression</DialogTitle>
+            <DialogDescription>
+              Choisissez l'orientation du document à imprimer
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label className="text-base font-medium mb-4 block">Orientation</Label>
+            <div className="flex gap-4">
+              <Button
+                variant={printOrientation === 'portrait' ? 'default' : 'outline'}
+                onClick={() => setPrintOrientation('portrait')}
+                className="flex-1"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-8 h-12 border-2 border-current rounded"></div>
+                  <span>Portrait</span>
+                </div>
+              </Button>
+              <Button
+                variant={printOrientation === 'landscape' ? 'default' : 'outline'}
+                onClick={() => setPrintOrientation('landscape')}
+                className="flex-1"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-12 h-8 border-2 border-current rounded"></div>
+                  <span>Paysage</span>
+                </div>
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowPrintDialog(false)}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={() => {
+                handlePrint(printOrientation)
+                setShowPrintDialog(false)
+              }}
+            >
+              <PrinterIcon className="h-4 w-4 mr-2" />
+              Imprimer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

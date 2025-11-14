@@ -92,16 +92,20 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       const { data: authData, error: authError } = await supabase.auth.getUser()
       
       if (authError) {
-        console.error('❌ Erreur d\'authentification:', {
-          message: authError.message,
-          status: authError.status,
-          error: authError
-        })
+        // Ne logger que les erreurs non-réseau pour éviter le spam dans la console
+        if (authError.message && !authError.message.includes('Failed to fetch') && !authError.message.includes('NetworkError')) {
+          console.error('❌ Erreur d\'authentification:', {
+            message: authError.message,
+            status: authError.status,
+            error: authError
+          })
+        }
         setTransactions([])
         return
       }
 
       if (!authData?.user) {
+        // Ne logger que si ce n'est pas juste une absence de session
         console.warn('⚠️ Aucun utilisateur connecté')
         setTransactions([])
         return
@@ -121,13 +125,16 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       const { data, error } = await query
 
       if (error) {
-        console.error('❌ Erreur lors du chargement des transactions:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-          error: error
-        })
+        // Ne logger que les erreurs non-réseau
+        if (error.message && !error.message.includes('Failed to fetch') && !error.message.includes('NetworkError')) {
+          console.error('❌ Erreur lors du chargement des transactions:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+            error: error
+          })
+        }
         setTransactions([])
         return
       }
@@ -160,13 +167,19 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         setTransactions([])
       }
     } catch (error) {
-      console.error('❌ Erreur inattendue lors du chargement des transactions:', {
-        error: error instanceof Error ? {
-          message: error.message,
-          stack: error.stack,
-          name: error.name
-        } : error
-      })
+      // Gérer les erreurs réseau de manière silencieuse
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      
+      // Ne logger que les erreurs non-réseau
+      if (!errorMessage.includes('Failed to fetch') && !errorMessage.includes('NetworkError') && !errorMessage.includes('fetch')) {
+        console.error('❌ Erreur inattendue lors du chargement des transactions:', {
+          error: error instanceof Error ? {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+          } : error
+        })
+      }
       setTransactions([])
     }
   }
