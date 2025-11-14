@@ -18,6 +18,8 @@ interface CompteBancaireContextType {
   deleteCompte: (id: string) => Promise<boolean>
   crediterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string) => Promise<string | null>
   debiterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string) => Promise<boolean>
+  updateTransaction: (transactionId: string, updates: Partial<TransactionBancaire>) => Promise<boolean>
+  deleteTransaction: (transactionId: string) => Promise<boolean>
   getTransactionsByCompte: (compteId: string) => TransactionBancaire[]
   getTotalSoldes: () => number
   initializeDefaultComptes: () => Promise<boolean>
@@ -408,6 +410,252 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     }
   }
 
+  // 🔄 MODIFIER UNE TRANSACTION
+  const updateTransaction = async (transactionId: string, updates: Partial<TransactionBancaire>): Promise<boolean> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error('Erreur d\'authentification')
+        return false
+      }
+
+      // Récupérer la transaction actuelle
+      const { data: currentTransaction } = await supabase
+        .from('transactions_bancaires')
+        .select('*')
+        .eq('id', transactionId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!currentTransaction) {
+        toast.error('Transaction non trouvée')
+        return false
+      }
+
+      const compteId = currentTransaction.compte_id
+      const ancienMontant = parseFloat(currentTransaction.montant || 0)
+      const nouveauMontant = updates.montant !== undefined ? updates.montant : ancienMontant
+      const typeTransaction = currentTransaction.type_transaction
+
+      const updateData: Record<string, any> = {}
+      if (updates.montant !== undefined) updateData.montant = nouveauMontant
+      if (updates.libelle !== undefined) updateData.libelle = updates.libelle
+      if (updates.description !== undefined) updateData.description = updates.description
+      if (updates.reference !== undefined) updateData.reference = updates.reference
+      if (updates.categorie !== undefined) updateData.categorie = updates.categorie
+      if (updates.dateTransaction !== undefined) updateData.date_transaction = updates.dateTransaction
+
+      // Recalculer les soldes si le montant change
+      if (updates.montant !== undefined && nouveauMontant !== ancienMontant) {
+        // Récupérer toutes les transactions du compte triées par date
+        const { data: allTransactions } = await supabase
+          .from('transactions_bancaires')
+          .select('*')
+          .eq('compte_id', compteId)
+          .eq('user_id', user.id)
+          .order('date_transaction', { ascending: true })
+          .order('created_at', { ascending: true })
+
+        if (allTransactions) {
+          // Trouver le solde initial du compte
+          const { data: compteData } = await supabase
+            .from('comptes_bancaires')
+            .select('solde_initial')
+            .eq('id', compteId)
+            .eq('user_id', user.id)
+            .single()
+
+          let soldeCourant = compteData ? parseFloat(compteData.solde_initial || 0) : 0
+
+          // Recalculer tous les soldes depuis le début
+          for (const trans of allTransactions) {
+            const montant = parseFloat(trans.montant || 0)
+            const type = trans.type_transaction
+            const isCurrentTransaction = trans.id === transactionId
+
+            if (isCurrentTransaction) {
+              // Utiliser le nouveau montant pour cette transaction
+              const soldeAvant = soldeCourant
+              soldeCourant = type === 'credit' 
+                ? soldeCourant + nouveauMontant 
+                : soldeCourant - nouveauMontant
+              const soldeApres = soldeCourant
+
+              updateData.solde_avant = soldeAvant
+              updateData.solde_apres = soldeApres
+            } else {
+              // Recalculer les soldes pour les autres transactions
+              const soldeAvant = soldeCourant
+              soldeCourant = type === 'credit' 
+                ? soldeCourant + montant 
+                : soldeCourant - montant
+              const soldeApres = soldeCourant
+
+              // Mettre à jour les soldes de cette transaction
+              await supabase
+                .from('transactions_bancaires')
+                .update({
+                  solde_avant: soldeAvant,
+                  solde_apres: soldeApres
+                })
+                .eq('id', trans.id)
+                .eq('user_id', user.id)
+            }
+          }
+
+          // Mettre à jour le solde actuel du compte
+          await supabase
+            .from('comptes_bancaires')
+            .update({ solde_actuel: soldeCourant })
+            .eq('id', compteId)
+            .eq('user_id', user.id)
+        }
+      } else if (updates.montant === undefined) {
+        // Si le montant ne change pas, juste mettre à jour les autres champs
+        // Pas besoin de recalculer les soldes
+      }
+
+      // Mettre à jour la transaction
+      const { error } = await supabase
+        .from('transactions_bancaires')
+        .update(updateData)
+        .eq('id', transactionId)
+        .eq('user_id', user.id)
+
+      if (error) {
+        console.error('❌ Erreur lors de la modification de la transaction:', error)
+        toast.error('Erreur lors de la modification de la transaction')
+        return false
+      }
+
+      toast.success('✅ Transaction modifiée avec succès !')
+      await Promise.all([refreshComptes(), refreshTransactions()])
+      return true
+    } catch (error) {
+      console.error('❌ Erreur inattendue:', error)
+      toast.error('Erreur inattendue')
+      return false
+    }
+  }
+
+  // 🗑️ SUPPRIMER UNE TRANSACTION
+  const deleteTransaction = async (transactionId: string): Promise<boolean> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error('Erreur d\'authentification')
+        return false
+      }
+
+      // Récupérer la transaction pour recalculer le solde
+      const { data: transaction } = await supabase
+        .from('transactions_bancaires')
+        .select('*')
+        .eq('id', transactionId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (!transaction) {
+        toast.error('Transaction non trouvée')
+        return false
+      }
+
+      const compteId = transaction.compte_id
+      
+      // Supprimer le reçu associé si c'est un crédit (recette)
+      if (transaction.type_transaction === 'credit') {
+        const { data: receipts } = await supabase
+          .from('receipts')
+          .select('id')
+          .eq('transaction_id', transactionId)
+          .eq('user_id', user.id)
+        
+        if (receipts && receipts.length > 0) {
+          for (const receipt of receipts) {
+            await supabase
+              .from('receipts')
+              .delete()
+              .eq('id', receipt.id)
+              .eq('user_id', user.id)
+          }
+          console.log('✅ Reçu(s) associé(s) supprimé(s) automatiquement')
+        }
+      }
+
+      // Supprimer la transaction
+      const { error } = await supabase
+        .from('transactions_bancaires')
+        .delete()
+        .eq('id', transactionId)
+        .eq('user_id', user.id)
+
+      if (error) {
+        console.error('❌ Erreur lors de la suppression de la transaction:', error)
+        toast.error('Erreur lors de la suppression de la transaction')
+        return false
+      }
+
+      // Recalculer tous les soldes depuis le début
+      const { data: allTransactions } = await supabase
+        .from('transactions_bancaires')
+        .select('*')
+        .eq('compte_id', compteId)
+        .eq('user_id', user.id)
+        .order('date_transaction', { ascending: true })
+        .order('created_at', { ascending: true })
+
+      if (allTransactions) {
+        // Trouver le solde initial du compte
+        const { data: compteData } = await supabase
+          .from('comptes_bancaires')
+          .select('solde_initial')
+          .eq('id', compteId)
+          .eq('user_id', user.id)
+          .single()
+
+        let soldeCourant = compteData ? parseFloat(compteData.solde_initial || 0) : 0
+
+        // Recalculer tous les soldes
+        for (const trans of allTransactions) {
+          const montant = parseFloat(trans.montant || 0)
+          const type = trans.type_transaction
+          const soldeAvant = soldeCourant
+          
+          soldeCourant = type === 'credit' 
+            ? soldeCourant + montant 
+            : soldeCourant - montant
+          
+          const soldeApres = soldeCourant
+
+          // Mettre à jour les soldes de cette transaction
+          await supabase
+            .from('transactions_bancaires')
+            .update({
+              solde_avant: soldeAvant,
+              solde_apres: soldeApres
+            })
+            .eq('id', trans.id)
+            .eq('user_id', user.id)
+        }
+
+        // Mettre à jour le solde actuel du compte
+        await supabase
+          .from('comptes_bancaires')
+          .update({ solde_actuel: soldeCourant })
+          .eq('id', compteId)
+          .eq('user_id', user.id)
+      }
+
+      toast.success('✅ Transaction supprimée avec succès !')
+      await Promise.all([refreshComptes(), refreshTransactions()])
+      return true
+    } catch (error) {
+      console.error('❌ Erreur inattendue:', error)
+      toast.error('Erreur inattendue')
+      return false
+    }
+  }
+
   // 📊 RÉCUPÉRER LES TRANSACTIONS D'UN COMPTE
   const getTransactionsByCompte = (compteId: string): TransactionBancaire[] => {
     return transactions.filter(t => t.compteId === compteId)
@@ -517,6 +765,8 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     deleteCompte,
     crediterCompte,
     debiterCompte,
+    updateTransaction,
+    deleteTransaction,
     getTransactionsByCompte,
     getTotalSoldes,
     initializeDefaultComptes
