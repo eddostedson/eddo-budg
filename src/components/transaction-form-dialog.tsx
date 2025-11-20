@@ -12,6 +12,7 @@ import { useReceipts } from '@/contexts/receipt-context'
 import { CompteBancaire } from '@/lib/shared-data'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
+import { useTenants } from '@/hooks/useTenants'
 
 interface TransactionFormDialogProps {
   open: boolean
@@ -21,8 +22,9 @@ interface TransactionFormDialogProps {
 }
 
 export function TransactionFormDialog({ open, onOpenChange, compte, type }: TransactionFormDialogProps) {
-  const { crediterCompte, debiterCompte, refreshComptes, refreshTransactions } = useComptesBancaires()
+  const { comptes, crediterCompte, debiterCompte, refreshComptes, refreshTransactions } = useComptesBancaires()
   const { createReceipt } = useReceipts()
+  const { tenantOptions } = useTenants()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     montant: '',
@@ -32,26 +34,28 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
     categorie: '',
     villa: '',
     periode: '',
-    nom: ''
+    nom: '',
+    compteSourceId: ''
   })
+
+  // Vérifier si le compte est "Cité kennedy"
+  const isCiteKennedy = compte?.nom?.toLowerCase().includes('cité kennedy') || compte?.nom?.toLowerCase().includes('cite kennedy')
 
   React.useEffect(() => {
     if (open) {
       setFormData({
         montant: '',
-        libelle: '',
+        libelle: isCiteKennedy ? 'Loyer' : '',
         description: '',
         reference: '',
         categorie: '',
         villa: '',
         periode: '',
-        nom: ''
+        nom: '',
+        compteSourceId: ''
       })
     }
-  }, [open])
-
-  // Vérifier si le compte est "Cité kennedy"
-  const isCiteKennedy = compte?.nom?.toLowerCase().includes('cité kennedy') || compte?.nom?.toLowerCase().includes('cite kennedy')
+  }, [open, isCiteKennedy])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -87,8 +91,6 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
 
     setLoading(true)
     try {
-      let success = false
-      
       // Pour Cité kennedy, inclure Nom, Villa et Période dans la catégorie
       let categorieFinale = formData.categorie
       let villaLabel = ''
@@ -109,6 +111,35 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
       let transactionId: string | null = null
       
       if (type === 'credit') {
+        // 🔁 Option de transfert depuis un compte Mobile Money
+        let compteSource: CompteBancaire | undefined
+        if (formData.compteSourceId) {
+          compteSource = comptes.find((c) => c.id === formData.compteSourceId)
+          if (!compteSource) {
+            toast.error('Compte source introuvable')
+            return
+          }
+          if (compteSource.soldeActuel < montant) {
+            toast.error(`Solde insuffisant sur le compte source. Solde disponible: ${compteSource.soldeActuel.toLocaleString()} F CFA`)
+            return
+          }
+
+          const debitLibelle = `Transfert vers ${compte.nom}`
+          const debitSuccess = await debiterCompte(
+            compteSource.id,
+            montant,
+            debitLibelle,
+            formData.description || undefined,
+            formData.reference || undefined,
+            'Transfert vers autre compte'
+          )
+
+          if (!debitSuccess) {
+            toast.error('Erreur lors du débit du compte source')
+            return
+          }
+        }
+
         transactionId = await crediterCompte(
           compte.id,
           montant,
@@ -117,6 +148,23 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
           formData.reference || undefined,
           categorieFinale || undefined
         )
+
+        // Si le crédit échoue après un débit source, tenter un rollback simple
+        if (!transactionId && formData.compteSourceId) {
+          const compteSource = comptes.find((c) => c.id === formData.compteSourceId)
+          if (compteSource) {
+            await crediterCompte(
+              compteSource.id,
+              montant,
+              `Annulation transfert vers ${compte.nom}`,
+              formData.description || undefined,
+              formData.reference || undefined,
+              'Annulation transfert'
+            )
+          }
+          toast.error('Erreur lors du crédit du compte cible. Le montant a été recrédité sur le compte source.')
+          return
+        }
         
         // Si c'est un crédit sur Cité kennedy avec toutes les infos, générer automatiquement le reçu
         if (transactionId && isCiteKennedy && formData.nom && formData.villa && formData.periode) {
@@ -182,7 +230,7 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
         await Promise.all([refreshComptes(), refreshTransactions()])
         setFormData({
           montant: '',
-          libelle: '',
+          libelle: isCiteKennedy ? 'Loyer' : '',
           description: '',
           reference: '',
           categorie: '',
@@ -201,6 +249,10 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
   }
 
   if (!compte) return null
+
+  const comptesMobileMoney = comptes.filter(
+    (c) => c.typePortefeuille === 'mobile_money' && c.id !== compte.id
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -245,13 +297,43 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             />
           </div>
 
+          {type === 'credit' && comptesMobileMoney.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="compteSourceId">
+                Transférer depuis un compte Mobile Money (optionnel)
+              </Label>
+              <Select
+                value={formData.compteSourceId || 'none'}
+                onValueChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    compteSourceId: value === 'none' ? '' : value
+                  })
+                }
+                disabled={loading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un compte Mobile Money" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucun (dépôt externe)</SelectItem>
+                  {comptesMobileMoney.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nom} — {c.soldeActuel.toLocaleString()} F CFA
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="libelle">
               Libellé <span className="text-red-500">*</span>
             </Label>
             <Input
               id="libelle"
-              placeholder="Ex: Virement reçu, Retrait ATM, Paiement facture"
+              placeholder="Loyer"
               value={formData.libelle}
               onChange={(e) => setFormData({ ...formData, libelle: e.target.value })}
               required
@@ -273,19 +355,6 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="reference">
-              Référence
-            </Label>
-            <Input
-              id="reference"
-              placeholder="Ex: REF-2025-001, Chèque N°123"
-              value={formData.reference}
-              onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-              disabled={loading}
-            />
-          </div>
-
           {/* Pour "Cité kennedy" : afficher Nom, Villa et Période au lieu de Catégorie */}
           {isCiteKennedy ? (
             <>
@@ -293,6 +362,34 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
                 <Label htmlFor="nom">
                   Nom <span className="text-red-500">*</span>
                 </Label>
+                {tenantOptions.length > 0 && (
+                  <div className="space-y-1">
+                    <Select
+                      onValueChange={(value) => {
+                        const selectedOption = tenantOptions.find((option) => option.id === value)
+                        if (selectedOption) {
+                          setFormData((prev) => ({ ...prev, nom: selectedOption.fullName }))
+                        }
+                      }}
+                      disabled={loading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un locataire existant (optionnel)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tenantOptions.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.fullName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      Vous pouvez choisir un locataire existant ou saisir un nouveau nom ci-dessous.
+                    </p>
+                  </div>
+                )}
+
                 <Input
                   id="nom"
                   placeholder="Ex: Locataire, Propriétaire"

@@ -92,7 +92,7 @@ export interface CompteBancaire {
   nom: string
   numeroCompte?: string
   banque?: string
-  typeCompte: 'courant' | 'epargne' | 'entreprise'
+  typeCompte: 'courant' | 'epargne' | 'entreprise' | 'operationnel'
   typePortefeuille: 'compte_bancaire' | 'mobile_money' | 'especes' | 'autre'
   soldeInitial: number
   soldeActuel: number
@@ -150,6 +150,7 @@ export interface Receipt {
   libelle?: string
   description?: string
   qrCodeData?: string
+  signature?: string
   createdAt: string
   updatedAt: string
 }

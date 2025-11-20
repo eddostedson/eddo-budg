@@ -23,7 +23,7 @@ export function CompteFormDialog({ open, onOpenChange, compteToEdit }: CompteFor
     nom: '',
     numeroCompte: '',
     banque: '',
-    typeCompte: 'courant' as 'courant' | 'epargne' | 'entreprise',
+    typeCompte: 'courant' as 'courant' | 'epargne' | 'entreprise' | 'operationnel',
     typePortefeuille: 'compte_bancaire' as 'compte_bancaire' | 'mobile_money' | 'especes' | 'autre',
     soldeInitial: '',
     devise: 'F CFA'
@@ -212,7 +212,7 @@ export function CompteFormDialog({ open, onOpenChange, compteToEdit }: CompteFor
             </Label>
             <Select
               value={formData.typeCompte}
-              onValueChange={(value: 'courant' | 'epargne' | 'entreprise') => 
+              onValueChange={(value: 'courant' | 'epargne' | 'entreprise' | 'operationnel') => 
                 setFormData({ ...formData, typeCompte: value })
               }
               disabled={loading}
@@ -224,6 +224,7 @@ export function CompteFormDialog({ open, onOpenChange, compteToEdit }: CompteFor
                 <SelectItem value="courant">Compte Courant</SelectItem>
                 <SelectItem value="epargne">Compte Épargne</SelectItem>
                 <SelectItem value="entreprise">Compte Entreprise</SelectItem>
+                <SelectItem value="operationnel">Compte Opérationnel (Dépenses Courantes)</SelectItem>
               </SelectContent>
             </Select>
           </div>

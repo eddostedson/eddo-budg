@@ -7,6 +7,23 @@ import { toast } from 'sonner'
 
 const supabase = createClient()
 
+const buildReceiptSignature = (payload: {
+  nom: string
+  villa: string
+  periode: string
+  montant: number
+  date: string
+  bailleur: string
+  telephone: string
+}): string => {
+  const base = `${payload.nom}|${payload.villa}|${payload.periode}|${payload.montant}|${payload.date}|${payload.bailleur}|${payload.telephone}`
+  let hash = 0
+  for (let i = 0; i < base.length; i++) {
+    hash = (hash * 31 + base.charCodeAt(i)) >>> 0
+  }
+  return `EDDO-${hash.toString(16).toUpperCase().padStart(8, '0')}`
+}
+
 interface ReceiptContextType {
   receipts: Receipt[]
   loading: boolean
@@ -43,23 +60,37 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         setReceipts([])
         return
       }
+      const mappedReceipts: Receipt[] = (data || []).map((receipt) => {
+        let signature: string | undefined
+        if (receipt.qr_code_data) {
+          try {
+            const parsed = JSON.parse(receipt.qr_code_data)
+            if (typeof parsed.signature === 'string') {
+              signature = parsed.signature
+            }
+          } catch (error) {
+            console.warn('⚠️ Impossible de parser qr_code_data pour le reçu', receipt.id, error)
+          }
+        }
 
-      const mappedReceipts: Receipt[] = (data || []).map((receipt) => ({
-        id: receipt.id,
-        userId: receipt.user_id,
-        transactionId: receipt.transaction_id,
-        compteId: receipt.compte_id,
-        nomLocataire: receipt.nom_locataire,
-        villa: receipt.villa,
-        periode: receipt.periode,
-        montant: parseFloat(receipt.montant || 0),
-        dateTransaction: receipt.date_transaction,
-        libelle: receipt.libelle,
-        description: receipt.description,
-        qrCodeData: receipt.qr_code_data,
-        createdAt: receipt.created_at,
-        updatedAt: receipt.updated_at
-      }))
+        return {
+          id: receipt.id,
+          userId: receipt.user_id,
+          transactionId: receipt.transaction_id,
+          compteId: receipt.compte_id,
+          nomLocataire: receipt.nom_locataire,
+          villa: receipt.villa,
+          periode: receipt.periode,
+          montant: parseFloat(receipt.montant || 0),
+          dateTransaction: receipt.date_transaction,
+          libelle: receipt.libelle,
+          description: receipt.description,
+          qrCodeData: receipt.qr_code_data,
+          signature,
+          createdAt: receipt.created_at,
+          updatedAt: receipt.updated_at
+        }
+      })
 
       setReceipts(mappedReceipts)
     } catch (error) {
@@ -78,8 +109,8 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         return null
       }
 
-      // Générer les données pour le QR code
-      const qrCodeData = JSON.stringify({
+      // Générer les données pour le QR code + signature numérique
+      const qrPayload = {
         nom: receipt.nomLocataire,
         villa: receipt.villa,
         periode: receipt.periode,
@@ -87,6 +118,11 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         date: receipt.dateTransaction,
         bailleur: 'EDDO Stéphane',
         telephone: '0709363699'
+      }
+      const signature = buildReceiptSignature(qrPayload)
+      const qrCodeData = JSON.stringify({
+        ...qrPayload,
+        signature
       })
 
       const { data, error } = await supabase
@@ -145,7 +181,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         const receipt = receipts.find(r => r.id === id)
         if (receipt) {
           const updatedReceipt = { ...receipt, ...updates }
-          const qrCodeData = JSON.stringify({
+          const qrPayload = {
             nom: updatedReceipt.nomLocataire,
             villa: updatedReceipt.villa,
             periode: updatedReceipt.periode,
@@ -153,6 +189,11 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
             date: updatedReceipt.dateTransaction,
             bailleur: 'EDDO Stéphane',
             telephone: '0709363699'
+          }
+          const signature = buildReceiptSignature(qrPayload)
+          const qrCodeData = JSON.stringify({
+            ...qrPayload,
+            signature
           })
           updateData.qr_code_data = qrCodeData
         }

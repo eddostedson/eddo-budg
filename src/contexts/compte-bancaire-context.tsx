@@ -66,7 +66,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         nom: compte.nom,
         numeroCompte: compte.numero_compte,
         banque: compte.banque,
-        typeCompte: compte.type_compte as 'courant' | 'epargne' | 'entreprise',
+        typeCompte: compte.type_compte as 'courant' | 'epargne' | 'entreprise' | 'operationnel',
         typePortefeuille: (compte.type_portefeuille || 'compte_bancaire') as 'compte_bancaire' | 'mobile_money' | 'especes' | 'autre',
         soldeInitial: parseFloat(compte.solde_initial || 0),
         soldeActuel: parseFloat(compte.solde_actuel || 0),

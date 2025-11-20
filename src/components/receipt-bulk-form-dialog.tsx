@@ -1,7 +1,14 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import React, { useEffect, useState } from 'react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,62 +17,66 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2Icon } from 'lucide-react'
 import { useReceipts } from '@/contexts/receipt-context'
 import { useComptesBancaires } from '@/contexts/compte-bancaire-context'
-import { Receipt } from '@/lib/shared-data'
 import { toast } from 'sonner'
 import { useTenants } from '@/hooks/useTenants'
 
-interface ReceiptFormDialogProps {
+interface ReceiptBulkFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  receiptToEdit?: Receipt | null
 }
 
-export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: ReceiptFormDialogProps) {
-  const { receipts, createReceipt, updateReceipt } = useReceipts()
+interface MonthDefinition {
+  year: number
+  monthIndex: number // 0-11
+}
+
+export function ReceiptBulkFormDialog({ open, onOpenChange }: ReceiptBulkFormDialogProps) {
+  const { receipts, createReceipt } = useReceipts()
   const { comptes } = useComptesBancaires()
   const { tenantOptions, addTenantIfNotExists } = useTenants()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     nomLocataire: '',
     villa: '',
-    periode: '',
     montant: '',
-    dateTransaction: new Date().toISOString().split('T')[0],
-    compteId: comptes.length > 0 ? comptes[0].id : 'none',
-    libelle: '',
+    startMonth: '',
+    endMonth: '',
+    libelle: 'Loyer mensuel',
     description: ''
   })
 
-  useEffect(() => {
-    if (receiptToEdit && open) {
-      setFormData({
-        nomLocataire: receiptToEdit.nomLocataire,
-        villa: receiptToEdit.villa,
-        periode: receiptToEdit.periode,
-        montant: receiptToEdit.montant.toString(),
-        dateTransaction: new Date(receiptToEdit.dateTransaction).toISOString().split('T')[0],
-        compteId: receiptToEdit.compteId,
-        libelle: receiptToEdit.libelle || '',
-        description: receiptToEdit.description || ''
-      })
-    } else if (!receiptToEdit && open) {
-      setFormData({
-        nomLocataire: '',
-        villa: '',
-        periode: '',
-        montant: '',
-        dateTransaction: new Date().toISOString().split('T')[0],
-        compteId: comptes.length > 0 ? comptes[0].id : 'none',
-        libelle: '',
-        description: ''
-      })
+  const parseMonth = (value: string): MonthDefinition | null => {
+    if (!value) return null
+    const [yearStr, monthStr] = value.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    if (!year || !month || month < 1 || month > 12) {
+      return null
     }
-  }, [receiptToEdit, open, comptes])
+    return { year, monthIndex: month - 1 }
+  }
+
+  const buildMonthRange = (start: MonthDefinition, end: MonthDefinition): MonthDefinition[] => {
+    const months: MonthDefinition[] = []
+    let currentYear = start.year
+    let currentMonth = start.monthIndex
+
+    while (currentYear < end.year || (currentYear === end.year && currentMonth <= end.monthIndex)) {
+      months.push({ year: currentYear, monthIndex: currentMonth })
+      currentMonth += 1
+      if (currentMonth > 11) {
+        currentMonth = 0
+        currentYear += 1
+      }
+    }
+
+    return months
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.nomLocataire || !formData.villa || !formData.periode || !formData.montant) {
+    if (!formData.nomLocataire || !formData.villa || !formData.montant || !formData.startMonth || !formData.endMonth) {
       toast.error('Veuillez remplir tous les champs obligatoires')
       return
     }
@@ -76,52 +87,69 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
       return
     }
 
-    if (!formData.compteId || formData.compteId === 'none') {
-      toast.error('Veuillez sélectionner un compte')
+    const start = parseMonth(formData.startMonth)
+    const end = parseMonth(formData.endMonth)
+
+    if (!start || !end) {
+      toast.error('Format de mois invalide')
+      return
+    }
+
+    if (end.year < start.year || (end.year === start.year && end.monthIndex < start.monthIndex)) {
+      toast.error('Le mois de fin doit être postérieur ou égal au mois de début')
+      return
+    }
+
+    const months = buildMonthRange(start, end)
+
+    // Trouver automatiquement le compte "Cité Kennedy"
+    const compteKennedy = comptes.find((compte) => {
+      const nom = (compte.nom || '').toLowerCase()
+      return nom.includes('cité kennedy') || nom.includes('cite kennedy')
+    })
+
+    if (!compteKennedy) {
+      toast.error('Aucun compte "Cité Kennedy" trouvé. Créez d\'abord ce compte pour générer les reçus.')
+      return
+    }
+
+    // Sécurité : éviter de créer trop de reçus en une seule fois
+    if (months.length > 24) {
+      toast.error('La période est trop longue. Limite: 24 mois maximum.')
       return
     }
 
     setLoading(true)
     try {
-      if (receiptToEdit) {
-        // MODIFICATION
-        const success = await updateReceipt(receiptToEdit.id, {
-          nomLocataire: formData.nomLocataire,
-          villa: formData.villa,
-          periode: formData.periode,
-          montant: montant,
-          dateTransaction: new Date(formData.dateTransaction).toISOString(),
-          libelle: formData.libelle || undefined,
-          description: formData.description || undefined
+      for (const { year, monthIndex } of months) {
+        // Dernier jour du mois pour la date de transaction
+        const dateTransaction = new Date(Date.UTC(year, monthIndex + 1, 0))
+        const periodeFormatee = dateTransaction.toLocaleDateString('fr-FR', {
+          month: 'long',
+          year: 'numeric'
         })
 
-        if (success) {
-          onOpenChange(false)
-        }
-      } else {
-        // CRÉATION
         // Ajoute automatiquement le locataire dans la base locale s'il n'existe pas encore
         addTenantIfNotExists(formData.nomLocataire)
 
-        const receiptId = await createReceipt({
+        await createReceipt({
           transactionId: undefined,
-          compteId: formData.compteId,
+          compteId: compteKennedy.id,
           nomLocataire: formData.nomLocataire,
           villa: formData.villa,
-          periode: formData.periode,
-          montant: montant,
-          dateTransaction: new Date(formData.dateTransaction).toISOString(),
+          periode: periodeFormatee,
+          montant,
+          dateTransaction: dateTransaction.toISOString(),
           libelle: formData.libelle || undefined,
           description: formData.description || undefined
         })
-
-        if (receiptId) {
-          onOpenChange(false)
-        }
       }
+
+      toast.success(`✅ ${months.length} reçu(s) généré(s) avec succès`)
+      onOpenChange(false)
     } catch (error) {
-      console.error('❌ Erreur inattendue:', error)
-      toast.error('❌ Erreur inattendue')
+      console.error('❌ Erreur inattendue lors de la génération multiple des reçus:', error)
+      toast.error('Erreur inattendue lors de la génération des reçus')
     } finally {
       setLoading(false)
     }
@@ -129,13 +157,11 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>
-            {receiptToEdit ? '✏️ Modifier le Reçu' : '📄 Nouveau Reçu'}
-          </DialogTitle>
+          <DialogTitle>🧾 Générer plusieurs reçus</DialogTitle>
           <DialogDescription>
-            {receiptToEdit ? 'Modifiez les informations du reçu' : 'Créez un nouveau reçu de paiement'}
+            Créez en une seule fois plusieurs reçus de loyer pour un même locataire sur une période (ex: janvier 2025 à juin 2025).
           </DialogDescription>
         </DialogHeader>
 
@@ -166,10 +192,9 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
                           ...prev,
                           nomLocataire: tenantName,
                           villa: lastReceipt.villa,
-                          periode: lastReceipt.periode,
                           montant: lastReceipt.montant.toString(),
-                          libelle: lastReceipt.libelle || '',
-                          description: lastReceipt.description || ''
+                          libelle: lastReceipt.libelle || prev.libelle,
+                          description: lastReceipt.description || prev.description
                         }))
                       } else {
                         setFormData((prev) => ({ ...prev, nomLocataire: tenantName }))
@@ -197,7 +222,7 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
 
             <Input
               id="nomLocataire"
-              placeholder="Ex: Jean Dupont"
+              placeholder="Ex: YAO Evelyne"
               value={formData.nomLocataire}
               onChange={(e) => setFormData({ ...formData, nomLocataire: e.target.value })}
               required
@@ -227,92 +252,52 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="periode">
-              Période <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="periode"
-              type="date"
-              value={(() => {
-                // Si periode est déjà formatée (ex: "mai 2025"), on ne peut pas la convertir en date
-                // On utilise une date par défaut pour l'input
-                if (formData.periode && !formData.periode.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                  return new Date().toISOString().split('T')[0]
-                }
-                return formData.periode || new Date().toISOString().split('T')[0]
-              })()}
-              onChange={(e) => {
-                const date = e.target.value
-                if (date) {
-                  const periodeFormatee = new Date(date).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
-                  setFormData({ ...formData, periode: periodeFormatee })
-                }
-              }}
-              required
-              disabled={loading}
-            />
-            {formData.periode && (
-              <p className="text-xs text-gray-500">
-                Affichage: {formData.periode}
-              </p>
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="startMonth">
+                Mois de début <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="startMonth"
+                type="month"
+                value={formData.startMonth}
+                onChange={(e) => setFormData({ ...formData, startMonth: e.target.value })}
+                required
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="endMonth">
+                Mois de fin <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="endMonth"
+                type="month"
+                value={formData.endMonth}
+                onChange={(e) => setFormData({ ...formData, endMonth: e.target.value })}
+                required
+                disabled={loading}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="montant">
-              Montant (F CFA) <span className="text-red-500">*</span>
+              Montant par mois (F CFA) <span className="text-red-500">*</span>
             </Label>
             <Input
               id="montant"
               type="number"
               step="0.01"
-              placeholder="Ex: 100000"
+              placeholder="Ex: 120000"
               value={formData.montant}
               onChange={(e) => setFormData({ ...formData, montant: e.target.value })}
               required
               disabled={loading}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="dateTransaction">
-              Date de Transaction <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="dateTransaction"
-              type="date"
-              value={formData.dateTransaction}
-              onChange={(e) => setFormData({ ...formData, dateTransaction: e.target.value })}
-              required
-              disabled={loading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="compteId">
-              Compte <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={formData.compteId}
-              onValueChange={(value) => setFormData({ ...formData, compteId: value })}
-              disabled={loading || comptes.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un compte" />
-              </SelectTrigger>
-              <SelectContent>
-                {comptes.length === 0 ? (
-                  <SelectItem value="none" disabled>Aucun compte disponible</SelectItem>
-                ) : (
-                  comptes.map((compte) => (
-                    <SelectItem key={compte.id} value={compte.id}>
-                      {compte.nom}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+            <p className="text-xs text-gray-500">
+              Les reçus seront automatiquement rattachés au compte <span className="font-semibold">Cité Kennedy</span>.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -330,7 +315,7 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              placeholder="Informations supplémentaires..."
+              placeholder="Informations supplémentaires (optionnel)..."
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
@@ -351,10 +336,10 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
               {loading ? (
                 <>
                   <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
-                  {receiptToEdit ? 'Modification...' : 'Création...'}
+                  Génération...
                 </>
               ) : (
-                receiptToEdit ? '✅ Modifier le reçu' : '✅ Créer le reçu'
+                '✅ Générer les reçus'
               )}
             </Button>
           </DialogFooter>
@@ -363,4 +348,5 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
     </Dialog>
   )
 }
+
 
