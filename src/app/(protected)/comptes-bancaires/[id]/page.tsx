@@ -14,8 +14,12 @@ import {
   TrendingDownIcon,
   Building2Icon,
   CalendarIcon,
-  FileTextIcon
+  FileTextIcon,
+  TrashIcon
 } from 'lucide-react'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { TransactionFormDialog } from '@/components/transaction-form-dialog'
 
@@ -30,12 +34,24 @@ export default function CompteBancaireDetailPage() {
     loading, 
     refreshComptes, 
     refreshTransactions,
-    getTransactionsByCompte
+    getTransactionsByCompte,
+    deleteTransaction,
+    updateTransaction
   } = useComptesBancaires()
   
   const [compte, setCompte] = useState<CompteBancaire | null>(null)
   const [showTransactionModal, setShowTransactionModal] = useState(false)
   const [transactionType, setTransactionType] = useState<'credit' | 'debit'>('credit')
+  const [transactionToEdit, setTransactionToEdit] = useState<TransactionBancaire | null>(null)
+  const [editForm, setEditForm] = useState({
+    libelle: '',
+    description: '',
+    categorie: '',
+    date: '',
+    montant: ''
+  })
+  const [searchTerm, setSearchTerm] = useState('')
+  const [typeFilter, setTypeFilter] = useState<'all' | 'credit' | 'debit'>('all')
 
   useEffect(() => {
     if (comptes.length > 0) {
@@ -56,6 +72,42 @@ export default function CompteBancaireDetailPage() {
   }, [compteId, refreshTransactions])
 
   const compteTransactions = getTransactionsByCompte(compteId)
+
+  const filteredTransactions = React.useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    const numericDigits = term.replace(/[^\d]/g, '')
+    const searchAmount = numericDigits ? parseInt(numericDigits, 10) : NaN
+    const hasNumericSearch = !Number.isNaN(searchAmount)
+
+    return compteTransactions.filter((transaction) => {
+      if (typeFilter !== 'all' && transaction.typeTransaction !== typeFilter) {
+        return false
+      }
+
+      if (!term) {
+        // Aucun terme de recherche: on applique seulement le filtre de type
+        return true
+      }
+
+      const libelleMatch =
+        (transaction.libelle || '').toLowerCase().includes(term) ||
+        (transaction.description || '').toLowerCase().includes(term) ||
+        (transaction.categorie || '').toLowerCase().includes(term) ||
+        (transaction.reference || '').toLowerCase().includes(term)
+
+      let amountMatch = false
+      if (hasNumericSearch) {
+        const montantInt = Math.round(transaction.montant || 0)
+        amountMatch = montantInt === searchAmount
+      }
+
+      return libelleMatch || amountMatch
+    })
+  }, [compteTransactions, searchTerm, typeFilter])
+
+  const hasSearchTerm = searchTerm.trim().length > 0
+  const hasSearchResults = hasSearchTerm && filteredTransactions.length > 0
+  const hasSearchNoResults = hasSearchTerm && filteredTransactions.length === 0
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -83,6 +135,62 @@ export default function CompteBancaireDetailPage() {
   const handleDebiter = () => {
     setTransactionType('debit')
     setShowTransactionModal(true)
+  }
+
+  const openEditModal = (transaction: TransactionBancaire) => {
+    setTransactionToEdit(transaction)
+    setEditForm({
+      libelle: transaction.libelle || '',
+      description: transaction.description || '',
+      categorie: transaction.categorie || '',
+      montant: (transaction.montant ?? 0).toString(),
+      date: transaction.dateTransaction
+        ? new Date(transaction.dateTransaction).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0]
+    })
+  }
+
+  const handleUpdateTransaction = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!transactionToEdit) return
+
+    const normalizedMontant = editForm.montant.replace(/\s/g, '').replace(',', '.')
+    const montantNumber = parseFloat(normalizedMontant)
+    if (Number.isNaN(montantNumber) || montantNumber <= 0) {
+      toast.error('Le montant doit être un nombre positif')
+      return
+    }
+
+    const dateIso = editForm.date
+      ? new Date(editForm.date).toISOString()
+      : transactionToEdit.dateTransaction
+
+    const success = await updateTransaction(transactionToEdit.id, {
+      libelle: editForm.libelle,
+      description: editForm.description,
+      categorie: editForm.categorie,
+      dateTransaction: dateIso,
+      montant: montantNumber
+    })
+
+    if (success) {
+      setTransactionToEdit(null)
+      await refreshTransactions(compteId)
+    }
+  }
+
+  const handleDeleteTransaction = async (transaction: TransactionBancaire) => {
+    const confirmed = window.confirm(
+      `Voulez-vous vraiment supprimer cette transaction de ${formatCurrency(transaction.montant)} ?\n` +
+        `Type: ${transaction.typeTransaction === 'credit' ? 'Crédit' : 'Débit'} — ${transaction.libelle}`
+    )
+    if (!confirmed) return
+
+    const success = await deleteTransaction(transaction.id)
+    if (!success) {
+      // Le contexte affiche déjà des toasts détaillés
+      return
+    }
   }
 
   const getTypeCompteColor = (type: string) => {
@@ -226,32 +334,81 @@ export default function CompteBancaireDetailPage() {
           <CardTitle>Informations du Compte</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <span className="text-sm text-gray-600">Type de compte:</span>
-              <Badge className={`ml-2 ${getTypeCompteColor(compte.typeCompte)}`}>
-                {getTypeCompteLabel(compte.typeCompte)}
-              </Badge>
-            </div>
-            {compte.numeroCompte && (
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
               <div>
-                <span className="text-sm text-gray-600">Numéro de compte:</span>
-                <span className="ml-2 font-medium">{compte.numeroCompte}</span>
+                <span className="text-sm text-gray-600">Type de compte:</span>
+                <Badge className={`ml-2 ${getTypeCompteColor(compte.typeCompte)}`}>
+                  {getTypeCompteLabel(compte.typeCompte)}
+                </Badge>
               </div>
-            )}
-            <div>
-              <span className="text-sm text-gray-600">Solde initial:</span>
-              <span className="ml-2 font-medium">{formatCurrency(compte.soldeInitial)}</span>
+              {compte.numeroCompte && (
+                <div>
+                  <span className="text-sm text-gray-600">Numéro de compte:</span>
+                  <span className="ml-2 font-medium">{compte.numeroCompte}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-sm text-gray-600">Solde initial:</span>
+                <span className="ml-2 font-medium">{formatCurrency(compte.soldeInitial)}</span>
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">Devise:</span>
+                <span className="ml-2 font-medium">{compte.devise}</span>
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">Date de création:</span>
+                <span className="ml-2 font-medium">
+                  {new Date(compte.createdAt).toLocaleDateString('fr-FR')}
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="text-sm text-gray-600">Devise:</span>
-              <span className="ml-2 font-medium">{compte.devise}</span>
-            </div>
-            <div>
-              <span className="text-sm text-gray-600">Date de création:</span>
-              <span className="ml-2 font-medium">
-                {new Date(compte.createdAt).toLocaleDateString('fr-FR')}
-              </span>
+            <div className="w-full md:w-80">
+              <Input
+                placeholder="Montant exact (ex: 5 000) ou libellé (ex: Push)"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`${hasSearchResults ? 'border-green-500 bg-green-50 focus-visible:ring-green-500' : ''} ${
+                  hasSearchNoResults ? 'border-red-500 bg-red-50 focus-visible:ring-red-500' : ''
+                }`}
+                aria-invalid={hasSearchNoResults || undefined}
+              />
+              <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                <span className="text-gray-600 font-medium mr-1">Type:</span>
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter('all')}
+                  className={`px-2 py-1 rounded-full border ${
+                    typeFilter === 'all'
+                      ? 'bg-gray-900 text-white border-gray-900'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Tous
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter('credit')}
+                  className={`px-2 py-1 rounded-full border ${
+                    typeFilter === 'credit'
+                      ? 'bg-green-600 text-white border-green-600'
+                      : 'bg-white text-green-700 border-green-300 hover:bg-green-50'
+                  }`}
+                >
+                  Crédits
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter('debit')}
+                  className={`px-2 py-1 rounded-full border ${
+                    typeFilter === 'debit'
+                      ? 'bg-red-600 text-white border-red-600'
+                      : 'bg-white text-red-700 border-red-300 hover:bg-red-50'
+                  }`}
+                >
+                  Débits
+                </button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -286,6 +443,11 @@ export default function CompteBancaireDetailPage() {
                 </Button>
               </div>
             </div>
+          ) : filteredTransactions.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-600 font-medium mb-1">Aucune transaction ne correspond à ce filtre</p>
+              <p className="text-gray-500 text-sm">Modifiez votre recherche (montant exact ou mot-clé dans le libellé).</p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -297,10 +459,11 @@ export default function CompteBancaireDetailPage() {
                     <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">Montant</th>
                     <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">Solde Avant</th>
                     <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">Solde Après</th>
+                    <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {compteTransactions.map((transaction, index) => (
+                  {filteredTransactions.map((transaction, index) => (
                     <motion.tr
                       key={transaction.id}
                       initial={{ opacity: 0, x: -20 }}
@@ -361,6 +524,26 @@ export default function CompteBancaireDetailPage() {
                       <td className="px-6 py-4 text-right text-sm font-bold text-gray-800">
                         {formatCurrency(transaction.soldeApres)}
                       </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditModal(transaction)}
+                          >
+                            Modifier
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDeleteTransaction(transaction)}
+                          >
+                            <TrashIcon className="h-4 w-4 mr-1" />
+                            Supprimer
+                          </Button>
+                        </div>
+                      </td>
                     </motion.tr>
                   ))}
                 </tbody>
@@ -373,16 +556,95 @@ export default function CompteBancaireDetailPage() {
       {/* Modal de transaction */}
       <TransactionFormDialog
         open={showTransactionModal}
-        onOpenChange={(open) => {
-          setShowTransactionModal(open)
-          if (!open) {
-            refreshComptes()
-            refreshTransactions(compteId)
-          }
-        }}
+        onOpenChange={setShowTransactionModal}
         compte={compte}
         type={transactionType}
       />
+
+      {/* Modal de modification de transaction (libellé / description / catégorie / date) */}
+      {transactionToEdit && (
+        <Dialog open={!!transactionToEdit} onOpenChange={(open) => !open && setTransactionToEdit(null)}>
+          <DialogContent className="sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>Modifier la transaction</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleUpdateTransaction} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700" htmlFor="edit-libelle">
+                  Libellé
+                </label>
+                <Input
+                  id="edit-libelle"
+                  value={editForm.libelle}
+                  onChange={(e) => setEditForm({ ...editForm, libelle: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700" htmlFor="edit-montant">
+                  Montant
+                </label>
+                <Input
+                  id="edit-montant"
+                  type="number"
+                  step="0.01"
+                  value={editForm.montant}
+                  onChange={(e) => setEditForm({ ...editForm, montant: e.target.value })}
+                  required
+                />
+                <p className="text-xs text-gray-500">
+                  Type de transaction :{' '}
+                  <span className="font-medium">
+                    {transactionToEdit.typeTransaction === 'credit' ? 'Crédit (+)' : 'Débit (-)'}
+                  </span>
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700" htmlFor="edit-description">
+                  Description
+                </label>
+                <Textarea
+                  id="edit-description"
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700" htmlFor="edit-categorie">
+                  Catégorie
+                </label>
+                <Input
+                  id="edit-categorie"
+                  value={editForm.categorie}
+                  onChange={(e) => setEditForm({ ...editForm, categorie: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700" htmlFor="edit-date">
+                  Date
+                </label>
+                <Input
+                  id="edit-date"
+                  type="date"
+                  value={editForm.date}
+                  onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                  required
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setTransactionToEdit(null)}
+                >
+                  Annuler
+                </Button>
+                <Button type="submit">Enregistrer</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
 import type { User } from '@supabase/supabase-js'
 
@@ -9,6 +10,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
+  const router = useRouter()
 
   useEffect(() => {
     // Récupérer la session actuelle avec gestion d'erreur
@@ -35,7 +37,7 @@ export function useAuth() {
 
     // Écouter les changements d'authentification avec gestion d'erreur
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (_event, session) => {
         try {
           setError(null)
           setUser(session?.user ?? null)
@@ -57,11 +59,15 @@ export function useAuth() {
       const { error } = await supabase.auth.signOut()
       if (error) {
         console.error('Erreur lors de la déconnexion:', error)
-        setError(`Erreur lors de la déconnexion: ${error.message}`)
+        // Si la session n'existe plus côté Supabase (AuthSessionMissingError),
+        // on continue quand même la déconnexion locale.
       }
     } catch (err) {
       console.error('Erreur réseau lors de la déconnexion:', err)
-      setError('Erreur de connexion lors de la déconnexion')
+    } finally {
+      // On nettoie toujours l'état local et on redirige vers la page de connexion.
+      setUser(null)
+      router.push('/auth')
     }
   }
 

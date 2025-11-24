@@ -28,14 +28,16 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     montant: '',
+    dateOperation: new Date().toISOString().split('T')[0],
     libelle: '',
     description: '',
-    reference: '',
     categorie: '',
     villa: '',
     periode: '',
     nom: '',
-    compteSourceId: ''
+    compteSourceId: '',
+    compteDestinationId: '',
+    miroirKennedy: false
   })
 
   // Vérifier si le compte est "Cité kennedy"
@@ -45,14 +47,16 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
     if (open) {
       setFormData({
         montant: '',
+        dateOperation: new Date().toISOString().split('T')[0],
         libelle: isCiteKennedy ? 'Loyer' : '',
         description: '',
-        reference: '',
         categorie: '',
         villa: '',
         periode: '',
         nom: '',
-        compteSourceId: ''
+        compteSourceId: '',
+        compteDestinationId: '',
+        miroirKennedy: false
       })
     }
   }, [open, isCiteKennedy])
@@ -65,8 +69,14 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
       return
     }
 
+    if (!formData.dateOperation) {
+      toast.error('Veuillez sélectionner une date pour l\'opération')
+      return
+    }
+
     // Pour "Cité kennedy", vérifier que Nom, Villa et Période sont remplis
-    if (isCiteKennedy) {
+    // 👉 Seulement pour les CRÉDITS (les débits restent simples)
+    if (isCiteKennedy && type === 'credit') {
       if (!formData.nom || !formData.villa || !formData.periode) {
         toast.error('Veuillez remplir le Nom, la Villa et la Période')
         return
@@ -111,7 +121,7 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
       let transactionId: string | null = null
       
       if (type === 'credit') {
-        // 🔁 Option de transfert depuis un compte Mobile Money
+        // 🔁 Option de transfert depuis un autre compte (n'importe lequel)
         let compteSource: CompteBancaire | undefined
         if (formData.compteSourceId) {
           compteSource = comptes.find((c) => c.id === formData.compteSourceId)
@@ -130,8 +140,9 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             montant,
             debitLibelle,
             formData.description || undefined,
-            formData.reference || undefined,
-            'Transfert vers autre compte'
+            undefined,
+            'Transfert vers autre compte',
+            new Date(formData.dateOperation).toISOString()
           )
 
           if (!debitSuccess) {
@@ -145,8 +156,9 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
           montant,
           formData.libelle,
           formData.description || undefined,
-          formData.reference || undefined,
-          categorieFinale || undefined
+          undefined,
+          categorieFinale || undefined,
+          new Date(formData.dateOperation).toISOString()
         )
 
         // Si le crédit échoue après un débit source, tenter un rollback simple
@@ -159,7 +171,8 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
               `Annulation transfert vers ${compte.nom}`,
               formData.description || undefined,
               formData.reference || undefined,
-              'Annulation transfert'
+              'Annulation transfert',
+              new Date(formData.dateOperation).toISOString()
             )
           }
           toast.error('Erreur lors du crédit du compte cible. Le montant a été recrédité sur le compte source.')
@@ -212,31 +225,99 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             })
           }
         }
+
+        // Crédit miroir virtuel sur Compte Cité Kennedy (optionnel, uniquement si compte Wave)
+        if (transactionId && canMirrorKennedy && compteKennedy && formData.miroirKennedy) {
+          const miroirOk = await crediterCompte(
+            compteKennedy.id,
+            montant,
+            formData.libelle || 'Loyer Cité Kennedy',
+            formData.description || undefined,
+            undefined,
+            'Loyer Cité Kennedy (miroir)',
+            new Date(formData.dateOperation).toISOString()
+          )
+
+          if (!miroirOk) {
+            toast.warning('⚠️ Crédit virtuel sur "Compte Cité Kennedy" non enregistré')
+          }
+        }
       } else {
+        // 💸 Débit simple ou transfert vers un autre compte
         const debitSuccess = await debiterCompte(
           compte.id,
           montant,
           formData.libelle,
           formData.description || undefined,
-          formData.reference || undefined,
-          categorieFinale || undefined
+          undefined,
+          categorieFinale || undefined,
+          new Date(formData.dateOperation).toISOString()
         )
+
         if (!debitSuccess) {
           transactionId = null
+        } else {
+          // Transfert optionnel vers un autre compte
+          if (formData.compteDestinationId) {
+            const compteDestination = comptes.find((c) => c.id === formData.compteDestinationId)
+            if (!compteDestination) {
+              toast.error('Compte de destination introuvable')
+            } else {
+              const creditId = await crediterCompte(
+                compteDestination.id,
+                montant,
+                `Transfert depuis ${compte.nom}`,
+                formData.description || undefined,
+                undefined,
+                'Transfert depuis autre compte',
+                new Date(formData.dateOperation).toISOString()
+              )
+
+              if (!creditId) {
+                toast.error('Erreur lors du crédit du compte de destination')
+              }
+            }
+          }
+
+          // Débit miroir virtuel sur Compte Cité Kennedy (optionnel, uniquement si compte Wave)
+          if (canMirrorKennedy && compteKennedy && formData.miroirKennedy) {
+            const miroirDebitOk = await debiterCompte(
+              compteKennedy.id,
+              montant,
+              formData.libelle,
+              formData.description || undefined,
+              undefined,
+              'Loyer Cité Kennedy (miroir)',
+              new Date(formData.dateOperation).toISOString()
+            )
+
+            if (!miroirDebitOk) {
+              toast.warning('⚠️ Débit virtuel sur "Compte Cité Kennedy" non enregistré')
+            }
+          }
         }
       }
 
       if (transactionId !== null || type === 'debit') {
-        await Promise.all([refreshComptes(), refreshTransactions()])
+        // 🔄 Rafraîchir en arrière-plan pour éviter de bloquer l'UI
+        Promise.all([
+          refreshComptes(),
+          compte ? refreshTransactions(compte.id) : refreshTransactions()
+        ]).catch((error) => {
+          console.error('❌ Erreur lors du rafraîchissement après transaction:', error)
+        })
         setFormData({
           montant: '',
+          dateOperation: new Date().toISOString().split('T')[0],
           libelle: isCiteKennedy ? 'Loyer' : '',
           description: '',
-          reference: '',
           categorie: '',
           villa: '',
           periode: '',
-          nom: ''
+          nom: '',
+          compteSourceId: '',
+          compteDestinationId: '',
+          miroirKennedy: false
         })
         onOpenChange(false)
       }
@@ -250,9 +331,13 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
 
   if (!compte) return null
 
-  const comptesMobileMoney = comptes.filter(
-    (c) => c.typePortefeuille === 'mobile_money' && c.id !== compte.id
+  const autresComptes = comptes.filter((c) => c.id !== compte.id)
+  const isWaveAccount = compte.nom?.toLowerCase().includes('wave') || compte.nom?.toLowerCase().includes('mobile')
+  const compteKennedy = comptes.find(
+    (c) =>
+      c.nom?.toLowerCase().includes('cité kennedy') || c.nom?.toLowerCase().includes('cite kennedy')
   )
+  const canMirrorKennedy = !!compteKennedy && isWaveAccount
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -297,10 +382,24 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             />
           </div>
 
-          {type === 'credit' && comptesMobileMoney.length > 0 && (
+          <div className="space-y-2">
+            <Label htmlFor="dateOperation">
+              Date de l'opération <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="dateOperation"
+              type="date"
+              value={formData.dateOperation}
+              onChange={(e) => setFormData({ ...formData, dateOperation: e.target.value })}
+              required
+              disabled={loading}
+            />
+          </div>
+
+          {type === 'credit' && autresComptes.length > 0 && (
             <div className="space-y-2">
               <Label htmlFor="compteSourceId">
-                Transférer depuis un compte Mobile Money (optionnel)
+                Transférer depuis un autre compte (optionnel)
               </Label>
               <Select
                 value={formData.compteSourceId || 'none'}
@@ -313,11 +412,41 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
                 disabled={loading}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un compte Mobile Money" />
+                  <SelectValue placeholder="Sélectionner un compte source" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Aucun (dépôt externe)</SelectItem>
-                  {comptesMobileMoney.map((c) => (
+                  {autresComptes.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nom} — {c.soldeActuel.toLocaleString()} F CFA
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {type === 'debit' && autresComptes.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="compteDestinationId">
+                Transférer vers un autre compte (optionnel)
+              </Label>
+              <Select
+                value={formData.compteDestinationId || 'none'}
+                onValueChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    compteDestinationId: value === 'none' ? '' : value
+                  })
+                }
+                disabled={loading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un compte de destination" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucun (retrait simple)</SelectItem>
+                  {autresComptes.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.nom} — {c.soldeActuel.toLocaleString()} F CFA
                     </SelectItem>
@@ -333,13 +462,34 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             </Label>
             <Input
               id="libelle"
-              placeholder="Loyer"
+              placeholder={isCiteKennedy ? 'Loyer' : 'Ex: Virement reçu, Retrait ATM, Paiement facture'}
               value={formData.libelle}
               onChange={(e) => setFormData({ ...formData, libelle: e.target.value })}
               required
               disabled={loading}
             />
           </div>
+
+          {canMirrorKennedy && (
+            <div className="flex items-center space-x-2">
+              <input
+                id="miroirKennedy"
+                type="checkbox"
+                className="h-4 w-4"
+                checked={formData.miroirKennedy}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    miroirKennedy: e.target.checked
+                  })
+                }
+                disabled={loading}
+              />
+              <Label htmlFor="miroirKennedy" className="text-xs text-gray-700">
+                Associer cette opération au loyer "Compte Cité Kennedy" (miroir virtuel)
+              </Label>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="description">
@@ -355,8 +505,9 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             />
           </div>
 
-          {/* Pour "Cité kennedy" : afficher Nom, Villa et Période au lieu de Catégorie */}
-          {isCiteKennedy ? (
+          {/* Pour "Cité kennedy" : afficher Nom, Villa et Période AU CRÉDIT uniquement.
+              Pour tous les autres cas (débit, autres comptes), afficher le champ Catégorie simple. */}
+          {isCiteKennedy && type === 'credit' ? (
             <>
               <div className="space-y-2">
                 <Label htmlFor="nom">

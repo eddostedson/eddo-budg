@@ -20,3 +20,6 @@ SELECT DISTINCT type_compte FROM comptes_bancaires ORDER BY type_compte;
 
 
 
+
+
+

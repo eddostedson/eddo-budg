@@ -16,11 +16,13 @@ interface CompteBancaireContextType {
   createCompte: (compte: Omit<CompteBancaire, 'id' | 'createdAt' | 'updatedAt'>) => Promise<boolean>
   updateCompte: (id: string, updates: Partial<CompteBancaire>) => Promise<boolean>
   deleteCompte: (id: string) => Promise<boolean>
-  crediterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string) => Promise<string | null>
-  debiterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string) => Promise<boolean>
+  crediterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string, dateTransaction?: string) => Promise<string | null>
+  debiterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string, dateTransaction?: string) => Promise<boolean>
   getTransactionsByCompte: (compteId: string) => TransactionBancaire[]
   getTotalSoldes: () => number
   initializeDefaultComptes: () => Promise<boolean>
+  deleteTransaction: (transactionId: string) => Promise<boolean>
+  updateTransaction: (transactionId: string, updates: Partial<TransactionBancaire>) => Promise<boolean>
 }
 
 const CompteBancaireContext = createContext<CompteBancaireContextType | undefined>(undefined)
@@ -269,8 +271,9 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     libelle: string,
     description?: string,
     reference?: string,
-    categorie?: string
-  ): Promise<boolean> => {
+    categorie?: string,
+    dateTransaction?: string
+  ): Promise<string | null> => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -298,6 +301,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       const soldeAvant = parseFloat(compteData.solde_actuel || 0)
       const soldeApres = soldeAvant + montant
+      const dateOp = dateTransaction || new Date().toISOString()
 
       // Créer la transaction
       const { data: transactionData, error } = await supabase
@@ -312,7 +316,8 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
           libelle: libelle,
           description: description,
           reference: reference,
-          categorie: categorie
+          categorie: categorie,
+          date_transaction: dateOp
         })
         .select()
         .single()
@@ -324,7 +329,6 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       }
 
       toast.success(`✅ ${montant.toLocaleString()} F CFA crédités avec succès !`)
-      await Promise.all([refreshComptes(), refreshTransactions()])
       return transactionData?.id || null
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
@@ -340,7 +344,8 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     libelle: string,
     description?: string,
     reference?: string,
-    categorie?: string
+    categorie?: string,
+    dateTransaction?: string
   ): Promise<boolean> => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -375,6 +380,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       }
 
       const soldeApres = soldeAvant - montant
+      const dateOp = dateTransaction || new Date().toISOString()
 
       // Créer la transaction
       const { error } = await supabase
@@ -389,7 +395,8 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
           libelle: libelle,
           description: description,
           reference: reference,
-          categorie: categorie
+          categorie: categorie,
+          date_transaction: dateOp
         })
 
       if (error) {
@@ -399,7 +406,6 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       }
 
       toast.success(`✅ ${montant.toLocaleString()} F CFA débités avec succès !`)
-      await Promise.all([refreshComptes(), refreshTransactions()])
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
@@ -416,6 +422,185 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
   // 💵 CALCULER LE TOTAL DES SOLDES
   const getTotalSoldes = (): number => {
     return comptes.reduce((total, compte) => total + compte.soldeActuel, 0)
+  }
+
+  // 🔁 Recalculer le solde actuel d'un compte à partir de son solde initial + toutes ses transactions
+  const recalculateCompteSolde = async (compteId: string, userId: string): Promise<boolean> => {
+    // 1. Charger le solde initial du compte
+    const { data: compteRow, error: compteError } = await supabase
+      .from('comptes_bancaires')
+      .select('solde_initial')
+      .eq('id', compteId)
+      .eq('user_id', userId)
+      .single()
+
+    if (compteError || !compteRow) {
+      console.error('❌ Erreur lors du chargement du compte pour recalcul des soldes:', compteError)
+      toast.error('Erreur lors du recalcul des soldes du compte')
+      return false
+    }
+
+    // 2. Charger toutes les transactions du compte dans l'ordre chronologique
+    const { data: txRows, error: txError } = await supabase
+      .from('transactions_bancaires')
+      .select('id, type_transaction, montant')
+      .eq('user_id', userId)
+      .eq('compte_id', compteId)
+      .order('date_transaction', { ascending: true })
+
+    if (txError) {
+      console.error('❌ Erreur lors du chargement des transactions pour recalcul:', txError)
+      toast.error('Erreur lors du recalcul des transactions')
+      return false
+    }
+
+    // 3. Recalculer le solde actuel du compte
+    let currentSolde = parseFloat(compteRow.solde_initial || 0)
+    for (const tx of txRows || []) {
+      const montant = parseFloat(tx.montant || 0)
+      currentSolde =
+        tx.type_transaction === 'credit'
+          ? currentSolde + montant
+          : currentSolde - montant
+    }
+
+    // 4. Mettre à jour le solde actuel du compte avec le solde final recalculé
+    const { error: updateCompteError } = await supabase
+      .from('comptes_bancaires')
+      .update({ solde_actuel: currentSolde })
+      .eq('id', compteId)
+      .eq('user_id', userId)
+
+    if (updateCompteError) {
+      console.error('❌ Erreur lors de la mise à jour du solde du compte:', updateCompteError)
+      toast.error('Erreur lors de la mise à jour du solde du compte')
+      return false
+    }
+
+    return true
+  }
+
+  // 🗑️ SUPPRIMER UNE TRANSACTION
+  const deleteTransaction = async (transactionId: string): Promise<boolean> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error('Erreur d\'authentification')
+        return false
+      }
+
+      // 1. Charger la transaction
+      const { data: transaction, error: fetchError } = await supabase
+        .from('transactions_bancaires')
+        .select('*')
+        .eq('id', transactionId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (fetchError || !transaction) {
+        console.error('❌ Erreur lors du chargement de la transaction à supprimer:', fetchError)
+        toast.error('Transaction introuvable')
+        return false
+      }
+
+      const compteId = transaction.compte_id as string
+
+      // 2. Supprimer la transaction
+      const { error: deleteError } = await supabase
+        .from('transactions_bancaires')
+        .delete()
+        .eq('id', transactionId)
+        .eq('user_id', user.id)
+
+      if (deleteError) {
+        console.error('❌ Erreur lors de la suppression de la transaction:', deleteError)
+        toast.error('Erreur lors de la suppression de la transaction')
+        return false
+      }
+
+      // 3. Recalculer le solde du compte
+      const ok = await recalculateCompteSolde(compteId, user.id)
+      if (!ok) {
+        return false
+      }
+
+      toast.success('✅ Transaction supprimée avec succès')
+      await Promise.all([refreshComptes(), refreshTransactions(compteId)])
+      return true
+    } catch (error) {
+      console.error('❌ Erreur inattendue lors de la suppression de la transaction:', error)
+      toast.error('Erreur inattendue lors de la suppression de la transaction')
+      return false
+    }
+  }
+
+  // ✏️ MODIFIER UNE TRANSACTION (libellé / description / catégorie / date / montant)
+  const updateTransaction = async (transactionId: string, updates: Partial<TransactionBancaire>): Promise<boolean> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error('Erreur d\'authentification')
+        return false
+      }
+
+      // 1. Charger la transaction pour récupérer le compte associé
+      const { data: existingTx, error: fetchError } = await supabase
+        .from('transactions_bancaires')
+        .select('id, compte_id')
+        .eq('id', transactionId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (fetchError || !existingTx) {
+        console.error('❌ Erreur lors du chargement de la transaction à modifier:', fetchError)
+        toast.error('Transaction introuvable')
+        return false
+      }
+
+      const compteId = existingTx.compte_id as string
+
+      const payload: Record<string, any> = {}
+      if (updates.libelle !== undefined) payload.libelle = updates.libelle
+      if (updates.description !== undefined) payload.description = updates.description
+      if (updates.categorie !== undefined) payload.categorie = updates.categorie
+      if (updates.dateTransaction !== undefined) payload.date_transaction = updates.dateTransaction
+      if (updates.montant !== undefined) payload.montant = updates.montant
+
+      if (Object.keys(payload).length === 0) {
+        return true
+      }
+
+      const { error } = await supabase
+        .from('transactions_bancaires')
+        .update(payload)
+        .eq('id', transactionId)
+        .eq('user_id', user.id)
+
+      if (error) {
+        console.error('❌ Erreur lors de la modification de la transaction:', error)
+        toast.error('Erreur lors de la modification de la transaction')
+        return false
+      }
+
+      const needsRecalc = updates.montant !== undefined || updates.dateTransaction !== undefined
+
+      if (needsRecalc) {
+        const ok = await recalculateCompteSolde(compteId, user.id)
+        if (!ok) {
+          return false
+        }
+        await Promise.all([refreshComptes(), refreshTransactions(compteId)])
+      } else {
+        await refreshTransactions(compteId)
+      }
+
+      toast.success('✅ Transaction modifiée avec succès')
+      return true
+    } catch (error) {
+      console.error('❌ Erreur inattendue lors de la modification de la transaction:', error)
+      toast.error('Erreur inattendue lors de la modification de la transaction')
+      return false
+    }
   }
 
   // 🏦 INITIALISER 3 COMPTES PAR DÉFAUT
@@ -519,7 +704,9 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     debiterCompte,
     getTransactionsByCompte,
     getTotalSoldes,
-    initializeDefaultComptes
+    initializeDefaultComptes,
+    deleteTransaction,
+    updateTransaction
   }
 
   return (

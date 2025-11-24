@@ -114,7 +114,8 @@ export function DepenseFormDialog({ open, onOpenChange, compteId }: DepenseFormD
           formData.libelle,
           formData.description || undefined,
           undefined,
-          categorieFinale || undefined
+          categorieFinale || undefined,
+          new Date(formData.date).toISOString()
         )
 
         if (!debitSuccess) {

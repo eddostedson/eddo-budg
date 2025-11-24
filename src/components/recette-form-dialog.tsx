@@ -123,7 +123,8 @@ export function RecetteFormDialog({ open, onOpenChange, recetteToEdit }: Recette
                 `Recette: ${formData.libelle}`,
                 `Recette enregistrée le ${new Date(formData.date).toLocaleDateString('fr-FR')}`,
                 undefined,
-                'Recette'
+                'Recette',
+                new Date(formData.date).toISOString()
               )
               if (!transactionId) {
                 console.warn('⚠️ Recette créée mais crédit sur compte bancaire échoué')
