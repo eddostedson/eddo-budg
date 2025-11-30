@@ -295,7 +295,8 @@ export default function ComptesBancairesPage() {
               {globalSearchResults.map(({ tx, compte }) => (
                 <div
                   key={tx.id}
-                  className="rounded-xl bg-white border border-slate-200 shadow-sm px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 hover:border-indigo-300 hover:shadow-md transition-all"
+                  onClick={() => handleViewCompte(compte!)}
+                  className="rounded-xl bg-white border border-slate-200 shadow-sm px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 hover:border-indigo-300 hover:shadow-md cursor-pointer transition-all"
                 >
                   {/* Colonne compte */}
                   <div className="min-w-[180px]">
