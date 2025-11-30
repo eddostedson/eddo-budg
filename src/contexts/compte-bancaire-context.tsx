@@ -107,8 +107,16 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       const { data, error } = await query
 
       if (error) {
-        console.error('❌ Erreur lors du chargement des transactions:', error)
-        setTransactions([])
+        console.error('❌ Erreur lors du chargement des transactions:', {
+          message: (error as any).message,
+          code: (error as any).code,
+          details: (error as any).details,
+          hint: (error as any).hint
+        })
+        // On conserve l'ancien état plutôt que de tout vider pour éviter un écran vide
+        toast.error(
+          `Erreur lors du chargement des transactions: ${(error as any).message || 'voir la console pour le détail'}`
+        )
         return
       }
 

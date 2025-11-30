@@ -155,6 +155,33 @@ export interface Receipt {
   updatedAt: string
 }
 
+// ✅ Fonds partagés entre comptes bancaires
+export interface SharedFund {
+  id: string
+  userId: string
+  sourceCompteId: string
+  primaryCompteId?: string | null
+  transactionSourceId?: string | null
+  libelle: string
+  description?: string
+  montantInitial: number
+  montantRestant: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SharedFundMovement {
+  id: string
+  sharedFundId: string
+  userId: string
+  compteId: string
+  type: 'debit' | 'credit'
+  montant: number
+  transactionId?: string | null
+  libelle?: string
+  createdAt: string
+}
+
 // ✅ Interface pour les ALLOCATIONS (Recettes → Budgets)
 export interface Allocation {
   id: number

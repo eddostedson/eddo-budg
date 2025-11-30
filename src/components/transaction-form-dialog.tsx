@@ -9,10 +9,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Loader2Icon, TrendingUpIcon, TrendingDownIcon } from 'lucide-react'
 import { useComptesBancaires } from '@/contexts/compte-bancaire-context'
 import { useReceipts } from '@/contexts/receipt-context'
-import { CompteBancaire } from '@/lib/shared-data'
+import { CompteBancaire, SharedFund } from '@/lib/shared-data'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { useTenants } from '@/hooks/useTenants'
+import { SharedFundsService } from '@/lib/supabase/shared-funds-service'
 
 interface TransactionFormDialogProps {
   open: boolean
@@ -39,6 +40,10 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
     compteDestinationId: '',
     miroirKennedy: false
   })
+  const [createSharedFund, setCreateSharedFund] = useState(false)
+  const [sharedFundTargetCompteId, setSharedFundTargetCompteId] = useState('')
+  const [availableSharedFunds, setAvailableSharedFunds] = useState<SharedFund[]>([])
+  const [selectedSharedFundId, setSelectedSharedFundId] = useState('')
 
   // Vérifier si le compte est "Cité kennedy"
   const isCiteKennedy = compte?.nom?.toLowerCase().includes('cité kennedy') || compte?.nom?.toLowerCase().includes('cite kennedy')
@@ -58,8 +63,33 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
         compteDestinationId: '',
         miroirKennedy: false
       })
+      setCreateSharedFund(false)
+      setSharedFundTargetCompteId('')
+      setSelectedSharedFundId('')
+    } else {
+      setAvailableSharedFunds([])
+      setSelectedSharedFundId('')
     }
   }, [open, isCiteKennedy])
+
+  // Charger les fonds partagés disponibles pour ce compte lors d'un débit
+  React.useEffect(() => {
+    const loadFunds = async () => {
+      if (!open || type !== 'debit' || !compte) {
+        setAvailableSharedFunds([])
+        setSelectedSharedFundId('')
+        return
+      }
+      try {
+        const funds = await SharedFundsService.getFundsForCompte(compte.id)
+        setAvailableSharedFunds(funds)
+      } catch (error) {
+        console.error('❌ Erreur lors du chargement des fonds partagés:', error)
+        setAvailableSharedFunds([])
+      }
+    }
+    loadFunds()
+  }, [open, type, compte?.id])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,12 +131,17 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
 
     setLoading(true)
     try {
-      // Pour Cité kennedy, inclure Nom, Villa et Période dans la catégorie
+      // Catégorie utilisée pour enregistrer la transaction.
+      // Par défaut, on prend la valeur saisie dans le formulaire.
       let categorieFinale = formData.categorie
-      let villaLabel = ''
-      if (isCiteKennedy && formData.nom && formData.villa && formData.periode) {
-        const periodeFormatee = new Date(formData.periode).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
-        // Mapping des valeurs de villa vers leurs labels
+
+      // Pour Cité Kennedy au CRÉDIT uniquement, on construit une catégorie
+      // plus détaillée: "Nom - Villa - Mois Année" (cohérent avec les reçus).
+      if (isCiteKennedy && type === 'credit' && formData.nom && formData.villa && formData.periode) {
+        const periodeFormatee = new Date(formData.periode).toLocaleDateString('fr-FR', {
+          month: 'long',
+          year: 'numeric'
+        })
         const villaLabels: Record<string, string> = {
           'mini_villa_2_pieces_ean': 'mini Villa 2 Pièces EAN',
           'villa_3_pieces_esp': 'Villa 3 Pièces ESP',
@@ -114,43 +149,13 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
           'villa_4_pieces_ekb': 'Villa 4 Pièces EKB',
           'villa_4_pieces_mad': 'Villa 4 Pièces MAD'
         }
-        villaLabel = villaLabels[formData.villa] || formData.villa
+        const villaLabel = villaLabels[formData.villa] || formData.villa
         categorieFinale = `${formData.nom} - ${villaLabel} - ${periodeFormatee}`
       }
 
       let transactionId: string | null = null
       
       if (type === 'credit') {
-        // 🔁 Option de transfert depuis un autre compte (n'importe lequel)
-        let compteSource: CompteBancaire | undefined
-        if (formData.compteSourceId) {
-          compteSource = comptes.find((c) => c.id === formData.compteSourceId)
-          if (!compteSource) {
-            toast.error('Compte source introuvable')
-            return
-          }
-          if (compteSource.soldeActuel < montant) {
-            toast.error(`Solde insuffisant sur le compte source. Solde disponible: ${compteSource.soldeActuel.toLocaleString()} F CFA`)
-            return
-          }
-
-          const debitLibelle = `Transfert vers ${compte.nom}`
-          const debitSuccess = await debiterCompte(
-            compteSource.id,
-            montant,
-            debitLibelle,
-            formData.description || undefined,
-            undefined,
-            'Transfert vers autre compte',
-            new Date(formData.dateOperation).toISOString()
-          )
-
-          if (!debitSuccess) {
-            toast.error('Erreur lors du débit du compte source')
-            return
-          }
-        }
-
         transactionId = await crediterCompte(
           compte.id,
           montant,
@@ -161,22 +166,26 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
           new Date(formData.dateOperation).toISOString()
         )
 
-        // Si le crédit échoue après un débit source, tenter un rollback simple
-        if (!transactionId && formData.compteSourceId) {
-          const compteSource = comptes.find((c) => c.id === formData.compteSourceId)
-          if (compteSource) {
-            await crediterCompte(
-              compteSource.id,
+        // Option : créer un fonds partagé lié à ce crédit
+        if (transactionId && createSharedFund && sharedFundTargetCompteId) {
+          try {
+            const fund = await SharedFundsService.createFundFromCredit({
+              transactionId,
+              sourceCompteId: compte.id,
+              primaryCompteId: sharedFundTargetCompteId,
               montant,
-              `Annulation transfert vers ${compte.nom}`,
-              formData.description || undefined,
-              formData.reference || undefined,
-              'Annulation transfert',
-              new Date(formData.dateOperation).toISOString()
-            )
+              libelle: formData.libelle,
+              description: formData.description || undefined
+            })
+            if (!fund) {
+              toast.warning('⚠️ Fonds partagé non créé (voir console).')
+            } else {
+              toast.success('✅ Fonds partagé créé pour un autre compte.')
+            }
+          } catch (error) {
+            console.error('❌ Erreur lors de la création du fonds partagé:', error)
+            toast.warning('⚠️ Erreur lors de la création du fonds partagé')
           }
-          toast.error('Erreur lors du crédit du compte cible. Le montant a été recrédité sur le compte source.')
-          return
         }
         
         // Si c'est un crédit sur Cité kennedy avec toutes les infos, générer automatiquement le reçu
@@ -257,6 +266,25 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
         if (!debitSuccess) {
           transactionId = null
         } else {
+          // Si un fonds partagé est sélectionné, enregistrer le mouvement
+          if (selectedSharedFundId) {
+            try {
+              const ok = await SharedFundsService.registerMovement({
+                sharedFundId: selectedSharedFundId,
+                compteId: compte.id,
+                type: 'debit',
+                montant,
+                transactionId: undefined,
+                libelle: formData.libelle
+              })
+              if (!ok) {
+                toast.warning('⚠️ Mouvement sur le fonds partagé non enregistré')
+              }
+            } catch (error) {
+              console.error('❌ Erreur lors de l\'enregistrement du mouvement sur le fonds partagé:', error)
+              toast.warning('⚠️ Erreur lors de l\'enregistrement du mouvement sur le fonds partagé')
+            }
+          }
           // Transfert optionnel vers un autre compte
           if (formData.compteDestinationId) {
             const compteDestination = comptes.find((c) => c.id === formData.compteDestinationId)
@@ -396,33 +424,56 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             />
           </div>
 
+          {/* Option : créer un fonds partagé lors d'un CRÉDIT */}
           {type === 'credit' && autresComptes.length > 0 && (
-            <div className="space-y-2">
-              <Label htmlFor="compteSourceId">
-                Transférer depuis un autre compte (optionnel)
+            <div className="space-y-2 border rounded-lg p-3 bg-gray-50">
+              <Label className="text-xs font-medium">
+                Fonds partagé (optionnel)
               </Label>
-              <Select
-                value={formData.compteSourceId || 'none'}
-                onValueChange={(value) =>
-                  setFormData({
-                    ...formData,
-                    compteSourceId: value === 'none' ? '' : value
-                  })
-                }
-                disabled={loading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un compte source" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Aucun (dépôt externe)</SelectItem>
-                  {autresComptes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nom} — {c.soldeActuel.toLocaleString()} F CFA
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <input
+                  id="createSharedFund"
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={createSharedFund}
+                  onChange={(e) => {
+                    setCreateSharedFund(e.target.checked)
+                    if (!e.target.checked) {
+                      setSharedFundTargetCompteId('')
+                    }
+                  }}
+                  disabled={loading}
+                />
+                <Label htmlFor="createSharedFund" className="text-xs text-gray-700">
+                  Rendre ce crédit disponible virtuellement pour un autre compte
+                </Label>
+              </div>
+              {createSharedFund && (
+                <div className="space-y-1">
+                  <Select
+                    value={sharedFundTargetCompteId || 'none'}
+                    onValueChange={(value) =>
+                      setSharedFundTargetCompteId(value === 'none' ? '' : value)
+                    }
+                    disabled={loading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner le compte bénéficiaire" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sélectionner un compte</SelectItem>
+                      {autresComptes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nom} — {c.soldeActuel.toLocaleString()} F CFA
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-gray-500">
+                    Le solde réel reste sur ce compte. Le compte choisi verra un solde virtuel lié à ce crédit.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -469,6 +520,37 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
               disabled={loading}
             />
           </div>
+
+          {/* Lors d'un DÉBIT : possibilité d'imputer la dépense sur un fonds partagé existant */}
+          {type === 'debit' && availableSharedFunds.length > 0 && (
+            <div className="space-y-2 border rounded-lg p-3 bg-gray-50">
+              <Label htmlFor="sharedFundId" className="text-xs font-medium">
+                Utiliser un fonds partagé (optionnel)
+              </Label>
+              <Select
+                value={selectedSharedFundId || 'none'}
+                onValueChange={(value) =>
+                  setSelectedSharedFundId(value === 'none' ? '' : value)
+                }
+                disabled={loading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Aucun fonds sélectionné" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucun (débit normal)</SelectItem>
+                  {availableSharedFunds.map((fund) => (
+                    <SelectItem key={fund.id} value={fund.id}>
+                      {fund.libelle} — reste {fund.montantRestant.toLocaleString()} F CFA
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-gray-500">
+                La dépense sera tracée comme utilisation de ce fonds, sans modifier le crédit initial.
+              </p>
+            </div>
+          )}
 
           {canMirrorKennedy && (
             <div className="flex items-center space-x-2">

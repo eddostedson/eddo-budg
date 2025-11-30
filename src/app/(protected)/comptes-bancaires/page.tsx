@@ -1,12 +1,13 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useComptesBancaires } from '@/contexts/compte-bancaire-context'
 import { CompteBancaire } from '@/lib/shared-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { motion } from 'framer-motion'
 import { 
   Building2Icon, 
@@ -15,7 +16,8 @@ import {
   TrendingUpIcon, 
   TrendingDownIcon,
   WalletIcon,
-  DatabaseIcon
+  DatabaseIcon,
+  Search as SearchIcon
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { CompteFormDialog } from '@/components/compte-form-dialog'
@@ -26,6 +28,7 @@ export default function ComptesBancairesPage() {
   const { 
     comptes, 
     loading, 
+    transactions,
     refreshComptes, 
     getTotalSoldes,
     initializeDefaultComptes,
@@ -38,8 +41,17 @@ export default function ComptesBancairesPage() {
   const [selectedCompte, setSelectedCompte] = useState<CompteBancaire | null>(null)
   const [compteToEdit, setCompteToEdit] = useState<CompteBancaire | null>(null)
   const [transactionType, setTransactionType] = useState<'credit' | 'debit'>('credit')
+  const [searchTerm, setSearchTerm] = useState('')
 
   const totalSoldes = getTotalSoldes()
+
+  // Précharger les pages de détail des comptes pour accélérer "Voir"
+  useEffect(() => {
+    if (!comptes || comptes.length === 0) return
+    comptes.forEach((compte) => {
+      router.prefetch(`/comptes-bancaires/${compte.id}`)
+    })
+  }, [comptes, router])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -109,6 +121,83 @@ export default function ComptesBancairesPage() {
     }
   }
 
+  // On ne filtre plus la liste des comptes avec le champ de recherche :
+  // le champ sert uniquement à rechercher dans l'historique des transactions.
+  // Ici on trie simplement les comptes par solde (du plus élevé au plus faible).
+  const filteredComptes = React.useMemo(
+    () => [...comptes].sort((a, b) => (b.soldeActuel || 0) - (a.soldeActuel || 0)),
+    [comptes]
+  )
+
+  // Recherche globale dans TOUTES les transactions de tous les comptes
+  const globalSearchResults = React.useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return []
+
+    const numericDigits = term.replace(/[^\d]/g, '')
+    const searchAmount = numericDigits ? parseInt(numericDigits, 10) : NaN
+    const hasNumericSearch = !Number.isNaN(searchAmount)
+
+    const results = transactions
+      .map((tx) => {
+        const compte = comptes.find((c) => c.id === tx.compteId)
+        return { tx, compte }
+      })
+      .filter(({ tx, compte }) => {
+        if (!compte) return false
+
+        const text = [
+          tx.libelle,
+          tx.description,
+          tx.reference,
+          tx.categorie
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+
+        const textMatch = text.includes(term)
+
+        let amountMatch = false
+        if (hasNumericSearch) {
+          const montantInt = Math.round(tx.montant || 0)
+          amountMatch = montantInt === searchAmount
+        }
+
+        return textMatch || amountMatch
+      })
+
+    // Limiter à 100 résultats pour garder l'interface fluide
+    return results.slice(0, 100)
+  }, [transactions, comptes, searchTerm])
+
+  const highlightText = (text: string | undefined, term: string) => {
+    if (!text) return null
+    const cleanTerm = term.trim()
+    if (!cleanTerm) return text
+
+    const lowerText = text.toLowerCase()
+    const lowerTerm = cleanTerm.toLowerCase()
+    const index = lowerText.indexOf(lowerTerm)
+
+    if (index === -1) {
+      return text
+    }
+
+    const matchLength = lowerTerm.length
+    const before = text.slice(0, index)
+    const match = text.slice(index, index + matchLength)
+    const after = text.slice(index + matchLength)
+
+    return (
+      <>
+        {before}
+        <span className="bg-yellow-200 text-gray-900 rounded px-0.5">{match}</span>
+        {after}
+      </>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -125,8 +214,15 @@ export default function ComptesBancairesPage() {
       {/* En-tête */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">🏦 Comptes Bancaires</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">🏦 Comptes Bancaires</h1>
           <p className="text-gray-600">Gérez vos comptes bancaires et transactions</p>
+          {searchTerm.trim() && (
+            <p className="mt-2 text-xs text-gray-500">
+              <span className="font-medium">{globalSearchResults.length}</span> transaction(s)
+              correspondante(s) dans l&apos;ensemble des comptes bancaires pour{' '}
+              <span className="font-semibold">"{searchTerm}"</span>.
+            </p>
+          )}
         </div>
         <div className="flex gap-3">
           {comptes.length === 0 && (
@@ -148,6 +244,107 @@ export default function ComptesBancairesPage() {
         </div>
       </div>
 
+      {/* Recherche ultramoderne */}
+      <div className="mb-4">
+        <div className="relative max-w-3xl">
+          <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+            <SearchIcon className="h-4 w-4 text-gray-400" />
+          </span>
+          <Input
+            type="text"
+            placeholder="Rechercher un compte, une banque ou un montant (ex: 100000)"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 pr-3 py-2 rounded-full border border-gray-200 bg-white/80 backdrop-blur-sm shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-all"
+          />
+        </div>
+      </div>
+
+      {/* Résultats détaillés dans toutes les transactions (placés en haut pour plus de visibilité) */}
+      {searchTerm.trim() && globalSearchResults.length > 0 && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Résultats détaillés dans les transactions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Compte</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Libellé</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Type</th>
+                    <th className="px-4 py-3 text-right font-semibold text-gray-700">Montant</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {globalSearchResults.map(({ tx, compte }) => (
+                    <tr key={tx.id} className="border-b hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-gray-800">{compte?.nom}</span>
+                          {compte?.banque && (
+                            <span className="text-xs text-gray-500">{compte.banque}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-gray-800">
+                            {highlightText(tx.libelle, searchTerm)}
+                          </span>
+                          {tx.description && (
+                            <span className="text-xs text-gray-500">
+                              {highlightText(tx.description, searchTerm)}
+                            </span>
+                          )}
+                          {tx.categorie && (
+                            <span className="text-xs text-blue-600 font-medium mt-0.5">
+                              {highlightText(tx.categorie, searchTerm)}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
+                            tx.typeTransaction === 'credit'
+                              ? 'bg-green-50 text-green-700'
+                              : 'bg-red-50 text-red-700'
+                          }`}
+                        >
+                          {tx.typeTransaction === 'credit' ? 'Crédit' : 'Débit'}
+                        </span>
+                      </td>
+                      <td
+                        className={`px-4 py-3 text-right font-semibold ${
+                          tx.typeTransaction === 'credit' ? 'text-green-600' : 'text-red-600'
+                        }`}
+                      >
+                        {tx.typeTransaction === 'credit' ? '+' : '-'}
+                        {formatCurrency(tx.montant)}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {tx.dateTransaction
+                          ? new Date(tx.dateTransaction).toLocaleString('fr-FR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : ''}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Statistiques globales */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
@@ -167,7 +364,9 @@ export default function ComptesBancairesPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-green-100 text-sm mb-1">Nombre de Comptes</p>
-                <p className="text-3xl font-bold">{comptes.length}</p>
+                <p className="text-3xl font-bold">
+                  {comptes.length}
+                </p>
               </div>
               <Building2Icon className="h-12 w-12 text-green-200" />
             </div>
@@ -179,7 +378,9 @@ export default function ComptesBancairesPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-purple-100 text-sm mb-1">Comptes Actifs</p>
-                <p className="text-3xl font-bold">{comptes.filter(c => c.actif).length}</p>
+                <p className="text-3xl font-bold">
+                  {comptes.filter(c => c.actif).length}
+                </p>
               </div>
               <TrendingUpIcon className="h-12 w-12 text-purple-200" />
             </div>
@@ -214,7 +415,7 @@ export default function ComptesBancairesPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {comptes.map((compte, index) => (
+          {filteredComptes.map((compte, index) => (
             <motion.div
               key={compte.id}
               initial={{ opacity: 0, y: 20 }}
