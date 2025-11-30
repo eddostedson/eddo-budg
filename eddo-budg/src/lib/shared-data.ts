@@ -175,6 +175,45 @@ export const defaultBudgets: Budget[] = [
   }
 ]
 
+// ✅ Module Budget Salaire (budgets mensuels autonomes)
+export interface BudgetSalaireMois {
+  id: string
+  userId: string
+  annee: number
+  mois: number
+  libelle: string
+  revenuMensuel: number
+  montantDepenseTotal: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type TypeDepenseSalaire = 'progressive' | 'unique'
+export type StatutRubriqueSalaire = 'en_cours' | 'terminee' | 'annulee'
+
+export interface BudgetSalaireRubrique {
+  id: string
+  userId: string
+  budgetMoisId: string
+  nom: string
+  montantBudgete: number
+  montantDepense: number
+  typeDepense: TypeDepenseSalaire
+  statut: StatutRubriqueSalaire
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BudgetSalaireMouvement {
+  id: string
+  userId: string
+  rubriqueId: string
+  dateOperation: string
+  montant: number
+  description?: string
+  createdAt: string
+}
+
 // Transactions par défaut
 export const defaultTransactions: Transaction[] = [
   {

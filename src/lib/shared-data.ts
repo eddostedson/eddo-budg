@@ -193,139 +193,55 @@ export interface Allocation {
   createdAt: string
 }
 
-// Budgets par défaut
+// Budgets par défaut (module Budgets projets)
 export const defaultBudgets: Budget[] = [
   {
     id: '1',
     name: 'ACCD-PRINCIPAL',
     description: 'COMPTE PRINCIPAL',
-    amount: 2865336,
-    spent: 0,
-    remaining: 2232122,
-    period: 'Objectif',
-    color: 'bg-green-500',
-    source: 'REMISE & PRET',
-    type: 'principal',
-    created_at: '2024-01-01T00:00:00Z',
-    updated_at: '2024-01-01T00:00:00Z',
-    createdAt: new Date('2024-01-01')
-  },
-  {
-    id: '2',
-    name: 'Budget Personnel',
-    description: 'Le plus brillant de cette année !!!',
-    amount: 2500,
-    spent: 800,
-    remaining: 1700,
-    period: 'Mensuel',
-    color: 'bg-purple-500',
-    source: 'Salaire',
-    type: 'secondaire',
-    created_at: '2024-01-01T00:00:00Z',
-    updated_at: '2024-01-01T00:00:00Z',
-    createdAt: new Date('2024-01-01')
-  },
-  {
-    id: '3',
-    name: 'Budget Vacances',
-    description: 'Planification voyage Europe',
-    amount: 3000,
-    spent: 1200,
-    remaining: 1800,
-    period: 'Objectif',
-    color: 'bg-blue-600',
-    source: 'Épargne',
-    type: 'secondaire',
-    created_at: '2024-01-02T00:00:00Z',
-    updated_at: '2024-01-02T00:00:00Z',
-    createdAt: new Date('2024-01-02')
-  },
-  {
-    id: '4',
-    name: 'Budget Professionnel',
-    description: 'Gestion des revenus et investissements',
-    amount: 50000,
-    spent: 15000,
-    remaining: 35000,
-    period: 'Annuel',
-    color: 'bg-green-500',
-    source: 'Revenus professionnels',
-    type: 'principal',
-    created_at: '2024-01-03T00:00:00Z',
-    updated_at: '2024-01-03T00:00:00Z',
-    createdAt: new Date('2024-01-03')
-  },
-  {
-    id: '5',
-    name: 'Budget Familial',
-    description: 'Dépenses du foyer et enfants',
-    amount: 3500,
-    spent: 2100,
-    remaining: 1400,
-    period: 'Mensuel',
-    color: 'bg-orange-500',
-    source: 'Salaire',
-    type: 'secondaire',
-    created_at: '2024-01-04T00:00:00Z',
-    updated_at: '2024-01-04T00:00:00Z',
-    createdAt: new Date('2024-01-04')
-  },
-  {
-    id: '6',
-    name: 'Budget Épargne',
-    description: 'Objectifs d\'épargne et investissements',
-    amount: 15000,
-    spent: 5000,
-    remaining: 10000,
-    period: 'Annuel',
-    color: 'bg-indigo-500',
-    source: 'Épargne',
-    type: 'secondaire',
-    created_at: '2024-01-05T00:00:00Z',
-    updated_at: '2024-01-05T00:00:00Z',
-    createdAt: new Date('2024-01-05')
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z'
   }
 ]
 
-// Transactions par défaut
-export const defaultTransactions: Transaction[] = [
-  {
-    id: 1,
-    date: '2024-01-15',
-    description: 'Salaire Janvier',
-    category: 'Revenus',
-    amount: 3500.00,
-    type: 'income',
-    status: 'completed'
-  },
-  {
-    id: 2,
-    date: '2024-01-16',
-    description: 'Courses Carrefour',
-    category: 'Alimentation',
-    amount: -89.50,
-    type: 'expense',
-    status: 'completed',
-    budgetId: '1' // Lié au Budget Personnel
-  },
-  {
-    id: 3,
-    date: '2024-01-17',
-    description: 'Essence',
-    category: 'Transport',
-    amount: -65.00,
-    type: 'expense',
-    status: 'completed',
-    budgetId: '1' // Lié au Budget Personnel
-  },
-  {
-    id: 4,
-    date: '2024-01-18',
-    description: 'Restaurant',
-    category: 'Loisirs',
-    amount: -45.00,
-    type: 'expense',
-    status: 'completed',
-    budgetId: '2' // Lié au Budget Vacances
-  }
-]
+// ✅ Module Budget Salaire (budgets mensuels autonomes)
+export interface BudgetSalaireMois {
+  id: string
+  userId: string
+  annee: number
+  mois: number
+  libelle: string
+  revenuMensuel: number
+  montantDepenseTotal: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type TypeDepenseSalaire = 'progressive' | 'unique'
+export type StatutRubriqueSalaire = 'en_cours' | 'terminee' | 'annulee'
+
+export interface BudgetSalaireRubrique {
+  id: string
+  userId: string
+  budgetMoisId: string
+  nom: string
+  montantBudgete: number
+  montantDepense: number
+  typeDepense: TypeDepenseSalaire
+  statut: StatutRubriqueSalaire
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BudgetSalaireMouvement {
+  id: string
+  userId: string
+  rubriqueId: string
+  dateOperation: string
+  montant: number
+  description?: string
+  createdAt: string
+}
+
+// Transactions par défaut (module Budgets projets)
+export const defaultTransactions: Transaction[] = []

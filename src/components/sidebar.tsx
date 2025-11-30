@@ -50,6 +50,12 @@ const sidebarItems = [
     description: 'Discussion financière'
   },
   { 
+    href: '/budget-salaire', 
+    label: 'Budget Salaire', 
+    icon: '📅',
+    description: 'Budgets mensuels autonomes'
+  },
+  { 
     href: '/rapports', 
     label: 'Rapports', 
     icon: '📊',

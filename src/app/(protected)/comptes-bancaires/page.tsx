@@ -210,136 +210,153 @@ export default function ComptesBancairesPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* En-tête */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">🏦 Comptes Bancaires</h1>
-          <p className="text-gray-600">Gérez vos comptes bancaires et transactions</p>
-          {searchTerm.trim() && (
-            <p className="mt-2 text-xs text-gray-500">
-              <span className="font-medium">{globalSearchResults.length}</span> transaction(s)
-              correspondante(s) dans l&apos;ensemble des comptes bancaires pour{' '}
-              <span className="font-semibold">"{searchTerm}"</span>.
-            </p>
-          )}
-        </div>
-        <div className="flex gap-3">
-          {comptes.length === 0 && (
-            <Button
-              onClick={initializeDefaultComptes}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              <DatabaseIcon className="h-4 w-4 mr-2" />
-              Initialiser 3 Comptes
-            </Button>
-          )}
-          <Button
-            onClick={() => setShowCreateModal(true)}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Nouveau Compte
-          </Button>
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-100 py-8 px-4 md:px-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Bloc sticky : en-tête + recherche */}
+        <div className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur-md pb-4 mb-6 border-b border-slate-200">
+          {/* En-tête */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800 mb-1">🏦 Comptes Bancaires</h1>
+              <p className="text-gray-600">Gérez vos comptes bancaires et transactions</p>
+              {searchTerm.trim() && (
+                <p className="mt-2 text-xs text-gray-500">
+                  <span className="font-medium">{globalSearchResults.length}</span> transaction(s)
+                  correspondante(s) dans l&apos;ensemble des comptes bancaires pour{' '}
+                  <span className="font-semibold">"{searchTerm}"</span>.
+                </p>
+              )}
+            </div>
+            <div className="flex gap-3">
+              {comptes.length === 0 && (
+                <Button
+                  onClick={initializeDefaultComptes}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  <DatabaseIcon className="h-4 w-4 mr-2" />
+                  Initialiser 3 Comptes
+                </Button>
+              )}
+              <Button
+                onClick={() => router.push('/budget-salaire')}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+              >
+                Budget Salaire
+              </Button>
+              <Button
+                onClick={() => setShowCreateModal(true)}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Nouveau Compte
+              </Button>
+            </div>
+          </div>
 
-      {/* Recherche ultramoderne */}
-      <div className="mb-4">
-        <div className="relative max-w-3xl">
-          <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-            <SearchIcon className="h-4 w-4 text-gray-400" />
-          </span>
-          <Input
-            type="text"
-            placeholder="Rechercher un compte, une banque ou un montant (ex: 100000)"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 pr-3 py-2 rounded-full border border-gray-200 bg-white/80 backdrop-blur-sm shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-all"
-          />
+          {/* Recherche ultramoderne */}
+          <div className="mb-2">
+            <div className="relative max-w-3xl">
+              <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <SearchIcon className="h-4 w-4 text-gray-400" />
+              </span>
+              <Input
+                type="text"
+                placeholder="Rechercher un compte, une banque ou un montant (ex: 100000)"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 pr-3 py-2 rounded-full border border-gray-200 bg-white/80 backdrop-blur-sm shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-all"
+              />
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Résultats détaillés dans toutes les transactions (placés en haut pour plus de visibilité) */}
+      {/* Résultats détaillés dans toutes les transactions (vue ultramoderne) */}
       {searchTerm.trim() && globalSearchResults.length > 0 && (
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Résultats détaillés dans les transactions</CardTitle>
+        <Card className="mb-8 border-slate-200 shadow-none">
+          <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-semibold text-slate-900">
+                Résultats détaillés dans les transactions
+              </CardTitle>
+              <p className="mt-1 text-xs text-slate-500">
+                Recherche pour <span className="font-semibold">"{searchTerm.trim()}"</span> dans tous
+                tes comptes bancaires.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-800">
+                {globalSearchResults.length} résultat
+                {globalSearchResults.length > 1 ? 's' : ''}
+              </span>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Compte</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Libellé</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Type</th>
-                    <th className="px-4 py-3 text-right font-semibold text-gray-700">Montant</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {globalSearchResults.map(({ tx, compte }) => (
-                    <tr key={tx.id} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-gray-800">{compte?.nom}</span>
-                          {compte?.banque && (
-                            <span className="text-xs text-gray-500">{compte.banque}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-gray-800">
-                            {highlightText(tx.libelle, searchTerm)}
-                          </span>
-                          {tx.description && (
-                            <span className="text-xs text-gray-500">
-                              {highlightText(tx.description, searchTerm)}
-                            </span>
-                          )}
-                          {tx.categorie && (
-                            <span className="text-xs text-blue-600 font-medium mt-0.5">
-                              {highlightText(tx.categorie, searchTerm)}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
-                            tx.typeTransaction === 'credit'
-                              ? 'bg-green-50 text-green-700'
-                              : 'bg-red-50 text-red-700'
-                          }`}
-                        >
-                          {tx.typeTransaction === 'credit' ? 'Crédit' : 'Débit'}
-                        </span>
-                      </td>
-                      <td
-                        className={`px-4 py-3 text-right font-semibold ${
-                          tx.typeTransaction === 'credit' ? 'text-green-600' : 'text-red-600'
-                        }`}
-                      >
-                        {tx.typeTransaction === 'credit' ? '+' : '-'}
-                        {formatCurrency(tx.montant)}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {tx.dateTransaction
-                          ? new Date(tx.dateTransaction).toLocaleString('fr-FR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })
-                          : ''}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-3">
+              {globalSearchResults.map(({ tx, compte }) => (
+                <div
+                  key={tx.id}
+                  className="rounded-xl bg-white border border-slate-200 shadow-sm px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 hover:border-indigo-300 hover:shadow-md transition-all"
+                >
+                  {/* Colonne compte */}
+                  <div className="min-w-[180px]">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {compte?.nom || 'Compte inconnu'}
+                    </p>
+                    {compte?.banque && (
+                      <p className="text-xs text-slate-500">{compte.banque}</p>
+                    )}
+                  </div>
+
+                  {/* Colonne libellé / description */}
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {highlightText(tx.libelle, searchTerm)}
+                    </p>
+                    {tx.description && (
+                      <p className="text-xs text-slate-500">
+                        {highlightText(tx.description, searchTerm)}
+                      </p>
+                    )}
+                    {tx.categorie && (
+                      <p className="text-[11px] text-indigo-600 font-semibold mt-0.5">
+                        {highlightText(tx.categorie, searchTerm)}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Colonne type + montant + date */}
+                  <div className="flex flex-col items-end gap-1 text-right">
+                    <span
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold ${
+                        tx.typeTransaction === 'credit'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}
+                    >
+                      {tx.typeTransaction === 'credit' ? 'Crédit' : 'Débit'}
+                    </span>
+                    <span
+                      className={`text-sm font-semibold ${
+                        tx.typeTransaction === 'credit' ? 'text-emerald-600' : 'text-rose-600'
+                      }`}
+                    >
+                      {tx.typeTransaction === 'credit' ? '+' : '-'}
+                      {formatCurrency(tx.montant)}
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      {tx.dateTransaction
+                        ? new Date(tx.dateTransaction).toLocaleString('fr-FR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : ''}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -545,6 +562,7 @@ export default function ComptesBancairesPage() {
         compte={selectedCompte}
         type={transactionType}
       />
+      </div>
     </div>
   )
 }
