@@ -189,50 +189,81 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
         }
         
         // Si c'est un crédit sur Cité kennedy avec toutes les infos, générer automatiquement le reçu
-        if (transactionId && isCiteKennedy && formData.nom && formData.villa && formData.periode) {
-          console.log('🧾 Génération automatique du reçu pour Cité kennedy...')
-          const periodeFormatee = new Date(formData.periode).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
-          const villaLabels: Record<string, string> = {
-            'mini_villa_2_pieces_ean': 'mini Villa 2 Pièces EAN',
-            'villa_3_pieces_esp': 'Villa 3 Pièces ESP',
-            'villa_3_pieces_almyf': 'Villa 3 Pièces ALMYF',
-            'villa_4_pieces_ekb': 'Villa 4 Pièces EKB',
-            'villa_4_pieces_mad': 'Villa 4 Pièces MAD'
-          }
-          const villaLabel = villaLabels[formData.villa] || formData.villa
-          
-          try {
-            const receiptId = await createReceipt({
-              transactionId: transactionId,
-              compteId: compte.id,
-              nomLocataire: formData.nom,
-              villa: villaLabel,
-              periode: periodeFormatee,
-              montant: montant,
-              dateTransaction: new Date().toISOString(),
-              libelle: formData.libelle,
-              description: formData.description
-            })
-            
-            if (receiptId) {
-              console.log('✅ Reçu généré avec succès ! ID:', receiptId)
-              toast.success('🧾 Reçu généré automatiquement !')
-            } else {
-              console.warn('⚠️ Échec de la génération du reçu')
+        if (transactionId && isCiteKennedy) {
+          console.log('🔍 Vérification génération automatique du reçu...', {
+            transactionId: !!transactionId,
+            isCiteKennedy,
+            nom: !!formData.nom,
+            villa: !!formData.villa,
+            periode: !!formData.periode,
+            nomValue: formData.nom,
+            villaValue: formData.villa,
+            periodeValue: formData.periode
+          })
+
+          if (formData.nom && formData.villa && formData.periode) {
+            console.log('🧾 Génération automatique du reçu pour Cité kennedy...')
+            const periodeFormatee = new Date(formData.periode).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+            const villaLabels: Record<string, string> = {
+              'mini_villa_2_pieces_ean': 'mini Villa 2 Pièces EAN',
+              'villa_3_pieces_esp': 'Villa 3 Pièces ESP',
+              'villa_3_pieces_almyf': 'Villa 3 Pièces ALMYF',
+              'villa_4_pieces_ekb': 'Villa 4 Pièces EKB',
+              'villa_4_pieces_mad': 'Villa 4 Pièces MAD'
             }
-          } catch (error) {
-            console.error('❌ Erreur lors de la génération du reçu:', error)
-            toast.error('Erreur lors de la génération du reçu')
-          }
-        } else {
-          // Log pour déboguer pourquoi le reçu n'est pas généré
-          if (transactionId && isCiteKennedy) {
-            console.log('⚠️ Reçu non généré - Champs manquants:', {
+            const villaLabel = villaLabels[formData.villa] || formData.villa
+            
+            try {
+              console.log('📝 Données du reçu à créer:', {
+                transactionId,
+                compteId: compte.id,
+                nomLocataire: formData.nom,
+                villa: villaLabel,
+                periode: periodeFormatee,
+                montant,
+                dateTransaction: new Date(formData.dateOperation).toISOString(),
+                libelle: formData.libelle
+              })
+
+              const receiptId = await createReceipt({
+                transactionId: transactionId,
+                compteId: compte.id,
+                nomLocataire: formData.nom,
+                villa: villaLabel,
+                periode: periodeFormatee,
+                montant: montant,
+                dateTransaction: new Date(formData.dateOperation).toISOString(),
+                libelle: formData.libelle,
+                description: formData.description
+              })
+              
+              if (receiptId) {
+                console.log('✅ Reçu généré avec succès ! ID:', receiptId)
+                toast.success('🧾 Reçu généré automatiquement !')
+              } else {
+                console.warn('⚠️ Échec de la génération du reçu - receiptId est null')
+                toast.warning('⚠️ Le reçu n\'a pas pu être généré automatiquement. Vous pouvez le créer manuellement.')
+              }
+            } catch (error) {
+              console.error('❌ Erreur lors de la génération du reçu:', error)
+              toast.error('Erreur lors de la génération automatique du reçu. Vous pouvez le créer manuellement.')
+            }
+          } else {
+            // Log détaillé pour déboguer pourquoi le reçu n'est pas généré
+            console.warn('⚠️ Reçu non généré automatiquement - Champs manquants:', {
               nom: !!formData.nom,
               villa: !!formData.villa,
-              periode: !!formData.periode
+              periode: !!formData.periode,
+              nomValue: formData.nom || 'VIDE',
+              villaValue: formData.villa || 'VIDE',
+              periodeValue: formData.periode || 'VIDE'
             })
+            toast.warning('⚠️ Reçu non généré automatiquement. Veuillez remplir tous les champs (Nom, Villa, Période) pour la génération automatique.')
           }
+        } else if (transactionId && !isCiteKennedy) {
+          console.log('ℹ️ Reçu non généré - Ce n\'est pas un compte Cité Kennedy')
+        } else if (!transactionId) {
+          console.warn('⚠️ Reçu non généré - transactionId est null')
         }
 
         // Crédit miroir virtuel sur Compte Cité Kennedy (optionnel, uniquement si compte Wave)
@@ -369,8 +400,8 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             {type === 'credit' ? (
               <>
@@ -393,7 +424,8 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6">
+          <form id="transaction-form" onSubmit={handleSubmit} className="space-y-4 pb-4">
           <div className="space-y-2">
             <Label htmlFor="montant">
               Montant (F CFA) <span className="text-red-500">*</span>
@@ -698,31 +730,34 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             </div>
           )}
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              Annuler
-            </Button>
-            <Button 
-              type="submit" 
-              disabled={loading}
-              className={type === 'credit' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
-            >
-              {loading ? (
-                <>
-                  <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
-                  Traitement...
-                </>
-              ) : (
-                type === 'credit' ? '✅ Créditer' : '✅ Débiter'
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
+          </form>
+        </div>
+        
+        <DialogFooter className="px-6 pb-6 pt-4 border-t bg-white flex-shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
+            Annuler
+          </Button>
+          <Button 
+            type="submit" 
+            form="transaction-form"
+            disabled={loading}
+            className={type === 'credit' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+          >
+            {loading ? (
+              <>
+                <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
+                Traitement...
+              </>
+            ) : (
+              type === 'credit' ? '✅ Créditer' : '✅ Débiter'
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

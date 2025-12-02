@@ -17,15 +17,15 @@ export function createClient() {
 
   return createBrowserClient(url, anonKey, {
       auth: {
-        // Configuration optimisée pour la performance
+        // Configuration optimisée pour la stabilité
         persistSession: true,
-        autoRefreshToken: false, // Désactivé pour la performance
-        detectSessionInUrl: false, // Désactivé pour la performance
-        flowType: 'implicit' // Plus rapide que pkce
+        autoRefreshToken: true, // Réactivé pour éviter les erreurs de session
+        detectSessionInUrl: true, // Réactivé pour la gestion des redirections
+        flowType: 'pkce' // Plus sécurisé et stable
       },
       global: {
         headers: {
-          'X-Client-Info': 'eddo-budg-app-fast'
+          'X-Client-Info': 'eddo-budg-app'
         }
       },
       db: {

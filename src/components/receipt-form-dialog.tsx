@@ -21,17 +21,24 @@ interface ReceiptFormDialogProps {
 }
 
 export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: ReceiptFormDialogProps) {
-  const { receipts, createReceipt, updateReceipt } = useReceipts()
-  const { comptes } = useComptesBancaires()
+  const { receipts, createReceipt, updateReceipt, refreshReceipts } = useReceipts()
+  const { comptes, transactions, refreshTransactions } = useComptesBancaires()
   const { tenantOptions, addTenantIfNotExists } = useTenants()
   const [loading, setLoading] = useState(false)
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string>('')
+  
+  // Trouver le compte Cité Kennedy
+  const compteKennedy = comptes.find(
+    c => c.nom?.toLowerCase().includes('cité kennedy') || c.nom?.toLowerCase().includes('cite kennedy')
+  )
+  
   const [formData, setFormData] = useState({
     nomLocataire: '',
     villa: '',
     periode: '',
     montant: '',
     dateTransaction: new Date().toISOString().split('T')[0],
-    compteId: comptes.length > 0 ? comptes[0].id : 'none',
+    compteId: compteKennedy?.id || (comptes.length > 0 ? comptes[0].id : 'none'),
     libelle: '',
     description: ''
   })
@@ -48,19 +55,34 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
         libelle: receiptToEdit.libelle || '',
         description: receiptToEdit.description || ''
       })
-    } else if (!receiptToEdit && open) {
+      setSelectedTransactionId('')
+    } else if (!receiptToEdit && open && !selectedTransactionId) {
+      // Réinitialiser avec Compte Cité Kennedy par défaut SEULEMENT si aucun crédit n'est sélectionné
       setFormData({
         nomLocataire: '',
         villa: '',
         periode: '',
         montant: '',
         dateTransaction: new Date().toISOString().split('T')[0],
-        compteId: comptes.length > 0 ? comptes[0].id : 'none',
+        compteId: compteKennedy?.id || (comptes.length > 0 ? comptes[0].id : 'none'),
         libelle: '',
         description: ''
       })
+      // Charger les transactions du compte Kennedy si disponible
+      if (compteKennedy) {
+        refreshTransactions(compteKennedy.id)
+      }
     }
-  }, [receiptToEdit, open, comptes])
+  }, [receiptToEdit, open])
+  
+  // Charger les transactions et reçus quand le compte Kennedy est disponible (séparément pour éviter les réinitialisations)
+  useEffect(() => {
+    if (open && !receiptToEdit && compteKennedy) {
+      console.log('🔄 Rechargement des transactions et reçus pour le formulaire')
+      refreshTransactions(compteKennedy.id)
+      refreshReceipts()
+    }
+  }, [compteKennedy?.id, open, receiptToEdit, refreshTransactions, refreshReceipts])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -104,7 +126,7 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
         addTenantIfNotExists(formData.nomLocataire)
 
         const receiptId = await createReceipt({
-          transactionId: undefined,
+          transactionId: selectedTransactionId && selectedTransactionId !== 'none' ? selectedTransactionId : undefined,
           compteId: formData.compteId,
           nomLocataire: formData.nomLocataire,
           villa: formData.villa,
@@ -116,6 +138,12 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
         })
 
         if (receiptId) {
+          // Recharger les reçus et transactions pour mettre à jour la liste
+          console.log('✅ Reçu créé, rechargement des données...')
+          await refreshReceipts()
+          if (compteKennedy) {
+            await refreshTransactions(compteKennedy.id)
+          }
           onOpenChange(false)
         }
       }
@@ -127,10 +155,17 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
     }
   }
 
+  // Réinitialiser quand le modal se ferme
+  useEffect(() => {
+    if (!open) {
+      setSelectedTransactionId('')
+    }
+  }, [open])
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0">
           <DialogTitle>
             {receiptToEdit ? '✏️ Modifier le Reçu' : '📄 Nouveau Reçu'}
           </DialogTitle>
@@ -139,7 +174,148 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6">
+          <form onSubmit={handleSubmit} className="space-y-4" id="receipt-form">
+          {/* Sélection d'une transaction de crédit existante */}
+          {!receiptToEdit && compteKennedy && (
+            <div className="space-y-2 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <Label htmlFor="transactionSelect">
+                📋 Référencer un crédit existant (optionnel)
+              </Label>
+              <Select
+                value={selectedTransactionId || 'none'}
+                onValueChange={(value) => {
+                  console.log('🔍 Sélection de transaction:', value)
+                  setSelectedTransactionId(value)
+                  
+                  if (value && value !== 'none') {
+                    const transaction = transactions.find(t => t.id === value)
+                    console.log('📋 Transaction trouvée:', transaction)
+                    
+                    if (transaction && transaction.typeTransaction === 'credit') {
+                      // Extraire les informations de la catégorie (format: "Nom - Villa - Période")
+                      let nom = ''
+                      let villa = ''
+                      let periode = ''
+                      
+                      if (transaction.categorie) {
+                        const categorieParts = transaction.categorie.split(' - ')
+                        console.log('📝 Parties de la catégorie:', categorieParts)
+                        
+                        if (categorieParts.length >= 3) {
+                          nom = categorieParts[0].trim()
+                          villa = categorieParts[1].trim()
+                          periode = categorieParts[2].trim()
+                        } else if (categorieParts.length === 2) {
+                          // Format alternatif possible
+                          nom = categorieParts[0].trim()
+                          villa = categorieParts[1].trim()
+                          periode = new Date(transaction.dateTransaction).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+                        }
+                      }
+                      
+                      // Si pas de catégorie ou format non standard, utiliser les valeurs par défaut
+                      if (!nom && !villa && !periode) {
+                        // Essayer d'extraire du libellé ou description
+                        nom = transaction.libelle || ''
+                        periode = new Date(transaction.dateTransaction).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+                      }
+                      
+                      // Convertir la période en date pour l'input de période
+                      let periodeDateInput = new Date().toISOString().split('T')[0]
+                      if (periode) {
+                        try {
+                          const [mois, annee] = periode.split(' ')
+                          const moisMap: Record<string, string> = {
+                            'janvier': '01', 'février': '02', 'mars': '03', 'avril': '04',
+                            'mai': '05', 'juin': '06', 'juillet': '07', 'août': '08',
+                            'septembre': '09', 'octobre': '10', 'novembre': '11', 'décembre': '12'
+                          }
+                          if (mois && moisMap[mois.toLowerCase()] && annee) {
+                            periodeDateInput = `${annee}-${moisMap[mois.toLowerCase()]}-01`
+                          }
+                        } catch (e) {
+                          console.warn('⚠️ Impossible de parser la période:', periode)
+                        }
+                      }
+                      
+                      const newFormData = {
+                        nomLocataire: nom || '',
+                        villa: villa || '',
+                        periode: periode || new Date(transaction.dateTransaction).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+                        montant: transaction.montant.toString(),
+                        dateTransaction: new Date(transaction.dateTransaction).toISOString().split('T')[0],
+                        compteId: transaction.compteId,
+                        libelle: transaction.libelle || 'Loyer',
+                        description: transaction.description || ''
+                      }
+                      
+                      console.log('✅ Données à remplir:', newFormData)
+                      setFormData(newFormData)
+                      toast.success('✅ Informations du crédit chargées automatiquement !')
+                    } else {
+                      console.warn('⚠️ Transaction non trouvée ou pas un crédit')
+                      toast.warning('⚠️ Transaction non valide')
+                    }
+                  } else {
+                    // Réinitialiser si "Aucun" est sélectionné
+                    setFormData({
+                      nomLocataire: '',
+                      villa: '',
+                      periode: '',
+                      montant: '',
+                      dateTransaction: new Date().toISOString().split('T')[0],
+                      compteId: compteKennedy?.id || '',
+                      libelle: '',
+                      description: ''
+                    })
+                  }
+                }}
+                disabled={loading}
+              >
+                <SelectTrigger id="transactionSelect">
+                  <SelectValue placeholder="Sélectionner un crédit existant" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(() => {
+                    const availableCredits = transactions
+                      .filter(t => 
+                        t.compteId === compteKennedy?.id && 
+                        t.typeTransaction === 'credit' &&
+                        !receipts.some(r => r.transactionId === t.id) // Exclure les transactions déjà liées à un reçu
+                      )
+                      .sort((a, b) => new Date(b.dateTransaction).getTime() - new Date(a.dateTransaction).getTime())
+                    
+                    console.log('📋 Crédits disponibles pour reçu:', {
+                      totalTransactions: transactions.filter(t => t.compteId === compteKennedy?.id && t.typeTransaction === 'credit').length,
+                      totalReceipts: receipts.length,
+                      availableCredits: availableCredits.length,
+                      receiptsWithTransactionId: receipts.filter(r => r.transactionId).length
+                    })
+                    
+                    return (
+                      <>
+                        <SelectItem value="none">Aucun (créer manuellement)</SelectItem>
+                        {availableCredits.map((transaction) => (
+                          <SelectItem key={transaction.id} value={transaction.id}>
+                            {transaction.libelle || 'Crédit'} - {transaction.montant.toLocaleString()} FCFA - {new Date(transaction.dateTransaction).toLocaleDateString('fr-FR')}
+                            {transaction.categorie && ` (${transaction.categorie})`}
+                          </SelectItem>
+                        ))}
+                        {availableCredits.length === 0 && (
+                          <SelectItem value="no-credits" disabled>Aucun crédit disponible</SelectItem>
+                        )}
+                      </>
+                    )
+                  })()}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">
+                Sélectionnez un crédit pour remplir automatiquement les informations du reçu.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="nomLocataire">
               Nom du Locataire <span className="text-red-500">*</span>
@@ -295,7 +471,13 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
             </Label>
             <Select
               value={formData.compteId}
-              onValueChange={(value) => setFormData({ ...formData, compteId: value })}
+              onValueChange={(value) => {
+                setFormData({ ...formData, compteId: value })
+                // Recharger les transactions du compte sélectionné
+                if (value && value !== 'none') {
+                  refreshTransactions(value)
+                }
+              }}
               disabled={loading || comptes.length === 0}
             >
               <SelectTrigger>
@@ -308,11 +490,17 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
                   comptes.map((compte) => (
                     <SelectItem key={compte.id} value={compte.id}>
                       {compte.nom}
+                      {compte.nom?.toLowerCase().includes('cité kennedy') || compte.nom?.toLowerCase().includes('cite kennedy') ? ' (Recommandé)' : ''}
                     </SelectItem>
                   ))
                 )}
               </SelectContent>
             </Select>
+            {compteKennedy && formData.compteId !== compteKennedy.id && (
+              <p className="text-xs text-amber-600">
+                💡 Pour générer un reçu de loyer, sélectionnez "Compte Cité Kennedy"
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -337,28 +525,40 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
               disabled={loading}
             />
           </div>
+          </form>
+        </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              Annuler
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
-                  {receiptToEdit ? 'Modification...' : 'Création...'}
-                </>
-              ) : (
-                receiptToEdit ? '✅ Modifier le reçu' : '✅ Créer le reçu'
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
+        <DialogFooter className="px-6 pb-6 pt-4 flex-shrink-0 border-t border-gray-100 bg-white">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
+            Annuler
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={loading}
+            form="receipt-form"
+            onClick={(e) => {
+              e.preventDefault()
+              const form = document.getElementById('receipt-form') as HTMLFormElement
+              if (form) {
+                form.requestSubmit()
+              }
+            }}
+          >
+            {loading ? (
+              <>
+                <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
+                {receiptToEdit ? 'Modification...' : 'Création...'}
+              </>
+            ) : (
+              receiptToEdit ? '✅ Modifier le reçu' : '✅ Créer le reçu'
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

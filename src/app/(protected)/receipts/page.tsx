@@ -9,7 +9,7 @@ import { ReceiptBulkFormDialog } from '@/components/receipt-bulk-form-dialog'
 import { ReceiptSodeciDialog } from '@/components/receipt-sodeci-dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { ReceiptIcon, PlusIcon, EyeIcon, PencilIcon, TrashIcon, Loader2Icon } from 'lucide-react'
+import { ReceiptIcon, PlusIcon, EyeIcon, PencilIcon, TrashIcon, Loader2Icon, SearchIcon, XIcon } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 
@@ -21,6 +21,7 @@ export default function ReceiptsPage() {
   const [receiptToEdit, setReceiptToEdit] = useState<Receipt | null>(null)
   const [showBulkForm, setShowBulkForm] = useState(false)
   const [showSodeciForm, setShowSodeciForm] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
@@ -53,6 +54,23 @@ export default function ReceiptsPage() {
       await deleteReceipt(receipt.id)
     }
   }
+
+  // Trier les reçus du plus récent au plus ancien
+  const sortedReceipts = [...receipts].sort((a, b) => {
+    const dateA = new Date(a.dateTransaction).getTime()
+    const dateB = new Date(b.dateTransaction).getTime()
+    return dateB - dateA // Décroissant : plus récent en premier
+  })
+
+  // Filtrer les reçus par nom de locataire
+  const filteredReceipts = sortedReceipts.filter(receipt => {
+    if (!searchQuery.trim()) return true
+    const query = searchQuery.toLowerCase().trim()
+    return receipt.nomLocataire.toLowerCase().includes(query) ||
+           receipt.villa.toLowerCase().includes(query) ||
+           receipt.periode.toLowerCase().includes(query) ||
+           (receipt.libelle && receipt.libelle.toLowerCase().includes(query))
+  })
 
   if (loading) {
     return (
@@ -123,8 +141,72 @@ export default function ReceiptsPage() {
           </Card>
         </div>
 
+        {/* Champ de recherche ultra moderne */}
+        <div className="mb-8 relative">
+          <div className="relative group">
+            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <div className="relative bg-white rounded-2xl border-2 border-slate-200 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <div className="flex items-center px-4 py-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md mr-3">
+                  <SearchIcon className="h-5 w-5" />
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Rechercher par locataire, villa, période ou libellé..."
+                  className="flex-1 bg-transparent border-0 outline-none text-slate-700 placeholder:text-slate-400 text-sm md:text-base font-medium"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="ml-3 p-2 rounded-lg hover:bg-slate-100 transition-colors duration-200 group/clear"
+                  >
+                    <XIcon className="h-4 w-4 text-slate-400 group-hover/clear:text-slate-600 transition-colors" />
+                  </button>
+                )}
+              </div>
+              {searchQuery && (
+                <div className="px-4 pb-3 pt-0">
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <div className="flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
+                      <span className="font-medium">{filteredReceipts.length}</span>
+                      <span>{filteredReceipts.length === 1 ? 'reçu trouvé' : 'reçus trouvés'}</span>
+                    </div>
+                    {filteredReceipts.length !== sortedReceipts.length && (
+                      <>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-slate-400">
+                          sur {sortedReceipts.length} total
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Liste des reçus */}
-        {receipts.length === 0 ? (
+        {filteredReceipts.length === 0 && searchQuery ? (
+          <Card className="p-12 text-center rounded-xl border border-slate-200 bg-slate-50">
+            <SearchIcon className="h-16 w-16 mx-auto text-slate-400 mb-4" />
+            <h3 className="text-xl font-semibold text-slate-700 mb-2">Aucun résultat</h3>
+            <p className="text-slate-500 mb-4">
+              Aucun reçu ne correspond à votre recherche "{searchQuery}".
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => setSearchQuery('')}
+              className="rounded-xl border-slate-300 bg-white hover:bg-slate-100 text-slate-800"
+            >
+              <XIcon className="h-4 w-4 mr-2" />
+              Effacer la recherche
+            </Button>
+          </Card>
+        ) : receipts.length === 0 ? (
           <Card className="p-12 text-center rounded-xl border border-slate-200 bg-slate-50">
             <ReceiptIcon className="h-16 w-16 mx-auto text-slate-400 mb-4" />
             <h3 className="text-xl font-semibold text-slate-700 mb-2">Aucun reçu</h3>
@@ -156,7 +238,7 @@ export default function ReceiptsPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {receipts.map((receipt, index) => (
+            {filteredReceipts.map((receipt, index) => (
               <motion.div
                 key={receipt.id}
                 initial={{ opacity: 0, y: 20 }}

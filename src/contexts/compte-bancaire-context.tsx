@@ -23,6 +23,7 @@ interface CompteBancaireContextType {
   initializeDefaultComptes: () => Promise<boolean>
   deleteTransaction: (transactionId: string) => Promise<boolean>
   updateTransaction: (transactionId: string, updates: Partial<TransactionBancaire>) => Promise<boolean>
+  transfererEntreComptes: (compteSourceId: string, compteDestinationId: string, montant: number, description?: string, dateTransaction?: string) => Promise<{ success: boolean; creditTransactionId?: string }>
 }
 
 const CompteBancaireContext = createContext<CompteBancaireContextType | undefined>(undefined)
@@ -88,11 +89,23 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
   // 🔄 RECHARGER LES TRANSACTIONS
   const refreshTransactions = async (compteId?: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      // Vérifier l'authentification avec plus de détails
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError) {
+        console.error('❌ Erreur d\'authentification:', authError)
+        toast.error('Erreur d\'authentification. Veuillez vous reconnecter.')
         setTransactions([])
         return
       }
+      
+      if (!user) {
+        console.warn('⚠️ Aucun utilisateur authentifié')
+        setTransactions([])
+        return
+      }
+
+      console.log('🔄 Chargement des transactions pour l\'utilisateur:', user.id, compteId ? `(compte: ${compteId})` : '(tous les comptes)')
 
       let query = supabase
         .from('transactions_bancaires')
@@ -105,18 +118,37 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       }
 
       const { data, error } = await query
+      
+      console.log('📊 Résultat de la requête:', { 
+        dataCount: data?.length || 0, 
+        hasError: !!error,
+        error: error 
+      })
 
       if (error) {
-        console.error('❌ Erreur lors du chargement des transactions:', {
-          message: (error as any).message,
-          code: (error as any).code,
-          details: (error as any).details,
-          hint: (error as any).hint
-        })
-        // On conserve l'ancien état plutôt que de tout vider pour éviter un écran vide
+        // Améliorer le logging pour capturer tous les types d'erreurs
+        const errorDetails = {
+          message: error.message || String(error),
+          code: error.code || 'UNKNOWN',
+          details: error.details || null,
+          hint: error.hint || null,
+          fullError: error,
+          errorType: typeof error,
+          errorString: JSON.stringify(error, Object.getOwnPropertyNames(error))
+        }
+        
+        console.error('❌ Erreur lors du chargement des transactions:', errorDetails)
+        console.error('❌ Erreur brute:', error)
+        console.error('❌ Type d\'erreur:', typeof error)
+        console.error('❌ Erreur stringifiée:', JSON.stringify(error, null, 2))
+        
+        // Afficher un message d'erreur plus informatif
+        const errorMessage = error.message || error.code || 'Erreur inconnue lors du chargement'
         toast.error(
-          `Erreur lors du chargement des transactions: ${(error as any).message || 'voir la console pour le détail'}`
+          `Erreur lors du chargement des transactions: ${errorMessage}`
         )
+        
+        // Ne pas vider les transactions existantes pour éviter un écran vide
         return
       }
 
@@ -139,8 +171,21 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       setTransactions(mappedTransactions)
     } catch (error) {
-      console.error('❌ Erreur inattendue:', error)
-      setTransactions([])
+      // Gérer les erreurs inattendues (exceptions JavaScript)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorStack = error instanceof Error ? error.stack : undefined
+      
+      console.error('❌ Erreur inattendue lors du chargement des transactions:', {
+        message: errorMessage,
+        stack: errorStack,
+        error: error,
+        errorType: typeof error,
+        errorString: JSON.stringify(error, Object.getOwnPropertyNames(error))
+      })
+      
+      toast.error(`Erreur inattendue: ${errorMessage}`)
+      // Ne pas vider les transactions pour éviter un écran vide
+      // setTransactions([]) - commenté pour préserver l'état existant
     }
   }
 
@@ -430,6 +475,115 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
   // 💵 CALCULER LE TOTAL DES SOLDES
   const getTotalSoldes = (): number => {
     return comptes.reduce((total, compte) => total + compte.soldeActuel, 0)
+  }
+
+  // 🔄 TRANSFÉRER ENTRE COMPTES (Sans générer de reçu)
+  const transfererEntreComptes = async (
+    compteSourceId: string,
+    compteDestinationId: string,
+    montant: number,
+    description?: string,
+    dateTransaction?: string
+  ): Promise<{ success: boolean; creditTransactionId?: string }> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error('Erreur d\'authentification')
+        return false
+      }
+
+      if (montant <= 0) {
+        toast.error('Le montant doit être supérieur à 0')
+        return { success: false }
+      }
+
+      if (compteSourceId === compteDestinationId) {
+        toast.error('Vous ne pouvez pas transférer vers le même compte')
+        return { success: false }
+      }
+
+      // Récupérer les comptes
+      const compteSource = comptes.find(c => c.id === compteSourceId)
+      const compteDestination = comptes.find(c => c.id === compteDestinationId)
+
+      if (!compteSource || !compteDestination) {
+        toast.error('Compte source ou destination introuvable')
+        return { success: false }
+      }
+
+      const soldeSource = compteSource.soldeActuel
+      if (soldeSource < montant) {
+        toast.error(`Solde insuffisant. Solde disponible: ${soldeSource.toLocaleString()} F CFA`)
+        return { success: false }
+      }
+
+      const dateOp = dateTransaction || new Date().toISOString()
+      const libelleTransfert = `Transfert vers ${compteDestination.nom}`
+      const libelleReception = `Transfert depuis ${compteSource.nom}`
+
+      // 1. Débiter le compte source
+      const soldeSourceAvant = soldeSource
+      const soldeSourceApres = soldeSourceAvant - montant
+
+      const { error: debitError } = await supabase
+        .from('transactions_bancaires')
+        .insert({
+          user_id: user.id,
+          compte_id: compteSourceId,
+          type_transaction: 'debit',
+          montant: montant,
+          solde_avant: soldeSourceAvant,
+          solde_apres: soldeSourceApres,
+          libelle: libelleTransfert,
+          description: description || `Transfert vers ${compteDestination.nom}`,
+          categorie: 'Transfert',
+          date_transaction: dateOp
+        })
+
+      if (debitError) {
+        console.error('❌ Erreur lors du débit:', debitError)
+        toast.error('Erreur lors du débit du compte source')
+        return { success: false }
+      }
+
+      // 2. Créditer le compte destination
+      const soldeDestAvant = compteDestination.soldeActuel
+      const soldeDestApres = soldeDestAvant + montant
+
+      const { data: creditData, error: creditError } = await supabase
+        .from('transactions_bancaires')
+        .insert({
+          user_id: user.id,
+          compte_id: compteDestinationId,
+          type_transaction: 'credit',
+          montant: montant,
+          solde_avant: soldeDestAvant,
+          solde_apres: soldeDestApres,
+          libelle: libelleReception,
+          description: description || `Transfert depuis ${compteSource.nom}`,
+          categorie: 'Transfert',
+          date_transaction: dateOp
+        })
+        .select()
+        .single()
+
+      if (creditError) {
+        console.error('❌ Erreur lors du crédit:', creditError)
+        toast.error('Erreur lors du crédit du compte destination')
+        // Essayer de compenser le débit (rollback)
+        return { success: false }
+      }
+
+      // 3. Rafraîchir les comptes
+      await refreshComptes()
+
+      toast.success(`✅ Transfert de ${montant.toLocaleString()} F CFA effectué avec succès !`)
+      return { success: true, creditTransactionId: creditData?.id }
+    } catch (error) {
+      console.error('❌ Erreur inattendue lors du transfert:', error)
+      toast.error('Erreur inattendue lors du transfert')
+      return { success: false }
+    }
   }
 
   // 🔁 Recalculer le solde d'un compte + les soldes avant/après de CHAQUE transaction
@@ -739,7 +893,8 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     getTotalSoldes,
     initializeDefaultComptes,
     deleteTransaction,
-    updateTransaction
+    updateTransaction,
+    transfererEntreComptes
   }
 
   return (

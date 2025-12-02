@@ -23,6 +23,7 @@ import {
 import { toast } from 'sonner'
 import { CompteFormDialog } from '@/components/compte-form-dialog'
 import { TransactionFormDialog } from '@/components/transaction-form-dialog'
+import { TransfertCompteModal } from '@/components/transfert-compte-modal'
 
 export default function ComptesBancairesPage() {
   const router = useRouter()
@@ -39,6 +40,7 @@ export default function ComptesBancairesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showTransactionModal, setShowTransactionModal] = useState(false)
+  const [showTransfertModal, setShowTransfertModal] = useState(false)
   const [selectedCompte, setSelectedCompte] = useState<CompteBancaire | null>(null)
   const [compteToEdit, setCompteToEdit] = useState<CompteBancaire | null>(null)
   const [transactionType, setTransactionType] = useState<'credit' | 'debit'>('credit')
@@ -93,6 +95,11 @@ export default function ComptesBancairesPage() {
     setSelectedCompte(compte)
     setTransactionType('debit')
     setShowTransactionModal(true)
+  }
+
+  const handleTransferer = (compte: CompteBancaire) => {
+    setSelectedCompte(compte)
+    setShowTransfertModal(true)
   }
 
   const getTypeCompteColor = (type: string) => {
@@ -623,7 +630,7 @@ export default function ComptesBancairesPage() {
                     </div>
 
                     {/* Actions rapides */}
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <Button
                         onClick={() => handleCrediter(compte)}
                         className="bg-green-600 hover:bg-green-700 text-white text-sm"
@@ -640,6 +647,15 @@ export default function ComptesBancairesPage() {
                       >
                         <TrendingDownIcon className="h-3 w-3 mr-1" />
                         Débiter
+                      </Button>
+                      <Button
+                        onClick={() => handleTransferer(compte)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-sm"
+                        size="sm"
+                        disabled={compte.soldeActuel === 0 || comptes.length < 2}
+                      >
+                        <ArrowUpDownIcon className="h-3 w-3 mr-1" />
+                        Transférer
                       </Button>
                     </div>
 
@@ -705,6 +721,12 @@ export default function ComptesBancairesPage() {
         onOpenChange={setShowTransactionModal}
         compte={selectedCompte}
         type={transactionType}
+      />
+
+      <TransfertCompteModal
+        open={showTransfertModal}
+        onOpenChange={setShowTransfertModal}
+        compteSource={selectedCompte}
       />
       </div>
     </div>

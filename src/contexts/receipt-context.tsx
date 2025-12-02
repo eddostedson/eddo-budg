@@ -41,12 +41,25 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
 
   const refreshReceipts = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      // Vérifier l'authentification avec plus de détails
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError) {
+        console.error('❌ Erreur d\'authentification:', authError)
+        toast.error('Erreur d\'authentification. Veuillez vous reconnecter.')
         setReceipts([])
         setLoading(false)
         return
       }
+      
+      if (!user) {
+        console.warn('⚠️ Aucun utilisateur authentifié')
+        setReceipts([])
+        setLoading(false)
+        return
+      }
+
+      console.log('🔄 Chargement des reçus pour l\'utilisateur:', user.id)
 
       const { data, error } = await supabase
         .from('receipts')
@@ -55,11 +68,33 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         .order('date_transaction', { ascending: false })
 
       if (error) {
-        console.error('❌ Erreur lors de la récupération des reçus:', error)
-        toast.error('Erreur lors de la récupération des reçus')
+        // Améliorer le logging pour capturer tous les types d'erreurs
+        const errorDetails = {
+          message: error.message || String(error),
+          code: error.code || 'UNKNOWN',
+          details: error.details || null,
+          hint: error.hint || null,
+          fullError: error,
+          errorType: typeof error,
+          errorString: JSON.stringify(error, Object.getOwnPropertyNames(error))
+        }
+        
+        console.error('❌ Erreur lors de la récupération des reçus:', errorDetails)
+        console.error('❌ Erreur brute:', error)
+        console.error('❌ Type d\'erreur:', typeof error)
+        console.error('❌ Erreur stringifiée:', JSON.stringify(error, null, 2))
+        
+        // Afficher un message d'erreur plus informatif
+        const errorMessage = error.message || error.code || 'Erreur inconnue lors du chargement'
+        toast.error(`Erreur lors de la récupération des reçus: ${errorMessage}`)
         setReceipts([])
         return
       }
+      
+      console.log('📊 Résultat de la requête reçus:', { 
+        dataCount: data?.length || 0, 
+        hasError: !!error
+      })
       const mappedReceipts: Receipt[] = (data || []).map((receipt) => {
         let signature: string | undefined
         if (receipt.qr_code_data) {
@@ -111,6 +146,38 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         return null
       }
 
+      // Validation des champs requis
+      if (!receipt.compteId) {
+        console.error('❌ compteId manquant')
+        toast.error('Erreur: compteId manquant')
+        return null
+      }
+      if (!receipt.nomLocataire || receipt.nomLocataire.trim() === '') {
+        console.error('❌ nomLocataire manquant')
+        toast.error('Erreur: nom du locataire manquant')
+        return null
+      }
+      if (!receipt.villa || receipt.villa.trim() === '') {
+        console.error('❌ villa manquante')
+        toast.error('Erreur: villa manquante')
+        return null
+      }
+      if (!receipt.periode || receipt.periode.trim() === '') {
+        console.error('❌ periode manquante')
+        toast.error('Erreur: période manquante')
+        return null
+      }
+      if (!receipt.montant || receipt.montant <= 0) {
+        console.error('❌ montant invalide:', receipt.montant)
+        toast.error('Erreur: montant invalide')
+        return null
+      }
+      if (!receipt.dateTransaction) {
+        console.error('❌ dateTransaction manquante')
+        toast.error('Erreur: date de transaction manquante')
+        return null
+      }
+
       // Générer les données pour le QR code + signature numérique
       const qrPayload = {
         nom: receipt.nomLocataire,
@@ -127,9 +194,45 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         signature
       })
 
+      // Préparer les données d'insertion (uniquement les colonnes qui existent dans la table)
+      const insertData: Record<string, any> = {
+        user_id: user.id,
+        transaction_id: receipt.transactionId || null,
+        compte_id: receipt.compteId,
+        nom_locataire: receipt.nomLocataire,
+        villa: receipt.villa,
+        periode: receipt.periode,
+        montant: receipt.montant,
+        date_transaction: receipt.dateTransaction,
+        libelle: receipt.libelle || null,
+        description: receipt.description || null,
+        qr_code_data: qrCodeData
+      }
+
+      // Ajouter receipt_url et receipt_file_name seulement s'ils existent dans la table
+      // (Ces colonnes peuvent ne pas exister dans toutes les versions de la table)
+      if (receipt.receiptUrl) {
+        insertData.receipt_url = receipt.receiptUrl
+      }
+      if (receipt.receiptFileName) {
+        insertData.receipt_file_name = receipt.receiptFileName
+      }
+
       const { data, error } = await supabase
         .from('receipts')
-        .insert({
+        .insert(insertData)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('❌ Erreur lors de la création du reçu:', error)
+        console.error('❌ Détails de l\'erreur:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        console.error('❌ Données envoyées:', {
           user_id: user.id,
           transaction_id: receipt.transactionId || null,
           compte_id: receipt.compteId,
@@ -139,17 +242,9 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
           montant: receipt.montant,
           date_transaction: receipt.dateTransaction,
           libelle: receipt.libelle || null,
-          description: receipt.description || null,
-          qr_code_data: qrCodeData,
-          receipt_url: receipt.receiptUrl || null,
-          receipt_file_name: receipt.receiptFileName || null
+          description: receipt.description || null
         })
-        .select()
-        .single()
-
-      if (error) {
-        console.error('❌ Erreur lors de la création du reçu:', error)
-        toast.error('Erreur lors de la création du reçu')
+        toast.error(`Erreur lors de la création du reçu: ${error.message || 'Erreur inconnue'}`)
         return null
       }
 
