@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
-import { BudgetSalaireMois, BudgetSalaireRubrique } from '@/lib/shared-data'
+import { BudgetSalaireMois, BudgetSalaireRubrique, BudgetSalaireMouvement } from '@/lib/shared-data'
 import { BudgetSalaireService } from '@/lib/supabase/budget-salaire-service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -58,6 +58,15 @@ export default function BudgetSalairePage() {
     dateOperation: new Date().toISOString().split('T')[0],
     description: ''
   })
+  const [rubriqueMouvements, setRubriqueMouvements] = useState<BudgetSalaireMouvement[]>([])
+  const [rubriqueMouvementsRubrique, setRubriqueMouvementsRubrique] = useState<BudgetSalaireRubrique | null>(null)
+  const [loadingMouvementsRubrique, setLoadingMouvementsRubrique] = useState(false)
+  const [mouvementEnEdition, setMouvementEnEdition] = useState<BudgetSalaireMouvement | null>(null)
+  const [editMouvementForm, setEditMouvementForm] = useState({
+    montant: '',
+    dateOperation: '',
+    description: ''
+  })
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -76,14 +85,43 @@ export default function BudgetSalairePage() {
   const loadData = async (forceRevenuCreation?: number) => {
     setLoadingData(true)
     try {
-      const budget = await BudgetSalaireService.getOrCreateBudgetMois(annee, mois, forceRevenuCreation)
-      setBudgetMois(budget)
-      if (budget) {
-        const rubs = await BudgetSalaireService.getRubriques(budget.id)
-        setRubriques(rubs)
-      } else {
+      const budget = await BudgetSalaireService.getOrCreateBudgetMois(
+        annee,
+        mois,
+        forceRevenuCreation
+      )
+
+      if (!budget) {
+        setBudgetMois(null)
         setRubriques([])
+        return
       }
+
+      const rubs = await BudgetSalaireService.getRubriques(budget.id)
+      const mouvementsBudget = await BudgetSalaireService.getMouvementsPourBudget(budget.id)
+
+      // Recalculer les montants dépensés à partir des mouvements pour une cohérence totale
+      const depenseParRubrique: Record<string, number> = {}
+      let totalDepenseCalcule = 0
+
+      mouvementsBudget.forEach((mvt) => {
+        depenseParRubrique[mvt.rubriqueId] =
+          (depenseParRubrique[mvt.rubriqueId] || 0) + mvt.montant
+        totalDepenseCalcule += mvt.montant
+      })
+
+      const rubriquesCorrigees = rubs.map((r) => ({
+        ...r,
+        montantDepense: depenseParRubrique[r.id] ?? r.montantDepense
+      }))
+
+      const budgetCorrige: BudgetSalaireMois = {
+        ...budget,
+        montantDepenseTotal: totalDepenseCalcule
+      }
+
+      setBudgetMois(budgetCorrige)
+      setRubriques(rubriquesCorrigees)
     } finally {
       setLoadingData(false)
     }
@@ -107,6 +145,13 @@ export default function BudgetSalairePage() {
   const totalBudgete = rubriques.reduce((sum, r) => sum + r.montantBudgete, 0)
   const totalDepense = budgetMois?.montantDepenseTotal ?? 0
   const disponiblePourBudget = (budgetMois?.revenuMensuel ?? 0) - totalBudgete
+  const resteApresDepensesReelles = (budgetMois?.revenuMensuel ?? 0) - totalDepense
+  const margeSurBudget = totalBudgete - totalDepense
+
+  // Mois précédent (pour afficher "Revenu du mois de {mois précédent} {année}")
+  const previousMonthIndex = mois === 1 ? 11 : mois - 2
+  const previousMonthYear = mois === 1 ? annee - 1 : annee
+  const previousMonthLabel = MONTHS[previousMonthIndex]
 
   const handleCreateRubrique = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -196,6 +241,87 @@ export default function BudgetSalairePage() {
     const ok = await BudgetSalaireService.deleteRubrique(rubrique.id)
     if (ok) {
       await loadData()
+    }
+  }
+
+  const handleVoirMouvementsRubrique = async (rubrique: BudgetSalaireRubrique) => {
+    setRubriqueMouvementsRubrique(rubrique)
+    setLoadingMouvementsRubrique(true)
+    try {
+      const mouvements = await BudgetSalaireService.getMouvementsPourRubrique(rubrique.id)
+      setRubriqueMouvements(mouvements)
+      setMouvementEnEdition(null)
+    } finally {
+      setLoadingMouvementsRubrique(false)
+    }
+  }
+
+  const openEditMouvement = (mvt: BudgetSalaireMouvement) => {
+    setMouvementEnEdition(mvt)
+    setEditMouvementForm({
+      montant: String(mvt.montant),
+      dateOperation: mvt.dateOperation
+        ? new Date(mvt.dateOperation).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0],
+      description: mvt.description || ''
+    })
+  }
+
+  const handleUpdateMouvementRubrique = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!mouvementEnEdition || !rubriqueMouvementsRubrique || !budgetMois) return
+
+    const montant = parseFloat(editMouvementForm.montant.replace(',', '.'))
+    if (Number.isNaN(montant) || montant <= 0) {
+      alert('Veuillez saisir un montant valide pour le mouvement.')
+      return
+    }
+
+    const ok = await BudgetSalaireService.updateMouvement({
+      mouvement: mouvementEnEdition,
+      rubrique: rubriqueMouvementsRubrique,
+      budgetMois,
+      montant,
+      dateOperation: new Date(editMouvementForm.dateOperation).toISOString(),
+      description: editMouvementForm.description || undefined
+    })
+
+    if (ok) {
+      await loadData()
+      const mouvements = await BudgetSalaireService.getMouvementsPourRubrique(
+        rubriqueMouvementsRubrique.id
+      )
+      setRubriqueMouvements(mouvements)
+      setMouvementEnEdition(null)
+    }
+  }
+
+  const handleDeleteMouvementRubrique = async (mvt: BudgetSalaireMouvement) => {
+    if (!rubriqueMouvementsRubrique || !budgetMois) return
+
+    if (
+      !confirm(
+        `Supprimer définitivement le mouvement de ${mvt.montant.toLocaleString('fr-FR')} F CFA ?`
+      )
+    ) {
+      return
+    }
+
+    const ok = await BudgetSalaireService.deleteMouvement({
+      mouvement: mvt,
+      rubrique: rubriqueMouvementsRubrique,
+      budgetMois
+    })
+
+    if (ok) {
+      await loadData()
+      const mouvements = await BudgetSalaireService.getMouvementsPourRubrique(
+        rubriqueMouvementsRubrique.id
+      )
+      setRubriqueMouvements(mouvements)
+      if (mouvementEnEdition?.id === mvt.id) {
+        setMouvementEnEdition(null)
+      }
     }
   }
 
@@ -332,35 +458,45 @@ export default function BudgetSalairePage() {
           {budgetMois && (
             <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="rounded-xl bg-slate-100 px-5 py-4 shadow-md">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Revenu du mois</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Revenu du mois de {previousMonthLabel} {previousMonthYear}
+                </p>
                 <p className="mt-2 text-2xl md:text-3xl font-semibold text-slate-900">
                   {formatCurrency(budgetMois.revenuMensuel)}
                 </p>
               </div>
-              <div className="rounded-xl bg-blue-100/80 px-5 py-4 shadow-md">
-                <p className="text-xs font-medium uppercase tracking-wide text-blue-700">
-                  Total budgété (toutes rubriques)
+              <div className="rounded-xl bg-rose-100/80 px-5 py-4 shadow-md">
+                <p className="text-xs font-medium uppercase tracking-wide text-rose-800">
+                  Total dépensé ce mois
                 </p>
-                <p className="mt-2 text-2xl md:text-3xl font-semibold text-blue-900">
-                  {formatCurrency(totalBudgete)}
+                <p className="mt-2 text-2xl md:text-3xl font-semibold text-rose-900">
+                  {formatCurrency(totalDepense)}
                 </p>
-                <p className="mt-1 text-[11px] text-blue-900/70">
-                  Somme des plafonds définis pour chaque rubrique de dépenses.
+                <p className="mt-1 text-[11px] text-rose-900/80">
+                  Reste après dépenses réelles:&nbsp;
+                  <span
+                    className={`font-semibold ${
+                      resteApresDepensesReelles >= 0 ? 'text-emerald-700' : 'text-red-700'
+                    }`}
+                  >
+                    {formatCurrency(resteApresDepensesReelles)}
+                  </span>
                 </p>
               </div>
-              <div className="rounded-xl bg-green-100/80 px-5 py-4 shadow-md">
-                <p className="text-xs font-medium uppercase tracking-wide text-green-800">
-                  Disponible pour de nouvelles rubriques
+              <div className="rounded-xl bg-blue-100/80 px-5 py-4 shadow-md">
+                <p className="text-xs font-medium uppercase tracking-wide text-blue-800">
+                  Marge sur le budget (plafonds - dépenses)
                 </p>
                 <p
                   className={`mt-2 text-2xl md:text-3xl font-semibold ${
-                    disponiblePourBudget >= 0 ? 'text-green-900' : 'text-red-700'
+                    margeSurBudget >= 0 ? 'text-blue-900' : 'text-red-700'
                   }`}
                 >
-                  {formatCurrency(disponiblePourBudget)}
+                  {formatCurrency(margeSurBudget)}
                 </p>
-                <p className="mt-1 text-[11px] text-green-900/70">
-                  Revenu du mois moins le total budgété. Ne pas dépasser ce montant pour rester dans le budget.
+                <p className="mt-1 text-[11px] text-blue-900/80">
+                  Différence entre le total budgété et le total dépensé ce mois. Si ce montant devient
+                  négatif, les plafonds sont dépassés.
                 </p>
               </div>
             </div>
@@ -415,18 +551,33 @@ export default function BudgetSalairePage() {
                           const rowBg =
                             index % 2 === 0 ? 'bg-white hover:bg-indigo-50/50' : 'bg-slate-50 hover:bg-indigo-50/50'
 
+                          const depenseClass =
+                            rubrique.montantDepense === 0
+                              ? 'text-slate-400'
+                              : 'text-rose-600'
+
+                          const resteClass =
+                            resteRubrique <= 0
+                              ? 'text-red-600'
+                              : resteRubrique < rubrique.montantBudgete * 0.25
+                                ? 'text-amber-600'
+                                : 'text-emerald-600'
+
                           return (
                             <tr key={rubrique.id} className={`${rowBg} transition-colors`}>
                               <td className="px-5 py-4 align-top">
-                                <div className="font-medium text-slate-900">{rubrique.nom}</div>
+                                <div className="inline-flex items-center gap-2">
+                                  <span className="h-2 w-2 rounded-full bg-indigo-400" />
+                                  <span className="font-semibold text-slate-900">{rubrique.nom}</span>
+                                </div>
                               </td>
                               <td className="px-5 py-4 text-right align-top font-semibold text-slate-900">
                                 {formatCurrency(rubrique.montantBudgete)}
                               </td>
-                              <td className="px-5 py-4 text-right align-top font-semibold text-red-600">
+                              <td className={`px-5 py-4 text-right align-top font-semibold ${depenseClass}`}>
                                 {formatCurrency(rubrique.montantDepense)}
                               </td>
-                              <td className="px-5 py-4 text-right align-top font-semibold text-emerald-600">
+                              <td className={`px-5 py-4 text-right align-top font-semibold ${resteClass}`}>
                                 {formatCurrency(resteRubrique)}
                               </td>
                               <td className="px-5 py-4 text-center align-top">
@@ -460,6 +611,14 @@ export default function BudgetSalairePage() {
                                     className="px-4 py-2 rounded-lg text-xs font-semibold shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
                                   >
                                     Ajouter mouvement
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    type="button"
+                                    onClick={() => handleVoirMouvementsRubrique(rubrique)}
+                                    className="px-4 py-2 rounded-lg text-xs font-semibold shadow-sm bg-slate-700 hover:bg-slate-800 text-white"
+                                  >
+                                    Voir
                                   </Button>
                                   <Button
                                     size="sm"
@@ -663,6 +822,159 @@ export default function BudgetSalairePage() {
                         type="button"
                         variant="outline"
                         onClick={() => setEditingRubrique(null)}
+                      >
+                        Annuler
+                      </Button>
+                      <Button type="submit">Enregistrer</Button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Modal pour voir les mouvements d'une rubrique */}
+            {rubriqueMouvementsRubrique && (
+              <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6">
+                  <h2 className="text-xl font-bold mb-4">
+                    Mouvements – {rubriqueMouvementsRubrique.nom}
+                  </h2>
+                  {loadingMouvementsRubrique ? (
+                    <p className="text-sm text-slate-500">Chargement des mouvements...</p>
+                  ) : rubriqueMouvements.length === 0 ? (
+                    <p className="text-sm text-slate-500">
+                      Aucun mouvement enregistré pour cette rubrique.
+                    </p>
+                  ) : (
+                    <div className="max-h-80 overflow-y-auto border border-slate-200 rounded-xl">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-slate-50 text-slate-700">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide">
+                              Date
+                            </th>
+                            <th className="px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide">
+                              Montant
+                            </th>
+                            <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide">
+                              Description
+                            </th>
+                            <th className="px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {rubriqueMouvements.map((mvt) => (
+                            <tr key={mvt.id} className="bg-white">
+                              <td className="px-4 py-2 text-xs text-slate-700">
+                                {new Date(mvt.dateOperation).toLocaleDateString('fr-FR', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric'
+                                })}
+                              </td>
+                              <td className="px-4 py-2 text-right font-semibold text-rose-600">
+                                {formatCurrency(mvt.montant)}
+                              </td>
+                              <td className="px-4 py-2 text-xs text-slate-600">
+                                {mvt.description || '—'}
+                              </td>
+                              <td className="px-4 py-2 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    size="xs"
+                                    variant="outline"
+                                    className="text-xs"
+                                    type="button"
+                                    onClick={() => openEditMouvement(mvt)}
+                                  >
+                                    Modifier
+                                  </Button>
+                                  <Button
+                                    size="xs"
+                                    variant="outline"
+                                    type="button"
+                                    className="text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                    onClick={() => handleDeleteMouvementRubrique(mvt)}
+                                  >
+                                    Supprimer
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-3 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setRubriqueMouvementsRubrique(null)
+                        setRubriqueMouvements([])
+                      }}
+                    >
+                      Fermer
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal pour modifier un mouvement d'une rubrique */}
+            {mouvementEnEdition && rubriqueMouvementsRubrique && budgetMois && (
+              <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                  <h2 className="text-xl font-bold mb-4">
+                    Modifier le mouvement – {rubriqueMouvementsRubrique.nom}
+                  </h2>
+                  <form onSubmit={handleUpdateMouvementRubrique} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Montant</label>
+                      <Input
+                        type="number"
+                        value={editMouvementForm.montant}
+                        onChange={(e) =>
+                          setEditMouvementForm((prev) => ({ ...prev, montant: e.target.value }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Date</label>
+                      <Input
+                        type="date"
+                        value={editMouvementForm.dateOperation}
+                        onChange={(e) =>
+                          setEditMouvementForm((prev) => ({
+                            ...prev,
+                            dateOperation: e.target.value
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Description</label>
+                      <Input
+                        value={editMouvementForm.description}
+                        onChange={(e) =>
+                          setEditMouvementForm((prev) => ({
+                            ...prev,
+                            description: e.target.value
+                          }))
+                        }
+                        placeholder="Détail du mouvement (optionnel)"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-3 pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setMouvementEnEdition(null)}
                       >
                         Annuler
                       </Button>

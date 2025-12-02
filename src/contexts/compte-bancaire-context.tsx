@@ -432,7 +432,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     return comptes.reduce((total, compte) => total + compte.soldeActuel, 0)
   }
 
-  // 🔁 Recalculer le solde actuel d'un compte à partir de son solde initial + toutes ses transactions
+  // 🔁 Recalculer le solde d'un compte + les soldes avant/après de CHAQUE transaction
   const recalculateCompteSolde = async (compteId: string, userId: string): Promise<boolean> => {
     // 1. Charger le solde initial du compte
     const { data: compteRow, error: compteError } = await supabase
@@ -462,14 +462,33 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       return false
     }
 
-    // 3. Recalculer le solde actuel du compte
+    // 3. Recalculer les soldes avant/après pour chaque transaction + le solde final du compte
     let currentSolde = parseFloat(compteRow.solde_initial || 0)
+
     for (const tx of txRows || []) {
       const montant = parseFloat(tx.montant || 0)
-      currentSolde =
+      const soldeAvant = currentSolde
+      const soldeApres =
         tx.type_transaction === 'credit'
-          ? currentSolde + montant
-          : currentSolde - montant
+          ? soldeAvant + montant
+          : soldeAvant - montant
+
+      currentSolde = soldeApres
+
+      const { error: updateTxError } = await supabase
+        .from('transactions_bancaires')
+        .update({
+          solde_avant: soldeAvant,
+          solde_apres: soldeApres
+        })
+        .eq('id', tx.id)
+        .eq('user_id', userId)
+
+      if (updateTxError) {
+        console.error('❌ Erreur lors de la mise à jour des soldes de transaction:', updateTxError)
+        toast.error('Erreur lors du recalcul des soldes des transactions')
+        return false
+      }
     }
 
     // 4. Mettre à jour le solde actuel du compte avec le solde final recalculé
@@ -592,14 +611,20 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       const needsRecalc = updates.montant !== undefined || updates.dateTransaction !== undefined
 
+      // 🔄 Lancer le recalcul / rafraîchissement en arrière-plan pour que l'UI reste fluide
       if (needsRecalc) {
-        const ok = await recalculateCompteSolde(compteId, user.id)
-        if (!ok) {
-          return false
-        }
-        await Promise.all([refreshComptes(), refreshTransactions(compteId)])
+        void recalculateCompteSolde(compteId, user.id)
+          .then((ok) => {
+            if (!ok) return
+            return Promise.all([refreshComptes(), refreshTransactions(compteId)])
+          })
+          .catch((err) => {
+            console.error('❌ Erreur lors du recalcul asynchrone des soldes:', err)
+          })
       } else {
-        await refreshTransactions(compteId)
+        void refreshTransactions(compteId).catch((err) => {
+          console.error('❌ Erreur lors du rafraîchissement asynchrone des transactions:', err)
+        })
       }
 
       toast.success('✅ Transaction modifiée avec succès')

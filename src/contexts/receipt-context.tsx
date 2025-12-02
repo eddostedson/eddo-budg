@@ -86,6 +86,8 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
           libelle: receipt.libelle,
           description: receipt.description,
           qrCodeData: receipt.qr_code_data,
+          receiptUrl: receipt.receipt_url || undefined,
+          receiptFileName: receipt.receipt_file_name || undefined,
           signature,
           createdAt: receipt.created_at,
           updatedAt: receipt.updated_at
@@ -138,7 +140,9 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
           date_transaction: receipt.dateTransaction,
           libelle: receipt.libelle || null,
           description: receipt.description || null,
-          qr_code_data: qrCodeData
+          qr_code_data: qrCodeData,
+          receipt_url: receipt.receiptUrl || null,
+          receipt_file_name: receipt.receiptFileName || null
         })
         .select()
         .single()
@@ -175,6 +179,8 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
       if (updates.dateTransaction !== undefined) updateData.date_transaction = updates.dateTransaction
       if (updates.libelle !== undefined) updateData.libelle = updates.libelle
       if (updates.description !== undefined) updateData.description = updates.description
+      if (updates.receiptUrl !== undefined) updateData.receipt_url = updates.receiptUrl
+      if (updates.receiptFileName !== undefined) updateData.receipt_file_name = updates.receiptFileName
 
       // Mettre à jour le QR code si nécessaire
       if (updates.nomLocataire || updates.villa || updates.periode || updates.montant || updates.dateTransaction) {

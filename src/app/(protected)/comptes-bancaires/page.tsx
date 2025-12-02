@@ -9,14 +9,15 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { motion } from 'framer-motion'
-import { 
-  Building2Icon, 
-  PlusIcon, 
-  ArrowRightIcon, 
-  TrendingUpIcon, 
+import {
+  Building2Icon,
+  PlusIcon,
+  ArrowRightIcon,
+  TrendingUpIcon,
   TrendingDownIcon,
   WalletIcon,
   DatabaseIcon,
+  ArrowUpDownIcon,
   Search as SearchIcon
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -42,6 +43,9 @@ export default function ComptesBancairesPage() {
   const [compteToEdit, setCompteToEdit] = useState<CompteBancaire | null>(null)
   const [transactionType, setTransactionType] = useState<'credit' | 'debit'>('credit')
   const [searchTerm, setSearchTerm] = useState('')
+  const [showRecentActivity, setShowRecentActivity] = useState(false)
+  const [recentTypeFilter, setRecentTypeFilter] = useState<'debit' | 'credit'>('debit')
+  const [recentOrderDesc, setRecentOrderDesc] = useState(true)
 
   const totalSoldes = getTotalSoldes()
 
@@ -170,6 +174,29 @@ export default function ComptesBancairesPage() {
     // Limiter à 100 résultats pour garder l'interface fluide
     return results.slice(0, 100)
   }, [transactions, comptes, searchTerm])
+
+  // Derniers mouvements (débit/crédit) filtrables, triés par date
+  const recentMovements = React.useMemo(() => {
+    if (!transactions || transactions.length === 0 || !comptes || comptes.length === 0) {
+      return []
+    }
+
+    const filtered = transactions
+      .filter((tx) => tx.typeTransaction === recentTypeFilter)
+      .map((tx) => {
+        const compte = comptes.find((c) => c.id === tx.compteId)
+        return { tx, compte }
+      })
+      .filter(({ compte }) => !!compte)
+      .sort((a, b) => {
+        const da = new Date(a.tx.dateTransaction || a.tx.createdAt).getTime()
+        const db = new Date(b.tx.dateTransaction || b.tx.createdAt).getTime()
+        return db - da // plus récent d'abord
+      })
+
+    const ordered = recentOrderDesc ? filtered : [...filtered].reverse()
+    return ordered.slice(0, 50)
+  }, [transactions, comptes, recentTypeFilter, recentOrderDesc])
 
   const highlightText = (text: string | undefined, term: string) => {
     if (!text) return null
@@ -364,7 +391,7 @@ export default function ComptesBancairesPage() {
       )}
 
       {/* Statistiques globales */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -405,6 +432,122 @@ export default function ComptesBancairesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Bouton pour afficher les derniers débits / crédits */}
+      <div className="flex justify-end mb-4">
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-xl text-xs md:text-sm border-slate-300 bg-white hover:bg-slate-50 text-slate-800"
+          onClick={() => setShowRecentActivity((prev) => !prev)}
+        >
+          {showRecentActivity
+            ? 'Masquer les derniers débits / crédits'
+            : 'Voir les derniers débits / crédits'}
+        </Button>
+      </div>
+
+      {/* Derniers mouvements (débits / crédits) tous comptes, affichés sur demande */}
+      {showRecentActivity && recentMovements.length > 0 && (
+        <div className="mb-8">
+          <Card className="border-slate-200 shadow-none">
+            <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  Derniers mouvements bancaires (tous comptes)
+                </CardTitle>
+                <p className="mt-1 text-xs text-slate-500">
+                  Triés du plus {recentOrderDesc ? 'récent' : 'ancien'} au plus{' '}
+                  {recentOrderDesc ? 'ancien' : 'récent'}.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <div className="inline-flex rounded-full bg-slate-100 border border-slate-300 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setRecentTypeFilter('debit')}
+                    className={`px-3 py-1 rounded-full font-semibold ${
+                      recentTypeFilter === 'debit'
+                        ? 'bg-rose-500 text-white'
+                        : 'text-rose-700 hover:bg-rose-50'
+                    }`}
+                  >
+                    Débits
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecentTypeFilter('credit')}
+                    className={`px-3 py-1 rounded-full font-semibold ${
+                      recentTypeFilter === 'credit'
+                        ? 'bg-emerald-500 text-white'
+                        : 'text-emerald-700 hover:bg-emerald-50'
+                    }`}
+                  >
+                    Crédits
+                  </button>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 px-2 rounded-full border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  onClick={() => setRecentOrderDesc((prev) => !prev)}
+                >
+                  <ArrowUpDownIcon className="h-4 w-4 mr-1" />
+                  {recentOrderDesc ? 'Du plus récent' : 'Du plus ancien'}
+                </Button>
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-800 border border-slate-300">
+                  {recentMovements.length} mouvement(s)
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                {recentMovements.map(({ tx, compte }) => (
+                  <div
+                    key={tx.id}
+                    onClick={() => handleViewCompte(compte!)}
+                    className="rounded-lg bg-white border border-slate-200 px-3 py-2 flex items-center justify-between gap-3 hover:border-indigo-300 hover:shadow-sm cursor-pointer transition-all"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-xs font-semibold text-slate-900">
+                        {compte?.nom}
+                      </span>
+                      {tx.libelle && (
+                        <span className="text-[11px] text-slate-500">
+                          {tx.libelle}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5 text-right">
+                      <span
+                        className={`text-sm font-semibold ${
+                          tx.typeTransaction === 'credit'
+                            ? 'text-emerald-600'
+                            : 'text-rose-600'
+                        }`}
+                      >
+                        {tx.typeTransaction === 'credit' ? '+' : '-'}
+                        {formatCurrency(tx.montant)}
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        {tx.dateTransaction
+                          ? new Date(tx.dateTransaction).toLocaleString('fr-FR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : ''}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Liste des comptes */}
       {comptes.length === 0 ? (

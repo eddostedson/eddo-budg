@@ -6,6 +6,7 @@ import { Receipt } from '@/lib/shared-data'
 import { ReceiptPreview } from '@/components/receipt-preview'
 import { ReceiptFormDialog } from '@/components/receipt-form-dialog'
 import { ReceiptBulkFormDialog } from '@/components/receipt-bulk-form-dialog'
+import { ReceiptSodeciDialog } from '@/components/receipt-sodeci-dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ReceiptIcon, PlusIcon, EyeIcon, PencilIcon, TrashIcon, Loader2Icon } from 'lucide-react'
@@ -19,6 +20,7 @@ export default function ReceiptsPage() {
   const [showForm, setShowForm] = useState(false)
   const [receiptToEdit, setReceiptToEdit] = useState<Receipt | null>(null)
   const [showBulkForm, setShowBulkForm] = useState(false)
+  const [showSodeciForm, setShowSodeciForm] = useState(false)
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
@@ -85,6 +87,15 @@ export default function ReceiptsPage() {
             >
               <PlusIcon className="h-4 w-4 mr-2" />
               Générer plusieurs reçus
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSodeciForm(true)
+              }}
+              className="rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-sm"
+            >
+              Reçu SODECI &amp; CIE
             </Button>
             <Button
               onClick={() => {
@@ -254,6 +265,15 @@ export default function ReceiptsPage() {
             open={showBulkForm}
             onOpenChange={(open) => {
               setShowBulkForm(open)
+            }}
+          />
+        )}
+
+        {showSodeciForm && (
+          <ReceiptSodeciDialog
+            open={showSodeciForm}
+            onOpenChange={(open) => {
+              setShowSodeciForm(open)
             }}
           />
         )}

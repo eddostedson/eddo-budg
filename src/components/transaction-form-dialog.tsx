@@ -181,7 +181,7 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
               toast.warning('⚠️ Fonds partagé non créé (voir console).')
             } else {
               toast.success('✅ Fonds partagé créé pour un autre compte.')
-            }
+          }
           } catch (error) {
             console.error('❌ Erreur lors de la création du fonds partagé:', error)
             toast.warning('⚠️ Erreur lors de la création du fonds partagé')
@@ -450,25 +450,25 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
               </div>
               {createSharedFund && (
                 <div className="space-y-1">
-                  <Select
+              <Select
                     value={sharedFundTargetCompteId || 'none'}
-                    onValueChange={(value) =>
+                onValueChange={(value) =>
                       setSharedFundTargetCompteId(value === 'none' ? '' : value)
-                    }
-                    disabled={loading}
-                  >
-                    <SelectTrigger>
+                }
+                disabled={loading}
+              >
+                <SelectTrigger>
                       <SelectValue placeholder="Sélectionner le compte bénéficiaire" />
-                    </SelectTrigger>
-                    <SelectContent>
+                </SelectTrigger>
+                <SelectContent>
                       <SelectItem value="none">Sélectionner un compte</SelectItem>
-                      {autresComptes.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.nom} — {c.soldeActuel.toLocaleString()} F CFA
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {autresComptes.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nom} — {c.soldeActuel.toLocaleString()} F CFA
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
                   <p className="text-[11px] text-gray-500">
                     Le solde réel reste sur ce compte. Le compte choisi verra un solde virtuel lié à ce crédit.
                   </p>

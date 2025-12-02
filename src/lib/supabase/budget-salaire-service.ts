@@ -299,6 +299,166 @@ export const BudgetSalaireService = {
     }
 
     return data.map(mapMouvement)
+  },
+
+  async getMouvementsPourRubrique(rubriqueId: string): Promise<BudgetSalaireMouvement[]> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+
+    const { data, error } = await supabase
+      .from('budget_salaire_mouvements')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('rubrique_id', rubriqueId)
+      .order('date_operation', { ascending: false })
+
+    if (error || !data) {
+      console.error('❌ Erreur chargement mouvements pour la rubrique budget salaire:', error)
+      return []
+    }
+
+    return data.map(mapMouvement)
+  },
+
+  async updateMouvement(params: {
+    mouvement: BudgetSalaireMouvement
+    rubrique: BudgetSalaireRubrique
+    budgetMois: BudgetSalaireMois
+    montant: number
+    dateOperation: string
+    description?: string
+  }): Promise<boolean> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return false
+
+    const diff = params.montant - params.mouvement.montant
+
+    const { error: updateMvtError } = await supabase
+      .from('budget_salaire_mouvements')
+      .update({
+        date_operation: params.dateOperation,
+        montant: params.montant,
+        description: params.description ?? null
+      })
+      .eq('id', params.mouvement.id)
+      .eq('user_id', user.id)
+
+    if (updateMvtError) {
+      console.error('❌ Erreur mise à jour mouvement budget salaire:', updateMvtError)
+      return false
+    }
+
+    // Mettre à jour la rubrique
+    let nouveauMontantRubrique = params.rubrique.montantDepense + diff
+    if (nouveauMontantRubrique < 0) nouveauMontantRubrique = 0
+
+    let nouveauStatut: StatutRubriqueSalaire = params.rubrique.statut
+    if (nouveauMontantRubrique >= params.rubrique.montantBudgete && params.rubrique.statut !== 'annulee') {
+      nouveauStatut = 'terminee'
+    } else if (nouveauMontantRubrique < params.rubrique.montantBudgete && params.rubrique.statut !== 'annulee') {
+      nouveauStatut = 'en_cours'
+    }
+
+    const { error: updateRubriqueError } = await supabase
+      .from('budget_salaire_rubriques')
+      .update({
+        montant_depense: nouveauMontantRubrique,
+        statut: nouveauStatut,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', params.rubrique.id)
+      .eq('user_id', user.id)
+
+    if (updateRubriqueError) {
+      console.error('❌ Erreur mise à jour rubrique après modification mouvement:', updateRubriqueError)
+      return false
+    }
+
+    // Mettre à jour le total du budget mensuel
+    let nouveauTotalBudget = params.budgetMois.montantDepenseTotal + diff
+    if (nouveauTotalBudget < 0) nouveauTotalBudget = 0
+
+    const { error: updateBudgetError } = await supabase
+      .from('budget_salaire_mois')
+      .update({
+        montant_depense_total: nouveauTotalBudget,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', params.budgetMois.id)
+      .eq('user_id', user.id)
+
+    if (updateBudgetError) {
+      console.error('❌ Erreur mise à jour total budget salaire mois après modification mouvement:', updateBudgetError)
+      return false
+    }
+
+    return true
+  },
+
+  async deleteMouvement(params: {
+    mouvement: BudgetSalaireMouvement
+    rubrique: BudgetSalaireRubrique
+    budgetMois: BudgetSalaireMois
+  }): Promise<boolean> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return false
+
+    const { error: deleteError } = await supabase
+      .from('budget_salaire_mouvements')
+      .delete()
+      .eq('id', params.mouvement.id)
+      .eq('user_id', user.id)
+
+    if (deleteError) {
+      console.error('❌ Erreur suppression mouvement budget salaire:', deleteError)
+      return false
+    }
+
+    // Mettre à jour la rubrique
+    let nouveauMontantRubrique = params.rubrique.montantDepense - params.mouvement.montant
+    if (nouveauMontantRubrique < 0) nouveauMontantRubrique = 0
+
+    let nouveauStatut: StatutRubriqueSalaire = params.rubrique.statut
+    if (nouveauMontantRubrique >= params.rubrique.montantBudgete && params.rubrique.statut !== 'annulee') {
+      nouveauStatut = 'terminee'
+    } else if (nouveauMontantRubrique < params.rubrique.montantBudgete && params.rubrique.statut !== 'annulee') {
+      nouveauStatut = 'en_cours'
+    }
+
+    const { error: updateRubriqueError } = await supabase
+      .from('budget_salaire_rubriques')
+      .update({
+        montant_depense: nouveauMontantRubrique,
+        statut: nouveauStatut,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', params.rubrique.id)
+      .eq('user_id', user.id)
+
+    if (updateRubriqueError) {
+      console.error('❌ Erreur mise à jour rubrique après suppression mouvement:', updateRubriqueError)
+      return false
+    }
+
+    // Mettre à jour le total du budget mensuel
+    let nouveauTotalBudget = params.budgetMois.montantDepenseTotal - params.mouvement.montant
+    if (nouveauTotalBudget < 0) nouveauTotalBudget = 0
+
+    const { error: updateBudgetError } = await supabase
+      .from('budget_salaire_mois')
+      .update({
+        montant_depense_total: nouveauTotalBudget,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', params.budgetMois.id)
+      .eq('user_id', user.id)
+
+    if (updateBudgetError) {
+      console.error('❌ Erreur mise à jour total budget salaire mois après suppression mouvement:', updateBudgetError)
+      return false
+    }
+
+    return true
   }
 }
 

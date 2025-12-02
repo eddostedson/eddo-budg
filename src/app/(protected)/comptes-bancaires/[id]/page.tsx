@@ -73,11 +73,36 @@ export default function CompteBancaireDetailPage() {
 
   const compteTransactions = getTransactionsByCompte(compteId)
 
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase()
+  const numericSearchDigits = normalizedSearchTerm.replace(/[^\d]/g, '')
+  const searchAmountGlobal = numericSearchDigits ? parseInt(numericSearchDigits, 10) : NaN
+  const hasNumericSearchGlobal = !Number.isNaN(searchAmountGlobal)
+  const isPureNumericSearch =
+    normalizedSearchTerm.length > 0 &&
+    /^[0-9\s.,]+$/.test(normalizedSearchTerm) &&
+    hasNumericSearchGlobal
+
+  const textContainsNumberEqual = React.useCallback(
+    (text: string | null | undefined): boolean => {
+      if (!hasNumericSearchGlobal || !text) return false
+      const regex = /[0-9][0-9\s.,]*/g
+      let match: RegExpExecArray | null
+      const lower = text.toLowerCase()
+      while ((match = regex.exec(lower)) !== null) {
+        const digits = match[0].replace(/[^\d]/g, '')
+        if (!digits) continue
+        const value = parseInt(digits, 10)
+        if (value === searchAmountGlobal) {
+          return true
+        }
+      }
+      return false
+    },
+    [hasNumericSearchGlobal, searchAmountGlobal]
+  )
+
   const filteredTransactions = React.useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
-    const numericDigits = term.replace(/[^\d]/g, '')
-    const searchAmount = numericDigits ? parseInt(numericDigits, 10) : NaN
-    const hasNumericSearch = !Number.isNaN(searchAmount)
+    const term = normalizedSearchTerm
 
     return compteTransactions.filter((transaction) => {
       if (typeFilter !== 'all' && transaction.typeTransaction !== typeFilter) {
@@ -89,23 +114,44 @@ export default function CompteBancaireDetailPage() {
         return true
       }
 
-      const libelleMatch =
-        (transaction.libelle || '').toLowerCase().includes(term) ||
-        (transaction.description || '').toLowerCase().includes(term) ||
-        (transaction.categorie || '').toLowerCase().includes(term) ||
-        (transaction.reference || '').toLowerCase().includes(term)
-
-      let amountMatch = false
-      if (hasNumericSearch) {
-        const montantInt = Math.round(transaction.montant || 0)
-        amountMatch = montantInt === searchAmount
+      // 1) Match texte "classique" uniquement si la recherche n'est pas purement numérique
+      let textualMatch = false
+      if (!isPureNumericSearch) {
+        textualMatch =
+          (transaction.libelle || '').toLowerCase().includes(term) ||
+          (transaction.description || '').toLowerCase().includes(term) ||
+          (transaction.categorie || '').toLowerCase().includes(term) ||
+          (transaction.reference || '').toLowerCase().includes(term)
       }
 
-      return libelleMatch || amountMatch
-    })
-  }, [compteTransactions, searchTerm, typeFilter])
+      // 2) Match sur les nombres présents dans le texte (ex: "50 000" doit matcher 50000)
+      const numericInTextMatch =
+        hasNumericSearchGlobal &&
+        (textContainsNumberEqual(transaction.libelle) ||
+          textContainsNumberEqual(transaction.description) ||
+          textContainsNumberEqual(transaction.categorie) ||
+          textContainsNumberEqual(transaction.reference))
 
-  const hasSearchTerm = searchTerm.trim().length > 0
+      // 3) Match sur le montant de la transaction
+      let amountMatch = false
+      if (hasNumericSearchGlobal) {
+        const montantInt = Math.round(transaction.montant || 0)
+        amountMatch = montantInt === searchAmountGlobal
+      }
+
+      return textualMatch || numericInTextMatch || amountMatch
+    })
+  }, [
+    compteTransactions,
+    normalizedSearchTerm,
+    typeFilter,
+    hasNumericSearchGlobal,
+    searchAmountGlobal,
+    isPureNumericSearch,
+    textContainsNumberEqual
+  ])
+
+  const hasSearchTerm = normalizedSearchTerm.length > 0
   const hasSearchResults = hasSearchTerm && filteredTransactions.length > 0
   const hasSearchNoResults = hasSearchTerm && filteredTransactions.length === 0
 
@@ -125,6 +171,69 @@ export default function CompteBancaireDetailPage() {
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  const highlightText = (text: string | null | undefined) => {
+    const value = text || ''
+    if (!normalizedSearchTerm) return value
+
+    // 🔢 Cas recherche purement numérique : on surligne uniquement les nombres
+    // du texte qui correspondent EXACTEMENT à la valeur recherchée (ex: "50 000" pour 50000)
+    if (isPureNumericSearch && hasNumericSearchGlobal) {
+      const parts: React.ReactNode[] = []
+      const lower = value.toLowerCase()
+      const regex = /[0-9][0-9\s.,]*/g
+      let lastIndex = 0
+      let match: RegExpExecArray | null
+
+      while ((match = regex.exec(lower)) !== null) {
+        const start = match.index
+        const end = regex.lastIndex
+        const raw = value.slice(start, end)
+        const digits = raw.replace(/[^\d]/g, '')
+        const num = digits ? parseInt(digits, 10) : NaN
+
+        if (start > lastIndex) {
+          parts.push(value.slice(lastIndex, start))
+        }
+
+        if (!Number.isNaN(num) && num === searchAmountGlobal) {
+          parts.push(
+            <span
+              key={`num-${start}`}
+              className="bg-yellow-200 text-slate-900 rounded px-0.5"
+            >
+              {raw}
+            </span>
+          )
+        } else {
+          parts.push(raw)
+        }
+
+        lastIndex = end
+      }
+
+      if (lastIndex < value.length) {
+        parts.push(value.slice(lastIndex))
+      }
+
+      return parts.length > 0 ? <>{parts}</> : value
+    }
+
+    // 📝 Cas recherche texte classique : on surligne la sous-chaîne recherchée
+    const lower = value.toLowerCase()
+    const index = lower.indexOf(normalizedSearchTerm)
+    if (index === -1) return value
+
+    return (
+      <>
+        {value.slice(0, index)}
+        <span className="bg-yellow-200 text-slate-900 rounded px-0.5">
+          {value.slice(index, index + normalizedSearchTerm.length)}
+        </span>
+        {value.slice(index + normalizedSearchTerm.length)}
+      </>
+    )
   }
 
   const handleCrediter = () => {
@@ -175,7 +284,6 @@ export default function CompteBancaireDetailPage() {
 
     if (success) {
       setTransactionToEdit(null)
-      await refreshTransactions(compteId)
     }
   }
 
@@ -544,34 +652,41 @@ export default function CompteBancaireDetailPage() {
                             <td className="px-6 py-4">
                               <div>
                                 <div className="font-medium text-slate-900">
-                                  {transaction.libelle}
+                                  {highlightText(transaction.libelle)}
                                 </div>
                                 {transaction.description && (
                                   <div className="text-xs text-slate-500 mt-1">
-                                    {transaction.description}
+                                    {highlightText(transaction.description)}
                                   </div>
                                 )}
                                 {transaction.categorie && (
                                   <div className="text-xs text-indigo-600 mt-1 font-medium">
-                                    {transaction.categorie}
+                                    {highlightText(transaction.categorie)}
                                   </div>
                                 )}
                                 {transaction.reference && (
                                   <div className="text-xs text-slate-400 mt-1">
-                                    Ref: {transaction.reference}
+                                    Ref: {highlightText(transaction.reference)}
                                   </div>
                                 )}
                               </div>
                             </td>
-                            <td
-                              className={`px-6 py-4 text-right font-semibold ${
-                                transaction.typeTransaction === 'credit'
-                                  ? 'text-emerald-600'
-                                  : 'text-rose-600'
-                              }`}
-                            >
-                              {transaction.typeTransaction === 'credit' ? '+' : '-'}
-                              {formatCurrency(transaction.montant)}
+                            <td className="px-6 py-4 text-right font-semibold">
+                              <span
+                                className={`${
+                                  transaction.typeTransaction === 'credit'
+                                    ? 'text-emerald-600'
+                                    : 'text-rose-600'
+                                } ${
+                                  hasNumericSearchGlobal &&
+                                  Math.round(transaction.montant || 0) === searchAmountGlobal
+                                    ? 'bg-yellow-200 text-slate-900 rounded px-1'
+                                    : ''
+                                }`}
+                              >
+                                {transaction.typeTransaction === 'credit' ? '+' : '-'}
+                                {formatCurrency(transaction.montant)}
+                              </span>
                             </td>
                             <td className="px-6 py-4 text-right text-sm text-slate-600">
                               {formatCurrency(transaction.soldeAvant)}

@@ -16,23 +16,23 @@ export function createClient() {
   }
 
   return createBrowserClient(url, anonKey, {
-    auth: {
-      // Configuration optimisée pour la performance
-      persistSession: true,
-      autoRefreshToken: false, // Désactivé pour la performance
-      detectSessionInUrl: false, // Désactivé pour la performance
-      flowType: 'implicit' // Plus rapide que pkce
-    },
-    global: {
-      headers: {
-        'X-Client-Info': 'eddo-budg-app-fast'
+      auth: {
+        // Configuration optimisée pour la performance
+        persistSession: true,
+        autoRefreshToken: false, // Désactivé pour la performance
+        detectSessionInUrl: false, // Désactivé pour la performance
+        flowType: 'implicit' // Plus rapide que pkce
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'eddo-budg-app-fast'
+        }
+      },
+      db: {
+        schema: 'public'
+      },
+      realtime: {
+        enabled: false // Désactivé pour la performance
       }
-    },
-    db: {
-      schema: 'public'
-    },
-    realtime: {
-      enabled: false // Désactivé pour la performance
-    }
   })
 }
