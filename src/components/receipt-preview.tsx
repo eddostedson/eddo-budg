@@ -160,7 +160,7 @@ export function ReceiptPreview({ receipt, onClose }: ReceiptPreviewProps) {
 
                 <div className="border-t border-gray-300 pt-3">
                   <p className="text-sm text-gray-900">
-                    <span className="font-semibold text-gray-600">Locataire:&nbsp;</span>
+                    <span className="font-semibold text-gray-600">Le/la locataire:&nbsp;</span>
                     <span className="font-bold">{receipt.nomLocataire}</span>
                   </p>
                 </div>
