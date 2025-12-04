@@ -48,8 +48,23 @@ export default function ComptesBancairesPage() {
   const [showRecentActivity, setShowRecentActivity] = useState(false)
   const [recentTypeFilter, setRecentTypeFilter] = useState<'debit' | 'credit'>('debit')
   const [recentOrderDesc, setRecentOrderDesc] = useState(true)
+  const [excludedCompteIds, setExcludedCompteIds] = useState<string[]>([])
+
+  const STORAGE_KEY_EXCLUDED = 'eddobudg_comptes_exclus_total_soldes'
+  const STORAGE_KEY_PENDING_EXCLUDE_NEW = 'eddobudg_exclude_new_compte'
 
   const totalSoldes = getTotalSoldes()
+
+  const adjustedTotalSoldes = React.useMemo(() => {
+    if (!comptes || comptes.length === 0) return totalSoldes
+    if (!excludedCompteIds.length) return totalSoldes
+
+    const excludedTotal = comptes
+      .filter((compte) => excludedCompteIds.includes(compte.id))
+      .reduce((sum, compte) => sum + (compte.soldeActuel || 0), 0)
+
+    return totalSoldes - excludedTotal
+  }, [comptes, excludedCompteIds, totalSoldes])
 
   // Précharger les pages de détail des comptes pour accélérer "Voir"
   useEffect(() => {
@@ -58,6 +73,56 @@ export default function ComptesBancairesPage() {
       router.prefetch(`/comptes-bancaires/${compte.id}`)
     })
   }, [comptes, router])
+
+  // Charger les comptes exclus depuis le localStorage (persistance) + prendre en compte
+  // un éventuel nouveau compte marqué "à exclure" depuis le formulaire de création.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      let ids: string[] = []
+
+      const raw = window.localStorage.getItem(STORAGE_KEY_EXCLUDED)
+      if (raw) {
+        const parsed = JSON.parse(raw) as string[]
+        if (Array.isArray(parsed)) {
+          // Ne garder que les IDs qui existent encore dans la liste des comptes
+          ids = parsed.filter((id) => comptes.some((c) => c.id === id))
+        }
+      }
+
+      // Traiter un éventuel "nouveau compte à exclure" (flag posé par le formulaire)
+      const pending = window.localStorage.getItem(STORAGE_KEY_PENDING_EXCLUDE_NEW)
+      if (pending === '1' && comptes.length > 0) {
+        const comptesAvecDate = [...comptes].sort((a, b) => {
+          const da = a.createdAt ? new Date(a.createdAt).getTime() : 0
+          const db = b.createdAt ? new Date(b.createdAt).getTime() : 0
+          return db - da // plus récent d'abord
+        })
+
+        const newest = comptesAvecDate[0] || comptes[0]
+        if (newest && !ids.includes(newest.id)) {
+          ids = [...ids, newest.id]
+        }
+
+        // On consume le flag pour ne pas l'appliquer plusieurs fois
+        window.localStorage.removeItem(STORAGE_KEY_PENDING_EXCLUDE_NEW)
+      }
+
+      setExcludedCompteIds(ids)
+    } catch (error) {
+      console.error('Erreur lors du chargement des comptes exclus depuis le localStorage:', error)
+    }
+  }, [comptes])
+
+  // Sauvegarder les comptes exclus dans le localStorage à chaque modification
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(STORAGE_KEY_EXCLUDED, JSON.stringify(excludedCompteIds))
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde des comptes exclus dans le localStorage:', error)
+    }
+  }, [excludedCompteIds])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -246,7 +311,7 @@ export default function ComptesBancairesPage() {
   return (
     <div className="min-h-screen bg-slate-100 py-8 px-4 md:px-8">
       <div className="max-w-7xl mx-auto">
-        {/* Bloc sticky : en-tête + recherche */}
+        {/* Bloc sticky : en-tête + recherche + stats globales */}
         <div className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur-md pb-4 mb-6 border-b border-slate-200">
           {/* En-tête */}
           <div className="flex items-center justify-between mb-4">
@@ -301,6 +366,57 @@ export default function ComptesBancairesPage() {
                 className="pl-9 pr-3 py-2 rounded-full border border-gray-200 bg-white/80 backdrop-blur-sm shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-all"
               />
             </div>
+          </div>
+
+          {/* Statistiques globales toujours visibles */}
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm mb-1">
+                      Total des Soldes{excludedCompteIds.length > 0 ? ' (après exclusions)' : ''}
+                    </p>
+                    <p className="text-3xl font-bold">{formatCurrency(adjustedTotalSoldes)}</p>
+                    {excludedCompteIds.length > 0 && (
+                      <p className="mt-1 text-[11px] text-blue-100/90">
+                        Total global sans exclusion :{' '}
+                        <span className="font-semibold">{formatCurrency(totalSoldes)}</span>
+                      </p>
+                    )}
+                  </div>
+                  <WalletIcon className="h-12 w-12 text-blue-200" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white shadow-md">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm mb-1">Nombre de Comptes</p>
+                    <p className="text-3xl font-bold">
+                      {comptes.length}
+                    </p>
+                  </div>
+                  <Building2Icon className="h-12 w-12 text-green-200" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-md">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-purple-100 text-sm mb-1">Comptes Actifs</p>
+                    <p className="text-3xl font-bold">
+                      {comptes.filter(c => c.actif).length}
+                    </p>
+                  </div>
+                  <TrendingUpIcon className="h-12 w-12 text-purple-200" />
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
 
@@ -396,49 +512,6 @@ export default function ComptesBancairesPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Statistiques globales */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100 text-sm mb-1">Total des Soldes</p>
-                <p className="text-3xl font-bold">{formatCurrency(totalSoldes)}</p>
-              </div>
-              <WalletIcon className="h-12 w-12 text-blue-200" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-100 text-sm mb-1">Nombre de Comptes</p>
-                <p className="text-3xl font-bold">
-                  {comptes.length}
-                </p>
-              </div>
-              <Building2Icon className="h-12 w-12 text-green-200" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-100 text-sm mb-1">Comptes Actifs</p>
-                <p className="text-3xl font-bold">
-                  {comptes.filter(c => c.actif).length}
-                </p>
-              </div>
-              <TrendingUpIcon className="h-12 w-12 text-purple-200" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Bouton pour afficher les derniers débits / crédits */}
       <div className="flex justify-end mb-4">
@@ -590,7 +663,13 @@ export default function ComptesBancairesPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 * index }}
             >
-              <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 border-0 overflow-hidden h-full">
+              <Card
+                className={`shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden h-full ${
+                  excludedCompteIds.includes(compte.id)
+                    ? 'bg-orange-100/80 border border-orange-300'
+                    : 'bg-white border-0'
+                }`}
+              >
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-3">
@@ -611,9 +690,29 @@ export default function ComptesBancairesPage() {
                       {getTypeCompteLabel(compte.typeCompte)}
                     </Badge>
                   </div>
-                  {compte.numeroCompte && (
-                    <p className="text-xs text-gray-500">N° {compte.numeroCompte}</p>
-                  )}
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    {compte.numeroCompte && (
+                      <p className="text-xs text-gray-500">N° {compte.numeroCompte}</p>
+                    )}
+                    <label className="ml-auto inline-flex items-center gap-1 text-[11px] text-slate-500">
+                      <input
+                        type="checkbox"
+                        checked={excludedCompteIds.includes(compte.id)}
+                        onChange={(e) => {
+                          const checked = e.target.checked
+                          setExcludedCompteIds((prev) => {
+                            if (checked) {
+                              if (prev.includes(compte.id)) return prev
+                              return [...prev, compte.id]
+                            }
+                            return prev.filter((id) => id !== compte.id)
+                          })
+                        }}
+                        className="h-3 w-3 rounded border border-slate-300 text-blue-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500"
+                      />
+                      <span>Exclure du total</span>
+                    </label>
+                  </div>
                 </CardHeader>
                 
                 <CardContent className="pt-0">

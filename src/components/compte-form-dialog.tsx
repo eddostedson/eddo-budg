@@ -19,6 +19,7 @@ interface CompteFormDialogProps {
 export function CompteFormDialog({ open, onOpenChange, compteToEdit }: CompteFormDialogProps) {
   const { createCompte, updateCompte, refreshComptes } = useComptesBancaires()
   const [loading, setLoading] = useState(false)
+  const [excludeFromTotal, setExcludeFromTotal] = useState(false)
   const [formData, setFormData] = useState({
     nom: '',
     numeroCompte: '',
@@ -40,6 +41,7 @@ export function CompteFormDialog({ open, onOpenChange, compteToEdit }: CompteFor
         soldeInitial: compteToEdit.soldeInitial?.toString() || '',
         devise: compteToEdit.devise || 'F CFA'
       })
+      setExcludeFromTotal(false)
     } else if (!compteToEdit && open) {
       setFormData({
         nom: '',
@@ -50,6 +52,7 @@ export function CompteFormDialog({ open, onOpenChange, compteToEdit }: CompteFor
         soldeInitial: '',
         devise: 'F CFA'
       })
+      setExcludeFromTotal(false)
     }
   }, [compteToEdit, open])
 
@@ -96,6 +99,14 @@ export function CompteFormDialog({ open, onOpenChange, compteToEdit }: CompteFor
         }
       } else {
         // CRÉATION
+        if (typeof window !== 'undefined') {
+          if (excludeFromTotal) {
+            window.localStorage.setItem('eddobudg_exclude_new_compte', '1')
+          } else {
+            window.localStorage.removeItem('eddobudg_exclude_new_compte')
+          }
+        }
+
         const success = await createCompte({
           nom: formData.nom,
           numeroCompte: formData.numeroCompte || undefined,
@@ -119,6 +130,7 @@ export function CompteFormDialog({ open, onOpenChange, compteToEdit }: CompteFor
             soldeInitial: '',
             devise: 'F CFA'
           })
+          setExcludeFromTotal(false)
           onOpenChange(false)
         } else {
           toast.error('❌ Erreur lors de la création du compte')
@@ -245,6 +257,19 @@ export function CompteFormDialog({ open, onOpenChange, compteToEdit }: CompteFor
                 disabled={loading}
               />
               <p className="text-xs text-gray-500">Laissez vide ou entrez 0 pour un solde initial à zéro</p>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                id="excludeFromTotal"
+                type="checkbox"
+                checked={excludeFromTotal}
+                onChange={(e) => setExcludeFromTotal(e.target.checked)}
+                disabled={loading}
+                className="h-4 w-4 rounded border border-gray-300 text-blue-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500"
+              />
+              <Label htmlFor="excludeFromTotal" className="text-xs text-gray-700 cursor-pointer">
+                Exclure ce compte du <span className="font-semibold">Total des Soldes</span> (modifiable plus tard)
+              </Label>
+            </div>
             </div>
           )}
 
