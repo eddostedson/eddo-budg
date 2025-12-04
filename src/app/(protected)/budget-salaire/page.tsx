@@ -544,9 +544,13 @@ export default function BudgetSalairePage() {
                       <tbody className="divide-y divide-slate-200">
                         {rubriques.map((rubrique, index) => {
                           const resteRubrique = rubrique.montantBudgete - rubrique.montantDepense
-                          const ratio =
+                          const depenseRatio =
                             rubrique.montantBudgete > 0
                               ? Math.min(100, (rubrique.montantDepense / rubrique.montantBudgete) * 100)
+                              : 0
+                          const resteRatio =
+                            rubrique.montantBudgete > 0 && resteRubrique > 0
+                              ? Math.min(100, (resteRubrique / rubrique.montantBudgete) * 100)
                               : 0
                           const rowBg =
                             index % 2 === 0 ? 'bg-white hover:bg-indigo-50/50' : 'bg-slate-50 hover:bg-indigo-50/50'
@@ -575,10 +579,34 @@ export default function BudgetSalairePage() {
                                 {formatCurrency(rubrique.montantBudgete)}
                               </td>
                               <td className={`px-5 py-4 text-right align-top font-semibold ${depenseClass}`}>
-                                {formatCurrency(rubrique.montantDepense)}
+                                <div className="flex flex-col items-end gap-1">
+                                  <span>{formatCurrency(rubrique.montantDepense)}</span>
+                                  {rubrique.montantBudgete > 0 && (
+                                    <div className="mt-1 h-1.5 w-24 rounded-full bg-slate-200">
+                                      <div
+                                        className={`h-1.5 rounded-full ${
+                                          rubrique.montantDepense > rubrique.montantBudgete
+                                            ? 'bg-red-700'
+                                            : 'bg-rose-500'
+                                        }`}
+                                        style={{ width: `${depenseRatio}%` }}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
                               </td>
                               <td className={`px-5 py-4 text-right align-top font-semibold ${resteClass}`}>
-                                {formatCurrency(resteRubrique)}
+                                <div className="flex flex-col items-end gap-1">
+                                  <span>{formatCurrency(resteRubrique)}</span>
+                                  {rubrique.montantBudgete > 0 && resteRubrique > 0 && (
+                                    <div className="mt-1 h-1.5 w-24 rounded-full bg-slate-200">
+                                      <div
+                                        className="h-1.5 rounded-full bg-emerald-500"
+                                        style={{ width: `${resteRatio}%` }}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-5 py-4 text-center align-top">
                                 <span className="inline-flex px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
@@ -637,14 +665,6 @@ export default function BudgetSalairePage() {
                                     Supprimer
                                   </Button>
                                 </div>
-                                {rubrique.montantDepense > 0 && (
-                                  <div className="mt-3 h-1.5 w-full rounded-full bg-slate-200">
-                                    <div
-                                      className="h-1.5 rounded-full bg-emerald-500"
-                                      style={{ width: `${ratio}%` }}
-                                    />
-                                  </div>
-                                )}
                               </td>
                             </tr>
                           )
