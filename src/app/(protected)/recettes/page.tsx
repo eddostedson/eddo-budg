@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { RecetteFormDialog } from '@/components/recette-form-dialog'
+import { AnimatedListItem } from '@/components/animated-list-item'
 
 export default function RecettesPage() {
   const router = useRouter()
@@ -22,6 +23,7 @@ export default function RecettesPage() {
   const { depenses } = useDepenses()
   const [showModal, setShowModal] = useState(false)
   const [selectedRecette, setSelectedRecette] = useState<Recette | null>(null)
+  const [deletedRecettes, setDeletedRecettes] = useState<Set<string>>(new Set())
 
   // Calculs des totaux
   const totalRecettes = recettes.reduce((sum, recette) => sum + recette.montant, 0)
@@ -78,14 +80,27 @@ export default function RecettesPage() {
 
   const handleDeleteRecette = async (id: string) => {
     if (confirm("Êtes-vous sûr de vouloir supprimer cette recette ? Toutes les dépenses liées seront également supprimées.")) {
+      // Marquer comme supprimé pour l'animation
+      setDeletedRecettes(prev => new Set(prev).add(id))
+      
       try {
         const success = await deleteRecette(id)
-        if (success) {
-          toast.success("✅ Recette supprimée avec succès !")
-        } else {
+        if (!success) {
+          // Annuler la suppression visuelle en cas d'erreur
+          setDeletedRecettes(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(id)
+            return newSet
+          })
           toast.error("❌ Erreur lors de la suppression")
         }
       } catch (error) {
+        // Annuler la suppression visuelle en cas d'erreur
+        setDeletedRecettes(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(id)
+          return newSet
+        })
         toast.error("❌ Erreur lors de la suppression")
       }
     }
@@ -276,14 +291,19 @@ export default function RecettesPage() {
               const totalDepensesRecette = depensesLiees.reduce((total, depense) => total + depense.montant, 0)
               const soldeDisponibleCalcule = recette.montant - totalDepensesRecette
               const pourcentageDisponible = recette.montant > 0 ? Math.round((soldeDisponibleCalcule / recette.montant) * 100) : 0
+              const isDeleted = deletedRecettes.has(recette.id)
               
               return (
-                <motion.div
+                <AnimatedListItem
                   key={recette.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 * index }}
+                  id={recette.id}
+                  isDeleted={isDeleted}
                 >
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 * index }}
+                  >
                   <Card className={`shadow-lg hover:shadow-xl transition-all duration-300 border-0 overflow-hidden ${
                     soldeDisponibleCalcule === 0 
                       ? 'bg-orange-50 border-orange-200' 

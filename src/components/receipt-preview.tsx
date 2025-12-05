@@ -75,6 +75,13 @@ export function ReceiptPreview({ receipt, onClose }: ReceiptPreviewProps) {
     return value.trim()
   }
 
+  const formatLibelle = (libelle: string | null | undefined) => {
+    if (!libelle) return '-'
+    // Supprimer tout ce qui suit ":" dans le libellé
+    // Ex: "Loyer Kennedy: 3 Pieces Grandes" → "Loyer Kennedy"
+    return libelle.split(':')[0].trim()
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -183,7 +190,7 @@ export function ReceiptPreview({ receipt, onClose }: ReceiptPreviewProps) {
                   <p className="text-sm text-gray-900 flex flex-wrap gap-x-4 gap-y-1">
                     <span>
                       <span className="font-semibold text-gray-600">Libellé:&nbsp;</span>
-                      <span>{receipt.libelle || '-'}</span>
+                      <span>{formatLibelle(receipt.libelle)}</span>
                     </span>
                     <span>
                       <span className="font-semibold text-gray-600">Montant reçu:&nbsp;</span>

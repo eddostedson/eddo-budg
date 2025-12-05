@@ -43,6 +43,7 @@ export default function CompteBancaireDetailPage() {
   const [showTransactionModal, setShowTransactionModal] = useState(false)
   const [transactionType, setTransactionType] = useState<'credit' | 'debit'>('credit')
   const [transactionToEdit, setTransactionToEdit] = useState<TransactionBancaire | null>(null)
+  const [showFloatingButtons, setShowFloatingButtons] = useState(false)
   const [editForm, setEditForm] = useState({
     libelle: '',
     description: '',
@@ -70,6 +71,23 @@ export default function CompteBancaireDetailPage() {
       refreshTransactions(compteId)
     }
   }, [compteId, refreshTransactions])
+
+  // Détecter la position de scroll pour afficher/masquer les boutons flottants
+  useEffect(() => {
+    const handleScroll = () => {
+      // Afficher les boutons flottants seulement si on a scrollé de plus de 200px
+      const scrollY = window.scrollY || document.documentElement.scrollTop
+      setShowFloatingButtons(scrollY > 200)
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    // Vérifier la position initiale
+    handleScroll()
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
 
   const compteTransactions = getTransactionsByCompte(compteId)
 
@@ -403,9 +421,32 @@ export default function CompteBancaireDetailPage() {
             </Button>
           </div>
         </div>
+        
+        {/* Boutons flottants - Visibles seulement après avoir scrollé */}
+        {showFloatingButtons && (
+          <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <Button
+              onClick={handleCrediter}
+              className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-6 text-sm font-semibold shadow-2xl hover:shadow-emerald-500/50 transition-all duration-300 hover:scale-110"
+              size="lg"
+            >
+              <TrendingUpIcon className="h-5 w-5 mr-2" />
+              Créditer
+            </Button>
+            <Button
+              onClick={handleDebiter}
+              className="rounded-full bg-rose-600 hover:bg-rose-700 text-white px-6 py-6 text-sm font-semibold shadow-2xl hover:shadow-rose-500/50 transition-all duration-300 hover:scale-110 disabled:bg-rose-300 disabled:hover:scale-100"
+              disabled={compte.soldeActuel === 0}
+              size="lg"
+            >
+              <TrendingDownIcon className="h-5 w-5 mr-2" />
+              Débiter
+            </Button>
+          </div>
+        )}
 
-        {/* Cartes résumées */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        {/* Cartes résumées - Sticky pour rester visibles lors du scroll */}
+        <div className="sticky top-24 z-10 grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <div className="rounded-xl bg-emerald-100 px-5 py-4 shadow-md">
             <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
               Solde actuel

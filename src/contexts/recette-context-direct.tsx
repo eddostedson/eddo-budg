@@ -4,6 +4,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { Recette } from '@/lib/shared-data'
 import { createClient } from '@/lib/supabase/browser'
+import { notifySuccess, notifyError, notifyCreated, notifyUpdated, notifyDeleted } from '@/lib/notify'
 
 const supabase = createClient()
 
@@ -42,7 +43,7 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
       
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
-        console.error('❌ Erreur d\'authentification:', authError)
+        notifyError('Erreur d\'authentification')
         setRecettes([])
         return
       }
@@ -76,7 +77,7 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.log('🔍 Nombre de recettes:', data?.length || 0)
 
       if (error) {
-        console.error('❌ Erreur lors du chargement des recettes:', error)
+        notifyError('Erreur lors du chargement des recettes')
         setRecettes([])
         return
       }
@@ -141,7 +142,7 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
-        console.error('❌ Erreur d\'authentification:', authError)
+        notifyError('Erreur d\'authentification')
         return false
       }
 
@@ -161,19 +162,15 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .insert(insertData)
 
       if (error) {
-        console.error('❌ Erreur lors de la création de la recette:', error)
-        console.error('❌ Code erreur:', error.code)
-        console.error('❌ Message:', error.message)
-        console.error('❌ Détails:', error.details)
-        console.error('❌ Hint:', error.hint)
+        notifyError(`Erreur lors de la création de la recette: ${error.message || 'Erreur inconnue'}`)
         return false
       }
 
-      console.log('✅ Recette créée avec succès')
+      notifyCreated('Recette')
       await refreshRecettes() // Recharger depuis la base
       return true
     } catch (error) {
-      console.error('❌ Erreur inattendue:', error)
+      notifyError('Erreur inattendue lors de la création de la recette')
       return false
     }
   }
@@ -257,35 +254,46 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .select()
 
       if (error) {
-        console.error('❌ [updateRecette] Erreur lors de la modification de la recette:', error)
-        console.error('❌ [updateRecette] Détails complets:', JSON.stringify(error, null, 2))
-        console.error('❌ [updateRecette] Code:', error.code)
-        console.error('❌ [updateRecette] Message:', error.message)
-        console.error('❌ [updateRecette] Details:', error.details)
-        console.error('❌ [updateRecette] Hint:', error.hint)
+        notifyError(`Erreur lors de la modification de la recette: ${error.message || 'Erreur inconnue'}`)
         return false
       }
 
       if (!data || data.length === 0) {
-        console.warn('⚠️ [updateRecette] Aucune ligne mise à jour (peut-être un problème de permissions RLS)')
+        notifyError('Aucune ligne mise à jour (peut-être un problème de permissions)')
         return false
       }
 
-      console.log('✅ [updateRecette] Recette modifiée avec succès dans la base:', data[0])
+      notifyUpdated('Recette')
+      await refreshRecettes()
       return true
     } catch (error) {
-      console.error('❌ [updateRecette] Erreur inattendue:', error)
+      notifyError('Erreur inattendue lors de la modification de la recette')
       return false
     }
   }
 
-  // 🗑️ SUPPRIMER UNE RECETTE (SOFT DELETE - CORBEILLE)
+  // 🗑️ SUPPRIMER UNE RECETTE (SOFT DELETE - CORBEILLE) avec UNDO
   const deleteRecette = async (id: string): Promise<boolean> => {
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
-        console.error('❌ Erreur d\'authentification:', authError)
+        notifyError('Erreur d\'authentification')
         return false
+      }
+
+      // Sauvegarder les données de la recette pour l'UNDO
+      const recetteToDelete = recettes.find(r => r.id === id)
+      if (!recetteToDelete) {
+        notifyError('Recette non trouvée')
+        return false
+      }
+
+      const recetteData = {
+        user_id: user.id,
+        description: recetteToDelete.description || recetteToDelete.libelle || 'Sans description',
+        amount: recetteToDelete.montant,
+        solde_disponible: recetteToDelete.soldeDisponible || recetteToDelete.montant,
+        receipt_date: recetteToDelete.date
       }
 
       // Essayer d'abord le soft delete (si la colonne deleted_at existe)
@@ -298,15 +306,26 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       // Si le soft delete fonctionne, c'est bon
       if (!softDeleteError) {
-        console.log('✅ Recette déplacée dans la corbeille')
+        // Notification avec UNDO
+        notifyDeleted('Recette', async () => {
+          // Restaurer la recette (supprimer deleted_at)
+          const { error: restoreError } = await supabase
+            .from('recettes')
+            .update({ deleted_at: null })
+            .eq('id', id)
+            .eq('user_id', user.id)
+
+          if (!restoreError) {
+            await refreshRecettes()
+          }
+        })
+        
         await refreshRecettes()
         return true
       }
 
       // Si erreur liée à la colonne deleted_at (n'existe pas), faire une suppression définitive
       if (softDeleteError && (softDeleteError.message?.includes('deleted_at') || softDeleteError.code === 'PGRST116')) {
-        console.log('⚠️ Colonne deleted_at non trouvée, suppression définitive...')
-        
         // 1. Supprimer les dépenses liées d'abord
         const { error: deleteDepensesError } = await supabase
           .from('depenses')
@@ -315,7 +334,7 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
           .eq('user_id', user.id)
 
         if (deleteDepensesError) {
-          console.error('❌ Erreur lors de la suppression des dépenses liées:', deleteDepensesError)
+          notifyError('Erreur lors de la suppression des dépenses liées')
           return false
         }
 
@@ -327,20 +346,31 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
           .eq('user_id', user.id)
 
         if (deleteError) {
-          console.error('❌ Erreur lors de la suppression définitive:', deleteError)
+          notifyError(`Erreur lors de la suppression définitive: ${deleteError.message || 'Erreur inconnue'}`)
           return false
         }
 
-        console.log('✅ Recette supprimée définitivement')
+        // Notification avec UNDO pour suppression définitive
+        notifyDeleted('Recette', async () => {
+          // Restaurer la recette
+          const { error: restoreError } = await supabase
+            .from('recettes')
+            .insert(recetteData)
+
+          if (!restoreError) {
+            await refreshRecettes()
+          }
+        })
+
         await refreshRecettes()
         return true
       }
 
       // Autre erreur
-      console.error('❌ Erreur lors de la suppression de la recette:', softDeleteError)
+      notifyError(`Erreur lors de la suppression de la recette: ${softDeleteError.message || 'Erreur inconnue'}`)
       return false
     } catch (error) {
-      console.error('❌ Erreur inattendue:', error)
+      notifyError('Erreur inattendue lors de la suppression de la recette')
       return false
     }
   }
@@ -350,7 +380,7 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
-        console.error('❌ Erreur d\'authentification:', authError)
+        notifyError('Erreur d\'authentification')
         return false
       }
 
@@ -363,15 +393,15 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .not('deleted_at', 'is', null) // S'assurer qu'elle est bien supprimée
 
       if (error) {
-        console.error('❌ Erreur lors de la restauration de la recette:', error)
+        notifyError(`Erreur lors de la restauration de la recette: ${error.message || 'Erreur inconnue'}`)
         return false
       }
 
-      console.log('✅ Recette restaurée avec succès')
+      notifySuccess('Recette restaurée avec succès !', '✅ Restauration réussie')
       await refreshRecettes() // Recharger depuis la base
       return true
     } catch (error) {
-      console.error('❌ Erreur inattendue:', error)
+      notifyError('Erreur inattendue lors de la restauration de la recette')
       return false
     }
   }
@@ -381,7 +411,7 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
-        console.error('❌ Erreur d\'authentification:', authError)
+        notifyError('Erreur d\'authentification')
         return false
       }
 
@@ -393,7 +423,7 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .eq('user_id', user.id)
 
       if (deleteDepensesError) {
-        console.error('❌ Erreur lors de la suppression des dépenses liées:', deleteDepensesError)
+        notifyError('Erreur lors de la suppression des dépenses liées')
         return false
       }
 
@@ -406,15 +436,15 @@ export const RecetteProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .not('deleted_at', 'is', null) // S'assurer qu'elle est bien dans la corbeille
 
       if (error) {
-        console.error('❌ Erreur lors de la suppression définitive:', error)
+        notifyError(`Erreur lors de la suppression définitive: ${error.message || 'Erreur inconnue'}`)
         return false
       }
 
-      console.log('✅ Recette supprimée définitivement')
+      notifySuccess('Recette supprimée définitivement', '🗑️ Suppression définitive')
       await refreshRecettes() // Recharger depuis la base
       return true
     } catch (error) {
-      console.error('❌ Erreur inattendue:', error)
+      notifyError('Erreur inattendue lors de la suppression définitive')
       return false
     }
   }
