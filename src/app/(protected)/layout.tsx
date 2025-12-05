@@ -1,5 +1,6 @@
 'use client'
 
+import { Toaster } from "sonner"
 import { Sidebar } from "@/components/sidebar";
 import { TopHeader } from "@/components/top-header";
 import { MobileNav } from "@/components/mobile-nav";
@@ -33,6 +34,7 @@ export default function ProtectedLayout({
                   <CategoryProvider>
                     <TransfertProvider>
                       <NotesProvider>
+                    <Toaster position="top-right" richColors closeButton duration={3000} />
                     <Sidebar />
                     <TopHeader />
                     <MobileNav />

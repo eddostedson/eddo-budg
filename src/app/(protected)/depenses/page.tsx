@@ -13,12 +13,14 @@ import { Badge } from '@/components/ui/badge'
 import { Loader2, PlusIcon, RefreshCwIcon, TrendingUpIcon, TrendingDownIcon, DollarSignIcon, ReceiptIcon, EyeIcon, EditIcon, TrashIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { DepenseFormDialog } from '@/components/depense-form-dialog'
+import { AnimatedListItem } from '@/components/animated-list-item'
 
 export default function DepensesPage() {
   const { depenses, loading, refreshDepenses, deleteDepense } = useDepenses()
   const { recettes } = useRecettes()
   const [showModal, setShowModal] = useState(false)
   const [selectedDepense, setSelectedDepense] = useState<Depense | null>(null)
+  const [deletedDepenses, setDeletedDepenses] = useState<Set<number>>(new Set())
 
   // Calculs des totaux avec useMemo pour forcer le recalcul
   const totalDepenses = useMemo(() => 
@@ -85,14 +87,27 @@ export default function DepensesPage() {
 
   const handleDeleteDepense = async (id: number) => {
     if (confirm("Êtes-vous sûr de vouloir supprimer cette dépense ?")) {
+      // Marquer comme supprimé pour l'animation
+      setDeletedDepenses(prev => new Set(prev).add(id))
+      
       try {
         const success = await deleteDepense(id)
-        if (success) {
-          toast.success("✅ Dépense supprimée avec succès !")
-        } else {
+        if (!success) {
+          // Annuler la suppression visuelle en cas d'erreur
+          setDeletedDepenses(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(id)
+            return newSet
+          })
           toast.error("❌ Erreur lors de la suppression")
         }
       } catch (error) {
+        // Annuler la suppression visuelle en cas d'erreur
+        setDeletedDepenses(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(id)
+          return newSet
+        })
         toast.error("❌ Erreur lors de la suppression")
       }
     }
@@ -282,19 +297,24 @@ export default function DepensesPage() {
               {depenses.map((depense, index) => {
                 // Vérifier et formater les données
                 const libelle = depense.libelle || 'Dépense sans libellé'
+                const isDeleted = deletedDepenses.has(depense.id)
                 const montant = depense.montant || 0
                 const date = depense.date || depense.createdAt || new Date().toISOString()
                 const description = depense.description || ''
                 const categorie = depense.categorie || ''
                 
                 return (
-                  <motion.div
+                  <AnimatedListItem
                     key={depense.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 * index }}
+                    id={depense.id}
+                    isDeleted={isDeleted}
                   >
-                    <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 border-0 overflow-hidden">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 * index }}
+                    >
+                      <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 border-0 overflow-hidden">
                       <CardHeader className="pb-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-3 flex-1 min-w-0">
@@ -378,7 +398,8 @@ export default function DepensesPage() {
                         </div>
                       </CardContent>
                     </Card>
-                  </motion.div>
+                    </motion.div>
+                  </AnimatedListItem>
                 )
               })}
             </div>

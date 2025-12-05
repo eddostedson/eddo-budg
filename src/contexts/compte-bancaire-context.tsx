@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { CompteBancaire, TransactionBancaire } from '@/lib/shared-data'
 import { createClient } from '@/lib/supabase/browser'
-import { toast } from 'sonner'
+import { notifySuccess, notifyError, notifyCreated, notifyUpdated, notifyDeleted } from '@/lib/notify'
 
 const supabase = createClient()
 
@@ -86,15 +86,74 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     }
   }
 
+  // Fonction utilitaire pour retry avec gestion d'erreurs réseau
+  const retryWithBackoff = async <T,>(
+    fn: () => Promise<T>,
+    maxRetries = 3,
+    delay = 1000
+  ): Promise<T> => {
+    let lastError: any
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await fn()
+      } catch (error: any) {
+        lastError = error
+        const isNetworkError = 
+          error?.message?.includes('Failed to fetch') ||
+          error?.message?.includes('NetworkError') ||
+          error?.message?.includes('Network request failed') ||
+          error?.code === 'ECONNREFUSED' ||
+          error?.code === 'ETIMEDOUT'
+        
+        if (isNetworkError && i < maxRetries - 1) {
+          const waitTime = delay * Math.pow(2, i) // Exponential backoff
+          console.warn(`⚠️ Erreur réseau détectée, nouvelle tentative dans ${waitTime}ms... (${i + 1}/${maxRetries})`)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+          continue
+        }
+        throw error
+      }
+    }
+    throw lastError
+  }
+
   // 🔄 RECHARGER LES TRANSACTIONS
   const refreshTransactions = async (compteId?: string) => {
     try {
-      // Vérifier l'authentification avec plus de détails
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      // Vérifier la configuration Supabase
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      
+      if (!supabaseUrl || !supabaseKey) {
+        console.error('❌ Configuration Supabase manquante')
+        notifyError('Configuration Supabase manquante. Vérifiez vos variables d\'environnement.')
+        return
+      }
+
+      // Vérifier l'authentification avec retry
+      const { data: { user }, error: authError } = await retryWithBackoff(
+        () => supabase.auth.getUser(),
+        2,
+        500
+      ).catch(async (error) => {
+        // Si l'authentification échoue, essayer de récupérer la session
+        console.warn('⚠️ Erreur getUser, tentative avec getSession...')
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        if (sessionError || !session?.user) {
+          throw error
+        }
+        return { data: { user: session.user }, error: null }
+      })
       
       if (authError) {
+        const isNetworkError = authError.message?.includes('Failed to fetch')
         console.error('❌ Erreur d\'authentification:', authError)
-        toast.error('Erreur d\'authentification. Veuillez vous reconnecter.')
+        
+        if (isNetworkError) {
+          notifyError('Erreur de connexion réseau. Vérifiez votre connexion internet.')
+        } else {
+          notifyError('Erreur d\'authentification. Veuillez vous reconnecter.')
+        }
         setTransactions([])
         return
       }
@@ -107,17 +166,21 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       console.log('🔄 Chargement des transactions pour l\'utilisateur:', user.id, compteId ? `(compte: ${compteId})` : '(tous les comptes)')
 
-      let query = supabase
-        .from('transactions_bancaires')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date_transaction', { ascending: false })
+      // Construire la requête avec retry
+      const { data, error } = await retryWithBackoff(async () => {
+        let query = supabase
+          .from('transactions_bancaires')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('date_transaction', { ascending: false })
 
-      if (compteId) {
-        query = query.eq('compte_id', compteId)
-      }
+        if (compteId) {
+          query = query.eq('compte_id', compteId)
+        }
 
-      const { data, error } = await query
+        const result = await query
+        return result
+      }, 3, 1000)
       
       console.log('📊 Résultat de la requête:', { 
         dataCount: data?.length || 0, 
@@ -126,27 +189,90 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       })
 
       if (error) {
-        // Améliorer le logging pour capturer tous les types d'erreurs
-        const errorDetails = {
-          message: error.message || String(error),
-          code: error.code || 'UNKNOWN',
-          details: error.details || null,
-          hint: error.hint || null,
-          fullError: error,
-          errorType: typeof error,
-          errorString: JSON.stringify(error, Object.getOwnPropertyNames(error))
+        // Extraire les informations d'erreur de manière robuste
+        let errorMessage = 'Erreur inconnue'
+        let errorCode = 'UNKNOWN'
+        let errorDetails: any = null
+        let errorHint: string | null = null
+        
+        // Essayer d'extraire le message de différentes façons
+        if (error && typeof error === 'object') {
+          // Vérifier si c'est une erreur "Failed to fetch" qui peut être vide
+          const errorStr = String(error)
+          if (errorStr === '[object Object]' || errorStr === '{}') {
+            // L'erreur est vide, probablement une erreur réseau
+            errorMessage = 'Failed to fetch'
+            errorCode = 'NETWORK_ERROR'
+          } else {
+            errorMessage = (error as any)?.message || 
+                          (error as any)?.error?.message || 
+                          (error as any)?.name ||
+                          errorStr || 
+                          'Erreur inconnue'
+            errorCode = (error as any)?.code || 
+                       (error as any)?.error?.code || 
+                       (error as any)?.status || 
+                       'UNKNOWN'
+            errorDetails = (error as any)?.details || 
+                          (error as any)?.error?.details || 
+                          null
+            errorHint = (error as any)?.hint || 
+                       (error as any)?.error?.hint || 
+                       null
+          }
+        } else if (error) {
+          errorMessage = String(error)
         }
         
-        console.error('❌ Erreur lors du chargement des transactions:', errorDetails)
-        console.error('❌ Erreur brute:', error)
-        console.error('❌ Type d\'erreur:', typeof error)
-        console.error('❌ Erreur stringifiée:', JSON.stringify(error, null, 2))
+        // Détecter les erreurs réseau spécifiques
+        const isNetworkError = 
+          errorMessage.includes('Failed to fetch') ||
+          errorMessage.includes('NetworkError') ||
+          errorMessage.includes('Network request failed') ||
+          errorMessage.includes('ECONNREFUSED') ||
+          errorMessage.includes('ETIMEDOUT') ||
+          errorMessage.includes('timeout') ||
+          errorMessage.includes('aborted') ||
+          errorMessage.includes('AbortError') ||
+          errorCode === 'NETWORK_ERROR'
         
-        // Afficher un message d'erreur plus informatif
-        const errorMessage = error.message || error.code || 'Erreur inconnue lors du chargement'
-        toast.error(
-          `Erreur lors du chargement des transactions: ${errorMessage}`
-        )
+        // Log détaillé avec toutes les informations disponibles
+        const errorInfo: any = {
+          message: errorMessage,
+          code: errorCode,
+          isNetworkError,
+          errorType: typeof error,
+          errorConstructor: error?.constructor?.name || 'Unknown'
+        }
+        
+        if (errorDetails) errorInfo.details = errorDetails
+        if (errorHint) errorInfo.hint = errorHint
+        
+        // Essayer de stringifier l'erreur complète pour le debug
+        try {
+          errorInfo.rawErrorString = JSON.stringify(error, Object.getOwnPropertyNames(error))
+        } catch (e) {
+          errorInfo.rawErrorString = 'Impossible de stringifier l\'erreur'
+        }
+        
+        // Log seulement si on a des informations utiles ou si c'est une erreur réseau
+        if (isNetworkError || errorMessage !== 'Erreur inconnue' || errorCode !== 'UNKNOWN' || errorDetails || errorHint) {
+          console.error('❌ Erreur lors du chargement des transactions:', errorInfo)
+        } else {
+          console.error('❌ Erreur lors du chargement des transactions (erreur vide):', error)
+        }
+        
+        // Message d'erreur adapté selon le type
+        if (isNetworkError) {
+          notifyError('Erreur de connexion réseau. Vérifiez votre connexion internet et réessayez.')
+        } else {
+          const displayMessage = errorMessage !== 'Erreur inconnue' 
+            ? errorMessage 
+            : errorCode !== 'UNKNOWN' 
+              ? `Erreur ${errorCode}` 
+              : 'Erreur inconnue lors du chargement'
+          notifyError(`Erreur lors du chargement des transactions: ${displayMessage}`)
+        }
         
         // Ne pas vider les transactions existantes pour éviter un écran vide
         return
@@ -175,15 +301,31 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       const errorMessage = error instanceof Error ? error.message : String(error)
       const errorStack = error instanceof Error ? error.stack : undefined
       
+      // Détecter les erreurs réseau
+      const isNetworkError = 
+        errorMessage.includes('Failed to fetch') ||
+        errorMessage.includes('NetworkError') ||
+        errorMessage.includes('Network request failed') ||
+        errorMessage.includes('ECONNREFUSED') ||
+        errorMessage.includes('ETIMEDOUT') ||
+        (error as any)?.code === 'ECONNREFUSED' ||
+        (error as any)?.code === 'ETIMEDOUT'
+      
       console.error('❌ Erreur inattendue lors du chargement des transactions:', {
         message: errorMessage,
+        isNetworkError,
         stack: errorStack,
         error: error,
         errorType: typeof error,
         errorString: JSON.stringify(error, Object.getOwnPropertyNames(error))
       })
       
-      toast.error(`Erreur inattendue: ${errorMessage}`)
+      // Message d'erreur adapté selon le type
+      if (isNetworkError) {
+        notifyError('Erreur de connexion réseau. Vérifiez votre connexion internet et réessayez.')
+      } else {
+        notifyError(`Erreur inattendue: ${errorMessage}`)
+      }
       // Ne pas vider les transactions pour éviter un écran vide
       // setTransactions([]) - commenté pour préserver l'état existant
     }
@@ -194,7 +336,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('Erreur d\'authentification')
+        notifyError('Erreur d\'authentification')
         return false
       }
 
@@ -227,21 +369,17 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (error) {
         console.error('❌ Erreur lors de la création du compte:', error)
-        console.error('❌ Code erreur:', error.code)
-        console.error('❌ Message:', error.message)
-        console.error('❌ Détails:', error.details)
-        console.error('❌ Hint:', error.hint)
-        toast.error(`Erreur lors de la création du compte: ${error.message || 'Erreur inconnue'}`)
+        notifyError(`Erreur lors de la création du compte: ${error.message || 'Erreur inconnue'}`)
         return false
       }
 
       console.log('✅ Compte créé avec succès:', data)
-      toast.success('✅ Compte bancaire créé avec succès !')
+      notifyCreated('Compte bancaire')
       await refreshComptes()
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
-      toast.error('Erreur inattendue')
+      notifyError('Erreur inattendue lors de la création')
       return false
     }
   }
@@ -251,7 +389,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('Erreur d\'authentification')
+        notifyError('Erreur d\'authentification')
         return false
       }
 
@@ -272,26 +410,33 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (error) {
         console.error('❌ Erreur lors de la modification du compte:', error)
-        toast.error('Erreur lors de la modification du compte')
+        notifyError('Erreur lors de la modification du compte')
         return false
       }
 
-      toast.success('✅ Compte bancaire modifié avec succès !')
+      notifyUpdated('Compte bancaire')
       await refreshComptes()
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
-      toast.error('Erreur inattendue')
+      notifyError('Erreur inattendue lors de la modification')
       return false
     }
   }
 
-  // 🗑️ SUPPRIMER UN COMPTE (soft delete)
+  // 🗑️ SUPPRIMER UN COMPTE (soft delete) avec UNDO
   const deleteCompte = async (id: string): Promise<boolean> => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('Erreur d\'authentification')
+        notifyError('Erreur d\'authentification')
+        return false
+      }
+
+      // Sauvegarder les données du compte pour l'UNDO
+      const compteToDelete = comptes.find(c => c.id === id)
+      if (!compteToDelete) {
+        notifyError('Compte non trouvé')
         return false
       }
 
@@ -303,16 +448,29 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (error) {
         console.error('❌ Erreur lors de la suppression du compte:', error)
-        toast.error('Erreur lors de la suppression du compte')
+        notifyError('Erreur lors de la suppression du compte')
         return false
       }
 
-      toast.success('✅ Compte bancaire supprimé avec succès !')
+      // Notification avec UNDO
+      notifyDeleted('Compte bancaire', async () => {
+        // Restaurer le compte
+        const { error: restoreError } = await supabase
+          .from('comptes_bancaires')
+          .update({ actif: true })
+          .eq('id', id)
+          .eq('user_id', user.id)
+
+        if (!restoreError) {
+          await refreshComptes()
+        }
+      })
+
       await refreshComptes()
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
-      toast.error('Erreur inattendue')
+      notifyError('Erreur inattendue lors de la suppression')
       return false
     }
   }
@@ -330,12 +488,12 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('Erreur d\'authentification')
+        notifyError('Erreur d\'authentification')
         return false
       }
 
       if (montant <= 0) {
-        toast.error('Le montant doit être supérieur à 0')
+        notifyError('Le montant doit être supérieur à 0')
         return false
       }
 
@@ -348,7 +506,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         .single()
 
       if (!compteData) {
-        toast.error('Compte non trouvé')
+        notifyError('Compte non trouvé')
         return false
       }
 
@@ -377,15 +535,15 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (error) {
         console.error('❌ Erreur lors du crédit:', error)
-        toast.error('Erreur lors du crédit')
+        notifyError('Erreur lors du crédit')
         return null
       }
 
-      toast.success(`✅ ${montant.toLocaleString()} F CFA crédités avec succès !`)
+      notifySuccess(`${montant.toLocaleString()} F CFA crédités avec succès !`, '✅ Crédit effectué')
       return transactionData?.id || null
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
-      toast.error('Erreur inattendue')
+      notifyError('Erreur inattendue')
       return null
     }
   }
@@ -403,12 +561,12 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('Erreur d\'authentification')
+        notifyError('Erreur d\'authentification')
         return false
       }
 
       if (montant <= 0) {
-        toast.error('Le montant doit être supérieur à 0')
+        notifyError('Le montant doit être supérieur à 0')
         return false
       }
 
@@ -421,14 +579,14 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         .single()
 
       if (!compteData) {
-        toast.error('Compte non trouvé')
+        notifyError('Compte non trouvé')
         return false
       }
 
       const soldeAvant = parseFloat(compteData.solde_actuel || 0)
 
       if (soldeAvant < montant) {
-        toast.error(`Solde insuffisant. Solde disponible: ${soldeAvant.toLocaleString()} F CFA`)
+        notifyError(`Solde insuffisant. Solde disponible: ${soldeAvant.toLocaleString()} F CFA`)
         return false
       }
 
@@ -454,15 +612,15 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (error) {
         console.error('❌ Erreur lors du débit:', error)
-        toast.error('Erreur lors du débit')
+        notifyError('Erreur lors du débit')
         return false
       }
 
-      toast.success(`✅ ${montant.toLocaleString()} F CFA débités avec succès !`)
+      notifySuccess(`${montant.toLocaleString()} F CFA débités avec succès !`, '✅ Débit effectué')
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
-      toast.error('Erreur inattendue')
+      notifyError('Erreur inattendue')
       return false
     }
   }
@@ -488,17 +646,17 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('Erreur d\'authentification')
+        notifyError('Erreur d\'authentification')
         return false
       }
 
       if (montant <= 0) {
-        toast.error('Le montant doit être supérieur à 0')
+        notifyError('Le montant doit être supérieur à 0')
         return { success: false }
       }
 
       if (compteSourceId === compteDestinationId) {
-        toast.error('Vous ne pouvez pas transférer vers le même compte')
+        notifyError('Vous ne pouvez pas transférer vers le même compte')
         return { success: false }
       }
 
@@ -507,13 +665,13 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       const compteDestination = comptes.find(c => c.id === compteDestinationId)
 
       if (!compteSource || !compteDestination) {
-        toast.error('Compte source ou destination introuvable')
+        notifyError('Compte source ou destination introuvable')
         return { success: false }
       }
 
       const soldeSource = compteSource.soldeActuel
       if (soldeSource < montant) {
-        toast.error(`Solde insuffisant. Solde disponible: ${soldeSource.toLocaleString()} F CFA`)
+        notifyError(`Solde insuffisant. Solde disponible: ${soldeSource.toLocaleString()} F CFA`)
         return { success: false }
       }
 
@@ -542,7 +700,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (debitError) {
         console.error('❌ Erreur lors du débit:', debitError)
-        toast.error('Erreur lors du débit du compte source')
+        notifyError('Erreur lors du débit du compte source')
         return { success: false }
       }
 
@@ -569,7 +727,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (creditError) {
         console.error('❌ Erreur lors du crédit:', creditError)
-        toast.error('Erreur lors du crédit du compte destination')
+        notifyError('Erreur lors du crédit du compte destination')
         // Essayer de compenser le débit (rollback)
         return { success: false }
       }
@@ -577,11 +735,11 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       // 3. Rafraîchir les comptes
       await refreshComptes()
 
-      toast.success(`✅ Transfert de ${montant.toLocaleString()} F CFA effectué avec succès !`)
+      notifySuccess(`Transfert de ${montant.toLocaleString()} F CFA effectué avec succès !`, '✅ Transfert réussi')
       return { success: true, creditTransactionId: creditData?.id }
     } catch (error) {
       console.error('❌ Erreur inattendue lors du transfert:', error)
-      toast.error('Erreur inattendue lors du transfert')
+      notifyError('Erreur inattendue lors du transfert')
       return { success: false }
     }
   }
@@ -598,7 +756,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
     if (compteError || !compteRow) {
       console.error('❌ Erreur lors du chargement du compte pour recalcul des soldes:', compteError)
-      toast.error('Erreur lors du recalcul des soldes du compte')
+      notifyError('Erreur lors du recalcul des soldes du compte')
       return false
     }
 
@@ -612,7 +770,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
     if (txError) {
       console.error('❌ Erreur lors du chargement des transactions pour recalcul:', txError)
-      toast.error('Erreur lors du recalcul des transactions')
+      notifyError('Erreur lors du recalcul des transactions')
       return false
     }
 
@@ -640,7 +798,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (updateTxError) {
         console.error('❌ Erreur lors de la mise à jour des soldes de transaction:', updateTxError)
-        toast.error('Erreur lors du recalcul des soldes des transactions')
+        notifyError('Erreur lors du recalcul des soldes des transactions')
         return false
       }
     }
@@ -654,23 +812,23 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
     if (updateCompteError) {
       console.error('❌ Erreur lors de la mise à jour du solde du compte:', updateCompteError)
-      toast.error('Erreur lors de la mise à jour du solde du compte')
+      notifyError('Erreur lors de la mise à jour du solde du compte')
       return false
     }
 
     return true
   }
 
-  // 🗑️ SUPPRIMER UNE TRANSACTION
+  // 🗑️ SUPPRIMER UNE TRANSACTION avec UNDO
   const deleteTransaction = async (transactionId: string): Promise<boolean> => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('Erreur d\'authentification')
+        notifyError('Erreur d\'authentification')
         return false
       }
 
-      // 1. Charger la transaction
+      // 1. Charger la transaction pour sauvegarder les données pour UNDO
       const { data: transaction, error: fetchError } = await supabase
         .from('transactions_bancaires')
         .select('*')
@@ -680,11 +838,12 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (fetchError || !transaction) {
         console.error('❌ Erreur lors du chargement de la transaction à supprimer:', fetchError)
-        toast.error('Transaction introuvable')
+        notifyError('Transaction introuvable')
         return false
       }
 
       const compteId = transaction.compte_id as string
+      const transactionData = { ...transaction }
 
       // 2. Supprimer la transaction
       const { error: deleteError } = await supabase
@@ -695,7 +854,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (deleteError) {
         console.error('❌ Erreur lors de la suppression de la transaction:', deleteError)
-        toast.error('Erreur lors de la suppression de la transaction')
+        notifyError('Erreur lors de la suppression de la transaction')
         return false
       }
 
@@ -705,12 +864,24 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         return false
       }
 
-      toast.success('✅ Transaction supprimée avec succès')
+      // Notification avec UNDO
+      notifyDeleted('Transaction', async () => {
+        // Restaurer la transaction
+        const { error: restoreError } = await supabase
+          .from('transactions_bancaires')
+          .insert(transactionData)
+
+        if (!restoreError) {
+          await recalculateCompteSolde(compteId, user.id)
+          await Promise.all([refreshComptes(), refreshTransactions(compteId)])
+        }
+      })
+
       await Promise.all([refreshComptes(), refreshTransactions(compteId)])
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue lors de la suppression de la transaction:', error)
-      toast.error('Erreur inattendue lors de la suppression de la transaction')
+      notifyError('Erreur inattendue lors de la suppression de la transaction')
       return false
     }
   }
@@ -720,7 +891,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('Erreur d\'authentification')
+        notifyError('Erreur d\'authentification')
         return false
       }
 
@@ -734,7 +905,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (fetchError || !existingTx) {
         console.error('❌ Erreur lors du chargement de la transaction à modifier:', fetchError)
-        toast.error('Transaction introuvable')
+        notifyError('Transaction introuvable')
         return false
       }
 
@@ -759,7 +930,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (error) {
         console.error('❌ Erreur lors de la modification de la transaction:', error)
-        toast.error('Erreur lors de la modification de la transaction')
+        notifyError('Erreur lors de la modification de la transaction')
         return false
       }
 
@@ -781,11 +952,11 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         })
       }
 
-      toast.success('✅ Transaction modifiée avec succès')
+      notifyUpdated('Transaction')
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue lors de la modification de la transaction:', error)
-      toast.error('Erreur inattendue lors de la modification de la transaction')
+      notifyError('Erreur inattendue lors de la modification de la transaction')
       return false
     }
   }
@@ -795,7 +966,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('Erreur d\'authentification')
+        notifyError('Erreur d\'authentification')
         return false
       }
 
@@ -807,7 +978,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         .eq('actif', true)
 
       if (existingComptes && existingComptes.length > 0) {
-        toast.info('Des comptes bancaires existent déjà')
+        notifyInfo('Des comptes bancaires existent déjà')
         return false
       }
 
@@ -854,16 +1025,16 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (error) {
         console.error('❌ Erreur lors de l\'initialisation des comptes:', error)
-        toast.error('Erreur lors de l\'initialisation des comptes')
+        notifyError('Erreur lors de l\'initialisation des comptes')
         return false
       }
 
-      toast.success('✅ 3 comptes bancaires créés avec succès !')
+      notifySuccess('3 comptes bancaires créés avec succès !', '✅ Initialisation réussie')
       await refreshComptes()
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
-      toast.error('Erreur inattendue')
+      notifyError('Erreur inattendue')
       return false
     }
   }

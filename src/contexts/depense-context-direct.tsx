@@ -4,6 +4,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { Depense } from '@/lib/shared-data'
 import { createClient } from '@/lib/supabase/browser'
+import { notifySuccess, notifyError, notifyCreated, notifyUpdated, notifyDeleted } from '@/lib/notify'
 
 const supabase = createClient()
 
@@ -39,7 +40,7 @@ export const DepenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
-        console.error('❌ Erreur d\'authentification:', authError)
+        notifyError('Erreur d\'authentification')
         setDepenses([])
         return
       }
@@ -51,7 +52,7 @@ export const DepenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('❌ Erreur lors du chargement des dépenses:', error)
+        notifyError('Erreur lors du chargement des dépenses')
         setDepenses([])
         return
       }
@@ -90,7 +91,7 @@ export const DepenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
-        console.error('❌ Erreur d\'authentification:', authError)
+        notifyError('Erreur d\'authentification')
         return false
       }
 
@@ -111,7 +112,7 @@ export const DepenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .single()
 
       if (error) {
-        console.error('❌ Erreur lors de la création de la dépense:', error)
+        notifyError(`Erreur lors de la création de la dépense: ${error.message || 'Erreur inconnue'}`)
         return false
       }
 
@@ -132,21 +133,15 @@ export const DepenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       // Ajouter la nouvelle dépense au state immédiatement
-      console.log('➕ [CREATE] Ajout de la nouvelle dépense au state:', newDepense.libelle, newDepense.montant)
-      setDepenses(prev => {
-        console.log('➕ [CREATE] State actuel avant ajout:', prev.length, 'dépenses')
-        const newState = [newDepense, ...prev]
-        console.log('➕ [CREATE] Nouveau state après ajout:', newState.length, 'dépenses')
-        return newState
-      })
+      setDepenses(prev => [newDepense, ...prev])
       setVersion(v => v + 1)
 
       // Attendre un peu puis recharger toutes les dépenses pour être sûr
-      console.log('⏰ [CREATE] Attente 500ms avant refresh...')
       await new Promise(resolve => setTimeout(resolve, 500))
-      console.log('🔄 [CREATE] Début du refresh complet...')
       await refreshDepenses()
-      console.log('✅ [CREATE] Refresh terminé')
+      
+      // Notification de succès
+      notifyCreated('Dépense')
       
       // Émettre un événement pour que le contexte recettes se rafraîchisse aussi
       window.dispatchEvent(new CustomEvent('depense-created', { 
@@ -155,7 +150,7 @@ export const DepenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       
       return true
     } catch (error) {
-      console.error('❌ Erreur inattendue:', error)
+      notifyError('Erreur inattendue lors de la création de la dépense')
       return false
     }
   }
@@ -165,7 +160,7 @@ export const DepenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
-        console.error('❌ Erreur d\'authentification:', authError)
+        notifyError('Erreur d\'authentification')
         return false
       }
 
@@ -185,7 +180,7 @@ export const DepenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .eq('user_id', user.id)
 
       if (error) {
-        console.error('❌ Erreur lors de la modification de la dépense:', error)
+        notifyError(`Erreur lors de la modification de la dépense: ${error.message || 'Erreur inconnue'}`)
         return false
       }
 
@@ -193,11 +188,15 @@ export const DepenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       await new Promise(resolve => setTimeout(resolve, 300))
       
       await refreshDepenses()
+      
+      // Notification de succès
+      notifyUpdated('Dépense')
+      
       window.dispatchEvent(new CustomEvent('depense-updated'))
       
       return true
     } catch (error) {
-      console.error('❌ Erreur inattendue:', error)
+      notifyError('Erreur inattendue lors de la modification de la dépense')
       return false
     }
   }
@@ -207,7 +206,7 @@ export const DepenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) {
-        console.error('❌ Erreur d\'authentification:', authError)
+        notifyError('Erreur d\'authentification')
         return false
       }
 

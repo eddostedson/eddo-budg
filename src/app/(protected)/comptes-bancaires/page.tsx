@@ -48,10 +48,27 @@ export default function ComptesBancairesPage() {
   const [showRecentActivity, setShowRecentActivity] = useState(false)
   const [recentTypeFilter, setRecentTypeFilter] = useState<'debit' | 'credit'>('debit')
   const [recentOrderDesc, setRecentOrderDesc] = useState(true)
-  const [excludedCompteIds, setExcludedCompteIds] = useState<string[]>([])
-
+  // Initialiser depuis localStorage au montage
   const STORAGE_KEY_EXCLUDED = 'eddobudg_comptes_exclus_total_soldes'
   const STORAGE_KEY_PENDING_EXCLUDE_NEW = 'eddobudg_exclude_new_compte'
+  
+  const loadExcludedFromStorage = (): string[] => {
+    if (typeof window === 'undefined') return []
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY_EXCLUDED)
+      if (raw) {
+        const parsed = JSON.parse(raw) as string[]
+        if (Array.isArray(parsed)) {
+          return parsed
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement initial des comptes exclus:', error)
+    }
+    return []
+  }
+
+  const [excludedCompteIds, setExcludedCompteIds] = useState<string[]>(loadExcludedFromStorage)
 
   const totalSoldes = getTotalSoldes()
 
@@ -74,25 +91,25 @@ export default function ComptesBancairesPage() {
     })
   }, [comptes, router])
 
-  // Charger les comptes exclus depuis le localStorage (persistance) + prendre en compte
-  // un éventuel nouveau compte marqué "à exclure" depuis le formulaire de création.
+  // Synchroniser les comptes exclus avec les comptes disponibles (nettoyer les IDs invalides)
+  // et prendre en compte un éventuel nouveau compte marqué "à exclure" depuis le formulaire de création.
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined' || comptes.length === 0) return
+    
     try {
-      let ids: string[] = []
-
-      const raw = window.localStorage.getItem(STORAGE_KEY_EXCLUDED)
-      if (raw) {
-        const parsed = JSON.parse(raw) as string[]
-        if (Array.isArray(parsed)) {
-          // Ne garder que les IDs qui existent encore dans la liste des comptes
-          ids = parsed.filter((id) => comptes.some((c) => c.id === id))
-        }
+      // Ne garder que les IDs qui existent encore dans la liste des comptes
+      const validIds = excludedCompteIds.filter((id) => comptes.some((c) => c.id === id))
+      
+      // Si des IDs ont été supprimés, mettre à jour l'état
+      if (validIds.length !== excludedCompteIds.length) {
+        setExcludedCompteIds(validIds)
+        // Sauvegarder immédiatement
+        window.localStorage.setItem(STORAGE_KEY_EXCLUDED, JSON.stringify(validIds))
       }
 
       // Traiter un éventuel "nouveau compte à exclure" (flag posé par le formulaire)
       const pending = window.localStorage.getItem(STORAGE_KEY_PENDING_EXCLUDE_NEW)
-      if (pending === '1' && comptes.length > 0) {
+      if (pending === '1') {
         const comptesAvecDate = [...comptes].sort((a, b) => {
           const da = a.createdAt ? new Date(a.createdAt).getTime() : 0
           const db = b.createdAt ? new Date(b.createdAt).getTime() : 0
@@ -100,19 +117,19 @@ export default function ComptesBancairesPage() {
         })
 
         const newest = comptesAvecDate[0] || comptes[0]
-        if (newest && !ids.includes(newest.id)) {
-          ids = [...ids, newest.id]
+        if (newest && !validIds.includes(newest.id)) {
+          const updatedIds = [...validIds, newest.id]
+          setExcludedCompteIds(updatedIds)
+          window.localStorage.setItem(STORAGE_KEY_EXCLUDED, JSON.stringify(updatedIds))
         }
 
         // On consume le flag pour ne pas l'appliquer plusieurs fois
         window.localStorage.removeItem(STORAGE_KEY_PENDING_EXCLUDE_NEW)
       }
-
-      setExcludedCompteIds(ids)
     } catch (error) {
-      console.error('Erreur lors du chargement des comptes exclus depuis le localStorage:', error)
+      console.error('Erreur lors de la synchronisation des comptes exclus:', error)
     }
-  }, [comptes])
+  }, [comptes]) // Seulement quand les comptes changent, pas excludedCompteIds
 
   // Sauvegarder les comptes exclus dans le localStorage à chaque modification
   useEffect(() => {

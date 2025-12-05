@@ -26,6 +26,28 @@ const AccueilPage: React.FC = () => {
   const { depenses, loading: depensesLoading } = useDepenses()
   const { comptes, loading: comptesLoading, getTotalSoldes } = useComptesBancaires()
   const [loading, setLoading] = useState(true)
+  const [excludedCompteIds, setExcludedCompteIds] = useState<string[]>([])
+
+  const STORAGE_KEY_EXCLUDED = 'eddobudg_comptes_exclus_total_soldes'
+
+  // Charger les comptes exclus depuis localStorage au démarrage
+  useEffect(() => {
+    if (typeof window === 'undefined' || !comptes.length) return
+    
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY_EXCLUDED)
+      if (raw) {
+        const parsed = JSON.parse(raw) as string[]
+        if (Array.isArray(parsed)) {
+          // Ne garder que les IDs qui existent encore dans la liste des comptes
+          const validIds = parsed.filter((id) => comptes.some((c) => c.id === id))
+          setExcludedCompteIds(validIds)
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des comptes exclus depuis le localStorage:', error)
+    }
+  }, [comptes])
 
   // Calculs des totaux avec useMemo
   const totalRecettes = useMemo(() => {
@@ -36,10 +58,23 @@ const AccueilPage: React.FC = () => {
     return depenses.reduce((sum, d) => sum + (d.montant || 0), 0)
   }, [depenses])
 
-  // Solde cumulé de tous les comptes bancaires
+  // Solde cumulé de tous les comptes bancaires (avec exclusions)
   const totalSoldesComptes = useMemo(() => {
-    return getTotalSoldes()
-  }, [getTotalSoldes])
+    const total = getTotalSoldes()
+    
+    // Si aucun compte n'est exclu, retourner le total normal
+    if (!excludedCompteIds.length || !comptes.length) {
+      return total
+    }
+
+    // Calculer le total des comptes exclus
+    const excludedTotal = comptes
+      .filter((compte) => excludedCompteIds.includes(compte.id))
+      .reduce((sum, compte) => sum + (compte.soldeActuel || 0), 0)
+
+    // Retourner le total moins les comptes exclus
+    return total - excludedTotal
+  }, [getTotalSoldes, comptes, excludedCompteIds])
 
   // Statistiques avancées
   const recettesUtilisees = recettes.filter(r => (r.soldeDisponible || 0) < (r.montant || 0)).length

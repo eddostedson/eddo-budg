@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 import { Receipt } from '@/lib/shared-data'
-import { toast } from 'sonner'
+import { notifySuccess, notifyError, notifyCreated, notifyUpdated, notifyDeleted } from '@/lib/notify'
 
 const supabase = createClient()
 
@@ -46,7 +46,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
       
       if (authError) {
         console.error('❌ Erreur d\'authentification:', authError)
-        toast.error('Erreur d\'authentification. Veuillez vous reconnecter.')
+        notifyError('Erreur d\'authentification. Veuillez vous reconnecter.')
         setReceipts([])
         setLoading(false)
         return
@@ -86,7 +86,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         
         // Afficher un message d'erreur plus informatif
         const errorMessage = error.message || error.code || 'Erreur inconnue lors du chargement'
-        toast.error(`Erreur lors de la récupération des reçus: ${errorMessage}`)
+        notifyError(`Erreur lors de la récupération des reçus: ${errorMessage}`)
         setReceipts([])
         return
       }
@@ -142,39 +142,39 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('Erreur d\'authentification')
+        notifyError('Erreur d\'authentification')
         return null
       }
 
       // Validation des champs requis
       if (!receipt.compteId) {
         console.error('❌ compteId manquant')
-        toast.error('Erreur: compteId manquant')
+        notifyError('Erreur: compteId manquant')
         return null
       }
       if (!receipt.nomLocataire || receipt.nomLocataire.trim() === '') {
         console.error('❌ nomLocataire manquant')
-        toast.error('Erreur: nom du locataire manquant')
+        notifyError('Erreur: nom du locataire manquant')
         return null
       }
       if (!receipt.villa || receipt.villa.trim() === '') {
         console.error('❌ villa manquante')
-        toast.error('Erreur: villa manquante')
+        notifyError('Erreur: villa manquante')
         return null
       }
       if (!receipt.periode || receipt.periode.trim() === '') {
         console.error('❌ periode manquante')
-        toast.error('Erreur: période manquante')
+        notifyError('Erreur: période manquante')
         return null
       }
       if (!receipt.montant || receipt.montant <= 0) {
         console.error('❌ montant invalide:', receipt.montant)
-        toast.error('Erreur: montant invalide')
+        notifyError('Erreur: montant invalide')
         return null
       }
       if (!receipt.dateTransaction) {
         console.error('❌ dateTransaction manquante')
-        toast.error('Erreur: date de transaction manquante')
+        notifyError('Erreur: date de transaction manquante')
         return null
       }
 
@@ -244,16 +244,16 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
           libelle: receipt.libelle || null,
           description: receipt.description || null
         })
-        toast.error(`Erreur lors de la création du reçu: ${error.message || 'Erreur inconnue'}`)
+        notifyError(`Erreur lors de la création du reçu: ${error.message || 'Erreur inconnue'}`)
         return null
       }
 
       await refreshReceipts()
-      toast.success('✅ Reçu créé avec succès !')
+      notifyCreated('Reçu')
       return data.id
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
-      toast.error('Erreur inattendue lors de la création du reçu')
+      notifyError('Erreur inattendue lors de la création du reçu')
       return null
     }
   }
@@ -262,7 +262,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('Erreur d\'authentification')
+        notifyError('Erreur d\'authentification')
         return false
       }
 
@@ -308,16 +308,16 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error('❌ Erreur lors de la mise à jour du reçu:', error)
-        toast.error('Erreur lors de la mise à jour du reçu')
+        notifyError('Erreur lors de la mise à jour du reçu')
         return false
       }
 
       await refreshReceipts()
-      toast.success('✅ Reçu modifié avec succès !')
+      notifyUpdated('Reçu')
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
-      toast.error('Erreur inattendue lors de la mise à jour du reçu')
+      notifyError('Erreur inattendue lors de la mise à jour du reçu')
       return false
     }
   }
@@ -326,8 +326,30 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        toast.error('Erreur d\'authentification')
+        notifyError('Erreur d\'authentification')
         return false
+      }
+
+      // Sauvegarder les données du reçu pour l'UNDO
+      const receiptToDelete = receipts.find(r => r.id === id)
+      if (!receiptToDelete) {
+        notifyError('Reçu non trouvé')
+        return false
+      }
+
+      const receiptData = {
+        user_id: user.id,
+        compte_id: receiptToDelete.compteId,
+        nom_locataire: receiptToDelete.nomLocataire,
+        villa: receiptToDelete.villa,
+        periode: receiptToDelete.periode,
+        montant: receiptToDelete.montant,
+        date_transaction: receiptToDelete.dateTransaction,
+        libelle: receiptToDelete.libelle || null,
+        description: receiptToDelete.description || null,
+        receipt_url: receiptToDelete.receiptUrl || null,
+        receipt_file_name: receiptToDelete.receiptFileName || null,
+        qr_code_data: receiptToDelete.qrCodeData || null
       }
 
       const { error } = await supabase
@@ -338,16 +360,27 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error('❌ Erreur lors de la suppression du reçu:', error)
-        toast.error('Erreur lors de la suppression du reçu')
+        notifyError('Erreur lors de la suppression du reçu')
         return false
       }
 
+      // Notification avec UNDO
+      notifyDeleted('Reçu', async () => {
+        // Restaurer le reçu
+        const { error: restoreError } = await supabase
+          .from('receipts')
+          .insert(receiptData)
+
+        if (!restoreError) {
+          await refreshReceipts()
+        }
+      })
+
       await refreshReceipts()
-      toast.success('✅ Reçu supprimé avec succès !')
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
-      toast.error('Erreur inattendue lors de la suppression du reçu')
+      notifyError('Erreur inattendue lors de la suppression du reçu')
       return false
     }
   }
