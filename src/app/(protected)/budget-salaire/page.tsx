@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Search as SearchIcon } from 'lucide-react'
 
 const MONTHS = [
   'Janvier',
@@ -37,6 +38,7 @@ export default function BudgetSalairePage() {
   const [loadingData, setLoadingData] = useState(false)
   const [budgetMois, setBudgetMois] = useState<BudgetSalaireMois | null>(null)
   const [rubriques, setRubriques] = useState<BudgetSalaireRubrique[]>([])
+  const [mouvementsBudget, setMouvementsBudget] = useState<BudgetSalaireMouvement[]>([])
 
   const [revenuInput, setRevenuInput] = useState('')
   const [newRubrique, setNewRubrique] = useState({
@@ -68,6 +70,74 @@ export default function BudgetSalairePage() {
     description: ''
   })
 
+  // Recherche ultramoderne sur les rubriques (libellés + montants)
+  const [rubriqueSearch, setRubriqueSearch] = useState('')
+  // Pour éviter que la fenêtre auto ne se rouvre en boucle pour la même recherche
+  const [autoOpenSearchKey, setAutoOpenSearchKey] = useState<string | null>(null)
+
+  // Préparation de la recherche (texte ou montant exact)
+  const trimmedRubriqueSearch = rubriqueSearch.trim()
+  const hasRubriqueSearch = trimmedRubriqueSearch !== ''
+  const rubriqueSearchLower = trimmedRubriqueSearch.toLowerCase()
+  const rubriqueNumericSearchRaw = rubriqueSearchLower.replace(/\s/g, '')
+  const isRubriqueNumericSearch =
+    rubriqueNumericSearchRaw !== '' && /^[0-9]+$/.test(rubriqueNumericSearchRaw)
+  const rubriqueNumericValue = isRubriqueNumericSearch
+    ? parseInt(rubriqueNumericSearchRaw, 10)
+    : null
+
+  const rubriqueHasMovementDescriptionMatch = (rubriqueId: string) => {
+    if (!hasRubriqueSearch || isRubriqueNumericSearch) return false
+
+    return mouvementsBudget.some(
+      (mvt) =>
+        mvt.rubriqueId === rubriqueId &&
+        (mvt.description || '').toLowerCase().includes(rubriqueSearchLower)
+    )
+  }
+
+  const filteredRubriques = rubriques.filter((rubrique) => {
+    if (!hasRubriqueSearch) return true
+
+    if (isRubriqueNumericSearch && rubriqueNumericValue !== null) {
+      const resteRubriqueNumeric = rubrique.montantBudgete - rubrique.montantDepense
+      const hasMovementWithAmount = mouvementsBudget.some(
+        (mvt) => mvt.rubriqueId === rubrique.id && mvt.montant === rubriqueNumericValue
+      )
+      return (
+        rubrique.montantBudgete === rubriqueNumericValue ||
+        rubrique.montantDepense === rubriqueNumericValue ||
+        resteRubriqueNumeric === rubriqueNumericValue ||
+        hasMovementWithAmount
+      )
+    }
+
+    const matchesNom = rubrique.nom.toLowerCase().includes(rubriqueSearchLower)
+    const matchesMovementDescription = rubriqueHasMovementDescriptionMatch(rubrique.id)
+
+    return matchesNom || matchesMovementDescription
+  })
+
+  const highlightRubriqueNom = (nom: string) => {
+    if (!hasRubriqueSearch || isRubriqueNumericSearch) return nom
+
+    const lower = nom.toLowerCase()
+    const index = lower.indexOf(rubriqueSearchLower)
+    if (index === -1) return nom
+
+    const before = nom.slice(0, index)
+    const match = nom.slice(index, index + trimmedRubriqueSearch.length)
+    const after = nom.slice(index + trimmedRubriqueSearch.length)
+
+    return (
+      <>
+        {before}
+        <span className="bg-yellow-200 text-slate-900 rounded px-1">{match}</span>
+        {after}
+      </>
+    )
+  }
+
   useEffect(() => {
     const checkAuth = async () => {
       const {
@@ -98,13 +168,13 @@ export default function BudgetSalairePage() {
       }
 
       const rubs = await BudgetSalaireService.getRubriques(budget.id)
-      const mouvementsBudget = await BudgetSalaireService.getMouvementsPourBudget(budget.id)
+      const mouvementsBudgetData = await BudgetSalaireService.getMouvementsPourBudget(budget.id)
 
       // Recalculer les montants dépensés à partir des mouvements pour une cohérence totale
       const depenseParRubrique: Record<string, number> = {}
       let totalDepenseCalcule = 0
 
-      mouvementsBudget.forEach((mvt) => {
+      mouvementsBudgetData.forEach((mvt) => {
         depenseParRubrique[mvt.rubriqueId] =
           (depenseParRubrique[mvt.rubriqueId] || 0) + mvt.montant
         totalDepenseCalcule += mvt.montant
@@ -122,6 +192,7 @@ export default function BudgetSalairePage() {
 
       setBudgetMois(budgetCorrige)
       setRubriques(rubriquesCorrigees)
+      setMouvementsBudget(mouvementsBudgetData)
     } finally {
       setLoadingData(false)
     }
@@ -256,6 +327,35 @@ export default function BudgetSalairePage() {
     }
   }
 
+  const closeMouvementsModal = () => {
+    setRubriqueMouvementsRubrique(null)
+    setRubriqueMouvements([])
+    // Marquer cette recherche comme déjà traitée pour ne pas rouvrir automatiquement
+    if (hasRubriqueSearch) {
+      setAutoOpenSearchKey(trimmedRubriqueSearch)
+    }
+  }
+
+  // Ouvrir automatiquement la fenêtre des mouvements quand une seule rubrique correspond à la recherche
+  useEffect(() => {
+    if (!hasRubriqueSearch) {
+      // Reset quand on efface la recherche
+      if (autoOpenSearchKey !== null) {
+        setAutoOpenSearchKey(null)
+      }
+      return
+    }
+    if (rubriqueMouvementsRubrique) return
+    if (filteredRubriques.length !== 1) return
+    // Ne pas rouvrir si on a déjà ouvert (ou fermé) pour cette recherche
+    if (autoOpenSearchKey === trimmedRubriqueSearch) return
+
+    const [uniqueRubrique] = filteredRubriques
+    setAutoOpenSearchKey(trimmedRubriqueSearch)
+    // Appel sans await pour ne pas bloquer le rendu
+    void handleVoirMouvementsRubrique(uniqueRubrique)
+  }, [hasRubriqueSearch, trimmedRubriqueSearch, filteredRubriques, rubriqueMouvementsRubrique, autoOpenSearchKey])
+
   const openEditMouvement = (mvt: BudgetSalaireMouvement) => {
     setMouvementEnEdition(mvt)
     setEditMouvementForm({
@@ -376,28 +476,45 @@ export default function BudgetSalairePage() {
     <div className="min-h-screen bg-slate-100 py-8 px-4 md:px-8">
       <div className="max-w-7xl mx-auto bg-white rounded-2xl shadow-lg px-4 py-6 md:px-8 md:py-8">
         {/* Bloc sticky : titre, sélecteur mois/année et résumé */}
-        <div className="sticky top-4 z-20 bg-white/95 backdrop-blur-md pb-5 mb-8 border-b border-slate-200">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-            <div>
+        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md pb-5 mb-8 border-b border-slate-200">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
+            <div className="flex-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Budget mensuel</p>
               <h1 className="mt-1 text-2xl md:text-3xl font-bold text-slate-900">Budget Salaire</h1>
               <p className="mt-1 text-sm text-slate-500 max-w-xl">
                 Suivi premium de ton salaire et des dépenses par rubriques, indépendant des comptes bancaires.
               </p>
+              {/* Ligne mois + recherche rubriques */}
+              <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 max-w-xl">
+                <Select value={String(mois)} onValueChange={(value) => setMois(parseInt(value, 10))}>
+                  <SelectTrigger className="w-[120px] rounded-xl border-slate-300 bg-slate-50/80 shadow-inner text-sm">
+                    <SelectValue placeholder="Mois" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTHS.map((label, index) => (
+                      <SelectItem key={index + 1} value={String(index + 1)}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Champ de recherche ultramoderne pour les rubriques */}
+                <div className="relative flex-1">
+                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <SearchIcon className="h-4 w-4 text-slate-400" />
+                  </span>
+                  <Input
+                    type="text"
+                    value={rubriqueSearch}
+                    onChange={(e) => setRubriqueSearch(e.target.value)}
+                    placeholder="Rechercher une rubrique ou un montant (ex: Internet, 50000)"
+                    className="w-full min-w-[260px] pl-10 pr-4 py-2.5 rounded-full border border-indigo-300 bg-indigo-50/80 shadow-md text-sm md:text-base placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 transition-all"
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Select value={String(mois)} onValueChange={(value) => setMois(parseInt(value, 10))}>
-                <SelectTrigger className="w-[150px] rounded-xl border-slate-300 bg-slate-50/80 shadow-inner text-sm">
-                  <SelectValue placeholder="Mois" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MONTHS.map((label, index) => (
-                    <SelectItem key={index + 1} value={String(index + 1)}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               <Input
                 type="number"
                 value={annee}
@@ -483,18 +600,18 @@ export default function BudgetSalairePage() {
                   </span>
                 </p>
               </div>
-              <div className="rounded-xl bg-blue-100/80 px-5 py-4 shadow-md">
-                <p className="text-xs font-medium uppercase tracking-wide text-blue-800">
+              <div className="rounded-xl bg-emerald-100/80 px-5 py-4 shadow-md">
+                <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
                   Marge sur le budget (plafonds - dépenses)
                 </p>
                 <p
                   className={`mt-2 text-2xl md:text-3xl font-semibold ${
-                    margeSurBudget >= 0 ? 'text-blue-900' : 'text-red-700'
+                    margeSurBudget >= 0 ? 'text-emerald-900' : 'text-red-700'
                   }`}
                 >
                   {formatCurrency(margeSurBudget)}
                 </p>
-                <p className="mt-1 text-[11px] text-blue-900/80">
+                <p className="mt-1 text-[11px] text-emerald-900/80">
                   Différence entre le total budgété et le total dépensé ce mois. Si ce montant devient
                   négatif, les plafonds sont dépassés.
                 </p>
@@ -513,10 +630,16 @@ export default function BudgetSalairePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 md:px-6">
+                {hasRubriqueSearch && filteredRubriques.length === 0 && (
+                  <p className="mb-3 text-xs text-rose-600">
+                    Aucune rubrique ou montant ne correspond à{' '}
+                    <span className="font-semibold">"{trimmedRubriqueSearch}"</span>.
+                  </p>
+                )}
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50/60">
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-h-[calc(100vh-260px)] relative">
                     <table className="min-w-full text-sm">
-                      <thead className="bg-white text-slate-700">
+                      <thead className="bg-white text-slate-700 sticky top-0 z-10">
                         <tr>
                           <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide">
                             Rubrique
@@ -542,7 +665,7 @@ export default function BudgetSalairePage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
-                        {rubriques.map((rubrique, index) => {
+                        {filteredRubriques.map((rubrique, index) => {
                           const resteRubrique = rubrique.montantBudgete - rubrique.montantDepense
                           const depenseRatio =
                             rubrique.montantBudgete > 0
@@ -567,20 +690,62 @@ export default function BudgetSalairePage() {
                                 ? 'text-amber-600'
                                 : 'text-emerald-600'
 
+                          const hasMovementDescriptionMatch = rubriqueHasMovementDescriptionMatch(rubrique.id)
+
+                          const highlightBudget =
+                            isRubriqueNumericSearch &&
+                            rubriqueNumericValue !== null &&
+                            rubrique.montantBudgete === rubriqueNumericValue
+                          const highlightDepense =
+                            isRubriqueNumericSearch &&
+                            rubriqueNumericValue !== null &&
+                            rubrique.montantDepense === rubriqueNumericValue
+                          const highlightReste =
+                            isRubriqueNumericSearch &&
+                            rubriqueNumericValue !== null &&
+                            resteRubrique === rubriqueNumericValue
+
                           return (
                             <tr key={rubrique.id} className={`${rowBg} transition-colors`}>
                               <td className="px-5 py-4 align-top">
-                                <div className="inline-flex items-center gap-2">
-                                  <span className="h-2 w-2 rounded-full bg-indigo-400" />
-                                  <span className="font-semibold text-slate-900">{rubrique.nom}</span>
+                                <div className="inline-flex items-start gap-2">
+                                  <span className="mt-1 h-2 w-2 rounded-full bg-indigo-400" />
+                                  <div>
+                                    <span className="font-semibold text-slate-900">
+                                      {highlightRubriqueNom(rubrique.nom)}
+                                    </span>
+                                    {hasMovementDescriptionMatch &&
+                                      !rubrique.nom.toLowerCase().includes(rubriqueSearchLower) && (
+                                        <p className="mt-0.5 text-[11px] text-amber-700">
+                                          Mouvement contenant «{' '}
+                                          <span className="font-semibold">{trimmedRubriqueSearch}</span> »
+                                        </p>
+                                      )}
+                                  </div>
                                 </div>
                               </td>
                               <td className="px-5 py-4 text-right align-top font-semibold text-slate-900">
-                                {formatCurrency(rubrique.montantBudgete)}
+                                <span
+                                  className={
+                                    highlightBudget
+                                      ? 'inline-block rounded px-1 bg-yellow-200 text-slate-900'
+                                      : undefined
+                                  }
+                                >
+                                  {formatCurrency(rubrique.montantBudgete)}
+                                </span>
                               </td>
                               <td className={`px-5 py-4 text-right align-top font-semibold ${depenseClass}`}>
                                 <div className="flex flex-col items-end gap-1">
-                                  <span>{formatCurrency(rubrique.montantDepense)}</span>
+                                  <span
+                                    className={
+                                      highlightDepense
+                                        ? 'inline-block rounded px-1 bg-yellow-200 text-slate-900'
+                                        : undefined
+                                    }
+                                  >
+                                    {formatCurrency(rubrique.montantDepense)}
+                                  </span>
                                   {rubrique.montantBudgete > 0 && (
                                     <div className="mt-1 h-1.5 w-24 rounded-full bg-slate-200">
                                       <div
@@ -597,7 +762,15 @@ export default function BudgetSalairePage() {
                               </td>
                               <td className={`px-5 py-4 text-right align-top font-semibold ${resteClass}`}>
                                 <div className="flex flex-col items-end gap-1">
-                                  <span>{formatCurrency(resteRubrique)}</span>
+                                  <span
+                                    className={
+                                      highlightReste
+                                        ? 'inline-block rounded px-1 bg-yellow-200 text-slate-900'
+                                        : undefined
+                                    }
+                                  >
+                                    {formatCurrency(resteRubrique)}
+                                  </span>
                                   {rubrique.montantBudgete > 0 && resteRubrique > 0 && (
                                     <div className="mt-1 h-1.5 w-24 rounded-full bg-slate-200">
                                       <div
@@ -852,10 +1025,16 @@ export default function BudgetSalairePage() {
               </div>
             )}
 
-            {/* Modal pour voir les mouvements d'une rubrique */}
+            {/* Modal pour voir les mouvements d'une rubrique (s'ouvre aussi auto après une recherche) */}
             {rubriqueMouvementsRubrique && (
-              <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6">
+              <div
+                className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+                onClick={closeMouvementsModal}
+              >
+                <div
+                  className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <h2 className="text-xl font-bold mb-4">
                     Mouvements – {rubriqueMouvementsRubrique.nom}
                   </h2>
@@ -885,45 +1064,81 @@ export default function BudgetSalairePage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
-                          {rubriqueMouvements.map((mvt) => (
-                            <tr key={mvt.id} className="bg-white">
-                              <td className="px-4 py-2 text-xs text-slate-700">
-                                {new Date(mvt.dateOperation).toLocaleDateString('fr-FR', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric'
-                                })}
-                              </td>
-                              <td className="px-4 py-2 text-right font-semibold text-rose-600">
-                                {formatCurrency(mvt.montant)}
-                              </td>
-                              <td className="px-4 py-2 text-xs text-slate-600">
-                                {mvt.description || '—'}
-                              </td>
-                              <td className="px-4 py-2 text-right">
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    size="xs"
-                                    variant="outline"
-                                    className="text-xs"
-                                    type="button"
-                                    onClick={() => openEditMouvement(mvt)}
-                                  >
-                                    Modifier
-                                  </Button>
-                                  <Button
-                                    size="xs"
-                                    variant="outline"
-                                    type="button"
-                                    className="text-xs text-red-600 border-red-200 hover:bg-red-50"
-                                    onClick={() => handleDeleteMouvementRubrique(mvt)}
-                                  >
-                                    Supprimer
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                          {rubriqueMouvements.map((mvt) => {
+                            const desc = mvt.description || '—'
+                            const lowerDesc = desc.toLowerCase()
+                            const hasTextMatch =
+                              hasRubriqueSearch &&
+                              !isRubriqueNumericSearch &&
+                              lowerDesc.includes(rubriqueSearchLower)
+
+                            const highlightDescription = () => {
+                              if (!hasTextMatch) return desc
+                              const index = lowerDesc.indexOf(rubriqueSearchLower)
+                              const before = desc.slice(0, index)
+                              const match = desc.slice(
+                                index,
+                                index + trimmedRubriqueSearch.length
+                              )
+                              const after = desc.slice(index + trimmedRubriqueSearch.length)
+                              return (
+                                <>
+                                  {before}
+                                  <span className="bg-yellow-200 text-slate-900 rounded px-1">
+                                    {match}
+                                  </span>
+                                  {after}
+                                </>
+                              )
+                            }
+
+                            return (
+                              <tr
+                                key={mvt.id}
+                                className={
+                                  hasTextMatch
+                                    ? 'bg-yellow-50'
+                                    : 'bg-white'
+                                }
+                              >
+                                <td className="px-4 py-2 text-xs text-slate-700">
+                                  {new Date(mvt.dateOperation).toLocaleDateString('fr-FR', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: 'numeric'
+                                  })}
+                                </td>
+                                <td className="px-4 py-2 text-right font-semibold text-rose-600">
+                                  {formatCurrency(mvt.montant)}
+                                </td>
+                                <td className="px-4 py-2 text-xs text-slate-600">
+                                  {highlightDescription()}
+                                </td>
+                                <td className="px-4 py-2 text-right">
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      size="xs"
+                                      variant="outline"
+                                      className="text-xs"
+                                      type="button"
+                                      onClick={() => openEditMouvement(mvt)}
+                                    >
+                                      Modifier
+                                    </Button>
+                                    <Button
+                                      size="xs"
+                                      variant="outline"
+                                      type="button"
+                                      className="text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                      onClick={() => handleDeleteMouvementRubrique(mvt)}
+                                    >
+                                      Supprimer
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -932,10 +1147,7 @@ export default function BudgetSalairePage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => {
-                        setRubriqueMouvementsRubrique(null)
-                        setRubriqueMouvements([])
-                      }}
+                      onClick={closeMouvementsModal}
                     >
                       Fermer
                     </Button>
