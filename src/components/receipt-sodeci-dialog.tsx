@@ -219,3 +219,5 @@ export function ReceiptSodeciDialog({ open, onOpenChange }: ReceiptSodeciDialogP
 }
 
 
+
+

@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useComptesBancaires } from '@/contexts/compte-bancaire-context'
-import { CompteBancaire, TransactionBancaire } from '@/lib/shared-data'
+import { useReceipts } from '@/contexts/receipt-context'
+import { CompteBancaire, TransactionBancaire, Receipt } from '@/lib/shared-data'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -27,7 +29,7 @@ export default function CompteBancaireDetailPage() {
   const params = useParams()
   const router = useRouter()
   const compteId = params.id as string
-  
+
   const { 
     comptes, 
     transactions, 
@@ -38,6 +40,8 @@ export default function CompteBancaireDetailPage() {
     deleteTransaction,
     updateTransaction
   } = useComptesBancaires()
+
+  const { receipts, updateReceipt } = useReceipts()
   
   const [compte, setCompte] = useState<CompteBancaire | null>(null)
   const [showTransactionModal, setShowTransactionModal] = useState(false)
@@ -53,6 +57,7 @@ export default function CompteBancaireDetailPage() {
   })
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | 'credit' | 'debit'>('all')
+  const [monthFilter, setMonthFilter] = useState<string>('all')
 
   useEffect(() => {
     if (comptes.length > 0) {
@@ -127,6 +132,14 @@ export default function CompteBancaireDetailPage() {
         return false
       }
 
+      // 🎯 Filtre par mois (basé sur dateTransaction)
+      if (monthFilter !== 'all') {
+        const txMonth = new Date(transaction.dateTransaction).toISOString().slice(0, 7) // YYYY-MM
+        if (txMonth !== monthFilter) {
+          return false
+        }
+      }
+
       if (!term) {
         // Aucun terme de recherche: on applique seulement le filtre de type
         return true
@@ -163,6 +176,7 @@ export default function CompteBancaireDetailPage() {
     compteTransactions,
     normalizedSearchTerm,
     typeFilter,
+    monthFilter,
     hasNumericSearchGlobal,
     searchAmountGlobal,
     isPureNumericSearch,
@@ -172,6 +186,17 @@ export default function CompteBancaireDetailPage() {
   const hasSearchTerm = normalizedSearchTerm.length > 0
   const hasSearchResults = hasSearchTerm && filteredTransactions.length > 0
   const hasSearchNoResults = hasSearchTerm && filteredTransactions.length === 0
+
+  // 📅 Liste des mois disponibles pour le dropdown (à partir des transactions existantes)
+  const availableMonths = React.useMemo(() => {
+    const set = new Set<string>()
+    compteTransactions.forEach((t) => {
+      if (!t.dateTransaction) return
+      const key = new Date(t.dateTransaction).toISOString().slice(0, 7) // YYYY-MM
+      set.add(key)
+    })
+    return Array.from(set).sort().reverse()
+  }, [compteTransactions])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -301,6 +326,37 @@ export default function CompteBancaireDetailPage() {
     })
 
     if (success) {
+      // 🔄 Si cette transaction est liée à un reçu (ex: Cité Kennedy), mettre aussi le reçu à jour
+      if (transactionToEdit.typeTransaction === 'credit') {
+        const linkedReceipt: Receipt | undefined = receipts.find(
+          (r) => r.transactionId === transactionToEdit.id && r.compteId === transactionToEdit.compteId
+        )
+
+        if (linkedReceipt) {
+          const receiptUpdates: Partial<Receipt> = {}
+
+          if (linkedReceipt.libelle !== editForm.libelle) {
+            receiptUpdates.libelle = editForm.libelle
+          }
+          if ((linkedReceipt.description || '') !== (editForm.description || '')) {
+            receiptUpdates.description = editForm.description || undefined
+          }
+          if (linkedReceipt.montant !== montantNumber) {
+            receiptUpdates.montant = montantNumber
+          }
+          if (linkedReceipt.dateTransaction !== dateIso) {
+            receiptUpdates.dateTransaction = dateIso
+          }
+
+          if (Object.keys(receiptUpdates).length > 0) {
+            const ok = await updateReceipt(linkedReceipt.id, receiptUpdates)
+            if (!ok) {
+              toast.warning("Le reçu lié à cette transaction n'a pas pu être mis à jour automatiquement.")
+            }
+          }
+        }
+      }
+
       setTransactionToEdit(null)
     }
   }
@@ -371,12 +427,22 @@ export default function CompteBancaireDetailPage() {
     )
   }
 
-  const totalCredits = compteTransactions
-    .filter(t => t.typeTransaction === 'credit')
+  // 📊 Totaux pour la période sélectionnée (monthFilter)
+  const transactionsForTotals =
+    monthFilter === 'all'
+      ? compteTransactions
+      : compteTransactions.filter((t) => {
+          if (!t.dateTransaction) return false
+          const key = new Date(t.dateTransaction).toISOString().slice(0, 7)
+          return key === monthFilter
+        })
+
+  const totalCredits = transactionsForTotals
+    .filter((t) => t.typeTransaction === 'credit')
     .reduce((sum, t) => sum + t.montant, 0)
-  
-  const totalDebits = compteTransactions
-    .filter(t => t.typeTransaction === 'debit')
+
+  const totalDebits = transactionsForTotals
+    .filter((t) => t.typeTransaction === 'debit')
     .reduce((sum, t) => sum + t.montant, 0)
 
   return (
@@ -523,56 +589,110 @@ export default function CompteBancaireDetailPage() {
                   </p>
                 </div>
               </div>
-              <div className="w-full md:w-80">
+              <div className="w-full md:w-96">
                 <label className="block text-xs font-medium text-slate-500 mb-1">
                   Recherche dans l&apos;historique
                 </label>
-                <Input
-                  placeholder="Montant exact (ex: 5 000) ou libellé (ex: Push)"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className={`rounded-xl border-slate-300 bg-white shadow-inner text-sm ${
-                    hasSearchResults ? 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500' : ''
-                  } ${
-                    hasSearchNoResults ? 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500' : ''
-                  }`}
-                  aria-invalid={hasSearchNoResults || undefined}
-                />
-                <div className="flex flex-wrap gap-2 mt-3 text-xs items-center">
-                  <span className="text-slate-500 font-medium mr-1">Type :</span>
-                  <button
-                    type="button"
-                    onClick={() => setTypeFilter('all')}
-                    className={`px-3 py-1 rounded-full border text-xs font-semibold ${
-                      typeFilter === 'all'
-                        ? 'bg-slate-900 text-white border-slate-900'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                <div className="flex flex-col gap-3">
+                  <Input
+                    placeholder="Montant exact (ex: 5 000) ou libellé (ex: Push)"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className={`rounded-xl border-slate-300 bg-white shadow-inner text-sm ${
+                      hasSearchResults ? 'border-emerald-500 bg-emerald-50 focus-visible:ring-emerald-500' : ''
+                    } ${
+                      hasSearchNoResults ? 'border-rose-500 bg-rose-50 focus-visible:ring-rose-500' : ''
                     }`}
-                  >
-                    Tous
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTypeFilter('credit')}
-                    className={`px-3 py-1 rounded-full border text-xs font-semibold ${
-                      typeFilter === 'credit'
-                        ? 'bg-emerald-600 text-white border-emerald-600'
-                        : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'
-                    }`}
-                  >
-                    Crédits
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTypeFilter('debit')}
-                    className={`px-3 py-1 rounded-full border text-xs font-semibold ${
-                      typeFilter === 'debit'
-                        ? 'bg-rose-600 text-white border-rose-600'
-                        : 'bg-white text-rose-700 border-rose-300 hover:bg-rose-50'
-                    }`}
-                  >
-                    Débits
-                  </button>
+                    aria-invalid={hasSearchNoResults || undefined}
+                  />
+                  <div className="flex flex-wrap gap-2 items-center text-xs">
+                    <span className="text-slate-500 font-medium mr-1">Type :</span>
+                    <button
+                      type="button"
+                      onClick={() => setTypeFilter('all')}
+                      className={`px-3 py-1 rounded-full border text-xs font-semibold ${
+                        typeFilter === 'all'
+                          ? 'bg-slate-900 text-white border-slate-900'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      Tous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTypeFilter('credit')}
+                      className={`px-3 py-1 rounded-full border text-xs font-semibold ${
+                        typeFilter === 'credit'
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'
+                      }`}
+                    >
+                      Crédits
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTypeFilter('debit')}
+                      className={`px-3 py-1 rounded-full border text-xs font-semibold ${
+                        typeFilter === 'debit'
+                          ? 'bg-rose-600 text-white border-rose-600'
+                          : 'bg-white text-rose-700 border-rose-300 hover:bg-rose-50'
+                      }`}
+                    >
+                      Débits
+                    </button>
+                  </div>
+
+                  {/* 🎯 Nouveau : filtre par mois */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-slate-500 font-medium">Mois :</span>
+                    <Select
+                      value={monthFilter}
+                      onValueChange={(value) => setMonthFilter(value)}
+                    >
+                      <SelectTrigger className="h-8 w-40 rounded-full border-slate-300 bg-white text-xs">
+                        <SelectValue placeholder="Tous les mois" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tous les mois</SelectItem>
+                        {availableMonths.map((m) => {
+                          const [year, month] = m.split('-')
+                          const label = new Date(`${m}-01T00:00:00`).toLocaleDateString('fr-FR', {
+                            month: 'long',
+                            year: 'numeric'
+                          })
+                          return (
+                            <SelectItem key={m} value={m}>
+                              {label.charAt(0).toUpperCase() + label.slice(1)}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Résumé du total pour la période et le type sélectionnés */}
+                  <p className="text-[11px] text-slate-500">
+                    {monthFilter === 'all'
+                      ? typeFilter === 'credit'
+                        ? `Total crédits (toute la période) : ${formatCurrency(totalCredits)}`
+                        : typeFilter === 'debit'
+                          ? `Total débits (toute la période) : ${formatCurrency(totalDebits)}`
+                          : `Total crédits : ${formatCurrency(totalCredits)} • Total débits : ${formatCurrency(totalDebits)}`
+                      : (() => {
+                          const label = new Date(`${monthFilter}-01T00:00:00`).toLocaleDateString('fr-FR', {
+                            month: 'long',
+                            year: 'numeric'
+                          })
+                          const moisLabel = label.charAt(0).toUpperCase() + label.slice(1)
+                          if (typeFilter === 'credit') {
+                            return `Total crédits pour ${moisLabel} : ${formatCurrency(totalCredits)}`
+                          }
+                          if (typeFilter === 'debit') {
+                            return `Total débits pour ${moisLabel} : ${formatCurrency(totalDebits)}`
+                          }
+                          return `Total crédits pour ${moisLabel} : ${formatCurrency(totalCredits)} • Total débits : ${formatCurrency(totalDebits)}`
+                        })()}
+                  </p>
                 </div>
               </div>
             </div>

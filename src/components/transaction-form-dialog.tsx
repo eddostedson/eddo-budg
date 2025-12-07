@@ -400,7 +400,7 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0 overflow-y-auto">
         <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             {type === 'credit' ? (
@@ -424,7 +424,8 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-6">
+        {/* Contenu scrollable avec une vraie barre de défilement pour remonter facilement */}
+        <div className="flex-1 min-h-0 px-6">
           <form id="transaction-form" onSubmit={handleSubmit} className="space-y-4 pb-4">
           <div className="space-y-2">
             <Label htmlFor="montant">
