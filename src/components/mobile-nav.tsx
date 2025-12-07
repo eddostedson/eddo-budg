@@ -26,6 +26,12 @@ const sidebarItems = [
     description: 'Vos sorties'
   },
   { 
+    href: '/facbl', 
+    label: 'Proformas', 
+    icon: '📄',
+    description: 'Proformas & documents FACBL'
+  },
+  { 
     href: '/ai-insights', 
     label: 'Assistant IA', 
     icon: '🤖',

@@ -17,6 +17,21 @@
   html {
     scroll-behavior: smooth;
   }
+
+  @media print {
+    body {
+      @apply bg-white;
+    }
+
+    /* Ne garder que la zone d'impression FACBL quand présente */
+    body.facbl-print-only *:not(.facbl-print-area):not(.facbl-print-area *) {
+      display: none !important;
+    }
+
+    .facbl-print-area {
+      display: block !important;
+    }
+  }
 }
 
 @layer components {

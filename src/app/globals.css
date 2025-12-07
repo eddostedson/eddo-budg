@@ -19,6 +19,20 @@ body {
   min-height: 100vh;
 }
 
+@media print {
+  /* Masquer la navigation lors de l'impression classique */
+  .top-header,
+  .sidebar-dark,
+  .mobile-nav {
+    display: none !important;
+  }
+
+  .main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
 /* Dark sidebar style */
 .sidebar-dark {
   background: #1e293b;

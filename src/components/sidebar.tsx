@@ -28,6 +28,12 @@ const baseSidebarItems = [
     description: 'Gestion des reçus'
   },
   { 
+    href: '/facbl', 
+    label: 'Proformas', 
+    icon: '📄',
+    description: 'Proformas & documents FACBL'
+  },
+  { 
     href: '/budget-salaire', 
     label: 'Budget Salaire', 
     icon: '📅',
