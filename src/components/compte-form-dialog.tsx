@@ -99,14 +99,6 @@ export function CompteFormDialog({ open, onOpenChange, compteToEdit }: CompteFor
         }
       } else {
         // CRÉATION
-        if (typeof window !== 'undefined') {
-          if (excludeFromTotal) {
-            window.localStorage.setItem('eddobudg_exclude_new_compte', '1')
-          } else {
-            window.localStorage.removeItem('eddobudg_exclude_new_compte')
-          }
-        }
-
         const success = await createCompte({
           nom: formData.nom,
           numeroCompte: formData.numeroCompte || undefined,
@@ -115,6 +107,7 @@ export function CompteFormDialog({ open, onOpenChange, compteToEdit }: CompteFor
           typePortefeuille: formData.typePortefeuille,
           soldeInitial: soldeInitial,
           soldeActuel: soldeInitial,
+          excludeFromTotal: excludeFromTotal,
           devise: formData.devise,
           actif: true
         })

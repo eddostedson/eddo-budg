@@ -15,6 +15,7 @@ interface CompteBancaireContextType {
   refreshTransactions: (compteId?: string) => Promise<void>
   createCompte: (compte: Omit<CompteBancaire, 'id' | 'createdAt' | 'updatedAt'>) => Promise<boolean>
   updateCompte: (id: string, updates: Partial<CompteBancaire>) => Promise<boolean>
+  bulkSetExcludeFromTotal: (ids: string[], exclude: boolean) => Promise<boolean>
   deleteCompte: (id: string) => Promise<boolean>
   crediterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string, dateTransaction?: string) => Promise<string | null>
   debiterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string, dateTransaction?: string) => Promise<boolean>
@@ -73,6 +74,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         typePortefeuille: (compte.type_portefeuille || 'compte_bancaire') as 'compte_bancaire' | 'mobile_money' | 'especes' | 'autre',
         soldeInitial: parseFloat(compte.solde_initial || 0),
         soldeActuel: parseFloat(compte.solde_actuel || 0),
+        excludeFromTotal: compte.exclude_from_total === true,
         devise: compte.devise || 'F CFA',
         actif: compte.actif !== false,
         createdAt: compte.created_at,
@@ -348,6 +350,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         type_portefeuille: compte.typePortefeuille || 'compte_bancaire',
         solde_initial: parseFloat(compte.soldeInitial.toString()),
         solde_actuel: parseFloat(compte.soldeInitial.toString()), // Le solde actuel commence au solde initial
+        exclude_from_total: compte.excludeFromTotal === true,
         devise: compte.devise || 'F CFA',
         actif: compte.actif !== false
       }
@@ -399,8 +402,19 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       if (updates.banque !== undefined) updateData.banque = updates.banque
       if (updates.typeCompte !== undefined) updateData.type_compte = updates.typeCompte
       if (updates.typePortefeuille !== undefined) updateData.type_portefeuille = updates.typePortefeuille
+      if (updates.excludeFromTotal !== undefined) updateData.exclude_from_total = updates.excludeFromTotal
       if (updates.devise !== undefined) updateData.devise = updates.devise
       if (updates.actif !== undefined) updateData.actif = updates.actif
+
+      // ✅ Optimistic UI: appliquer immédiatement certains champs (ex: exclude_from_total)
+      // pour éviter la latence réseau au clic.
+      const hadExcludeToggle = Object.prototype.hasOwnProperty.call(updateData, 'exclude_from_total')
+      const prevCompteSnapshot = hadExcludeToggle ? comptes.find((c) => c.id === id) : undefined
+      if (hadExcludeToggle) {
+        const nextValue = updateData.exclude_from_total === true
+        setComptes((prev) => prev.map((c) => (c.id === id ? { ...c, excludeFromTotal: nextValue } : c)))
+
+      }
 
       const { error } = await supabase
         .from('comptes_bancaires')
@@ -410,16 +424,86 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
       if (error) {
         console.error('❌ Erreur lors de la modification du compte:', error)
-        notifyError('Erreur lors de la modification du compte')
+
+        const code = (error as any)?.code
+        const message = (error as any)?.message as string | undefined
+
+        // Cas spécifique Supabase/PostgREST: colonne ajoutée mais schema cache pas rechargé
+        if (
+          code === 'PGRST204' &&
+          Object.prototype.hasOwnProperty.call(updateData, 'exclude_from_total')
+        ) {
+          notifyError(
+            "La colonne 'exclude_from_total' n'est pas encore disponible côté API (schema cache). " +
+              "Dans Supabase SQL Editor, exécute: select pg_notify('pgrst','reload schema'); puis recharge la page."
+          )
+        } else {
+          notifyError(`Erreur lors de la modification du compte${message ? `: ${message}` : ''}`)
+        }
+
+        // (log retiré pour performance)
+
+        // rollback optimistic
+        if (hadExcludeToggle && prevCompteSnapshot) {
+          setComptes((prev) => prev.map((c) => (c.id === id ? prevCompteSnapshot : c)))
+        }
         return false
       }
 
-      notifyUpdated('Compte bancaire')
-      await refreshComptes()
+      // (vérification DB debug retirée pour performance)
+
+      const isOnlyExcludeToggle =
+        Object.keys(updateData).length === 1 && Object.prototype.hasOwnProperty.call(updateData, 'exclude_from_total')
+
+      if (!isOnlyExcludeToggle) {
+        notifyUpdated('Compte bancaire')
+      }
+
+      // 🔄 Pour un simple toggle, on rafraîchit en arrière-plan (l'UI est déjà à jour via optimistic)
+      if (isOnlyExcludeToggle) {
+        void refreshComptes().catch((e) => {
+          console.error('❌ refreshComptes async after exclude toggle:', e)
+        })
+      } else {
+        await refreshComptes()
+      }
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue:', error)
       notifyError('Erreur inattendue lors de la modification')
+      return false
+    }
+  }
+
+  // ✅ Mise à jour en masse pour migrer depuis le localStorage (et éviter N requêtes)
+  const bulkSetExcludeFromTotal = async (ids: string[], exclude: boolean): Promise<boolean> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        notifyError("Erreur d'authentification")
+        return false
+      }
+
+      const cleanIds = Array.from(new Set(ids)).filter(Boolean)
+      if (cleanIds.length === 0) return true
+
+      const { error } = await supabase
+        .from('comptes_bancaires')
+        .update({ exclude_from_total: exclude })
+        .in('id', cleanIds)
+        .eq('user_id', user.id)
+
+      if (error) {
+        console.error('❌ Erreur bulk exclude_from_total:', error)
+        notifyError("Erreur lors de la mise à jour des exclusions")
+        return false
+      }
+
+      await refreshComptes()
+      return true
+    } catch (e) {
+      console.error('❌ Erreur bulk exclude_from_total (exception):', e)
+      notifyError("Erreur inattendue lors de la mise à jour des exclusions")
       return false
     }
   }
@@ -746,6 +830,22 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
 
   // 🔁 Recalculer le solde d'un compte + les soldes avant/après de CHAQUE transaction
   const recalculateCompteSolde = async (compteId: string, userId: string): Promise<boolean> => {
+    const __agentStart = Date.now()
+
+    // 🚀 Chemin rapide (SQL set-based) via RPC si disponible.
+    // Important: on garde le fallback JS si la fonction n'est pas encore déployée.
+    try {
+      const { error: rpcError } = await supabase.rpc('recalculate_compte_solde', {
+        p_compte_id: compteId
+      })
+
+      if (!rpcError) {
+        return true
+      }
+
+    } catch (e) {
+    }
+
     // 1. Charger le solde initial du compte
     const { data: compteRow, error: compteError } = await supabase
       .from('comptes_bancaires')
@@ -773,6 +873,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       notifyError('Erreur lors du recalcul des transactions')
       return false
     }
+
 
     // 3. Recalculer les soldes avant/après pour chaque transaction + le solde final du compte
     let currentSolde = parseFloat(compteRow.solde_initial || 0)
@@ -822,41 +923,42 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
   // 🗑️ SUPPRIMER UNE TRANSACTION avec UNDO
   const deleteTransaction = async (transactionId: string): Promise<boolean> => {
     try {
+      const __agentStart = Date.now()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         notifyError('Erreur d\'authentification')
         return false
       }
 
-      // 1. Charger la transaction pour sauvegarder les données pour UNDO
-      const { data: transaction, error: fetchError } = await supabase
-        .from('transactions_bancaires')
-        .select('*')
-        .eq('id', transactionId)
-        .eq('user_id', user.id)
-        .single()
-
-      if (fetchError || !transaction) {
-        console.error('❌ Erreur lors du chargement de la transaction à supprimer:', fetchError)
-        notifyError('Transaction introuvable')
-        return false
-      }
-
-      const compteId = transaction.compte_id as string
-      const transactionData = { ...transaction }
-
-      // 2. Supprimer la transaction
-      const { error: deleteError } = await supabase
+      // 1) Supprimer la transaction en récupérant la ligne supprimée
+      // => 1 seule requête au lieu de (select + delete)
+      const { data: deletedTx, error: deleteError } = await supabase
         .from('transactions_bancaires')
         .delete()
         .eq('id', transactionId)
         .eq('user_id', user.id)
+        .select('*')
+        .single()
 
-      if (deleteError) {
+      if (deleteError || !deletedTx) {
         console.error('❌ Erreur lors de la suppression de la transaction:', deleteError)
         notifyError('Erreur lors de la suppression de la transaction')
         return false
       }
+
+      const compteId = deletedTx.compte_id as string
+      const transactionData = { ...deletedTx }
+
+      // Optimistic UI: mettre à jour le solde local + retirer la transaction immédiatement
+      // (le recalcul RPC + refresh remettront l'état exact ensuite)
+      const montant = typeof deletedTx.montant === 'number' ? deletedTx.montant : parseFloat(deletedTx.montant || 0)
+      const delta = deletedTx.type_transaction === 'credit' ? -montant : montant
+
+      setComptes((prev) =>
+        prev.map((c) => (c.id === compteId ? { ...c, soldeActuel: (c.soldeActuel || 0) + delta } : c))
+      )
+      setTransactions((prev) => prev.filter((t) => t.id !== transactionId))
+
 
       // 3. Recalculer le solde du compte
       const ok = await recalculateCompteSolde(compteId, user.id)
@@ -1057,6 +1159,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     refreshTransactions,
     createCompte,
     updateCompte,
+    bulkSetExcludeFromTotal,
     deleteCompte,
     crediterCompte,
     debiterCompte,

@@ -43,7 +43,6 @@ export default function CompteBancaireDetailPage() {
 
   const { receipts, updateReceipt } = useReceipts()
   
-  const [compte, setCompte] = useState<CompteBancaire | null>(null)
   const [showTransactionModal, setShowTransactionModal] = useState(false)
   const [transactionType, setTransactionType] = useState<'credit' | 'debit'>('credit')
   const [transactionToEdit, setTransactionToEdit] = useState<TransactionBancaire | null>(null)
@@ -59,17 +58,21 @@ export default function CompteBancaireDetailPage() {
   const [typeFilter, setTypeFilter] = useState<'all' | 'credit' | 'debit'>('all')
   const [monthFilter, setMonthFilter] = useState<string>('all')
 
+  // ✅ Toujours dériver le compte depuis le contexte pour rester synchronisé
+  // (ex: après suppression d'un débit, `refreshComptes()` met à jour le solde)
+  const compte: CompteBancaire | null = React.useMemo(
+    () => comptes.find((c) => c.id === compteId) ?? null,
+    [comptes, compteId]
+  )
+
+  // (debug log removed) – no side-effect needed here
+
   useEffect(() => {
-    if (comptes.length > 0) {
-      const foundCompte = comptes.find(c => c.id === compteId)
-      if (foundCompte) {
-        setCompte(foundCompte)
-      } else {
-        toast.error('Compte non trouvé')
-        router.push('/comptes-bancaires')
-      }
-    }
-  }, [comptes, compteId, router])
+    if (comptes.length === 0) return
+    if (compte) return
+    toast.error('Compte non trouvé')
+    router.push('/comptes-bancaires')
+  }, [comptes.length, compte, router])
 
   useEffect(() => {
     if (compteId) {

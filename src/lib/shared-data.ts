@@ -96,6 +96,7 @@ export interface CompteBancaire {
   typePortefeuille: 'compte_bancaire' | 'mobile_money' | 'especes' | 'autre'
   soldeInitial: number
   soldeActuel: number
+  excludeFromTotal: boolean
   devise: string
   actif: boolean
   createdAt: string

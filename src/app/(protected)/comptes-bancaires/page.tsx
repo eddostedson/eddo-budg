@@ -34,7 +34,9 @@ export default function ComptesBancairesPage() {
     refreshComptes, 
     getTotalSoldes,
     initializeDefaultComptes,
-    deleteCompte
+    deleteCompte,
+    updateCompte,
+    bulkSetExcludeFromTotal
   } = useComptesBancaires()
   
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -48,40 +50,21 @@ export default function ComptesBancairesPage() {
   const [showRecentActivity, setShowRecentActivity] = useState(false)
   const [recentTypeFilter, setRecentTypeFilter] = useState<'debit' | 'credit'>('debit')
   const [recentOrderDesc, setRecentOrderDesc] = useState(true)
-  // Initialiser depuis localStorage au montage
-  const STORAGE_KEY_EXCLUDED = 'eddobudg_comptes_exclus_total_soldes'
-  const STORAGE_KEY_PENDING_EXCLUDE_NEW = 'eddobudg_exclude_new_compte'
-  
-  const loadExcludedFromStorage = (): string[] => {
-    if (typeof window === 'undefined') return []
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY_EXCLUDED)
-      if (raw) {
-        const parsed = JSON.parse(raw) as string[]
-        if (Array.isArray(parsed)) {
-          return parsed
-        }
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement initial des comptes exclus:', error)
-    }
-    return []
-  }
 
-  const [excludedCompteIds, setExcludedCompteIds] = useState<string[]>(loadExcludedFromStorage)
+  // 🔁 Migration automatique depuis l'ancien localStorage vers la DB (une seule fois)
+  const STORAGE_KEY_EXCLUDED = 'eddobudg_comptes_exclus_total_soldes'
 
   const totalSoldes = getTotalSoldes()
 
   const adjustedTotalSoldes = React.useMemo(() => {
     if (!comptes || comptes.length === 0) return totalSoldes
-    if (!excludedCompteIds.length) return totalSoldes
 
     const excludedTotal = comptes
-      .filter((compte) => excludedCompteIds.includes(compte.id))
+      .filter((compte) => compte.excludeFromTotal)
       .reduce((sum, compte) => sum + (compte.soldeActuel || 0), 0)
 
     return totalSoldes - excludedTotal
-  }, [comptes, excludedCompteIds, totalSoldes])
+  }, [comptes, totalSoldes])
 
   // Précharger les pages de détail des comptes pour accélérer "Voir"
   useEffect(() => {
@@ -91,55 +74,34 @@ export default function ComptesBancairesPage() {
     })
   }, [comptes, router])
 
-  // Synchroniser les comptes exclus avec les comptes disponibles (nettoyer les IDs invalides)
-  // et prendre en compte un éventuel nouveau compte marqué "à exclure" depuis le formulaire de création.
   useEffect(() => {
-    if (typeof window === 'undefined' || comptes.length === 0) return
-    
     try {
-      // Ne garder que les IDs qui existent encore dans la liste des comptes
-      const validIds = excludedCompteIds.filter((id) => comptes.some((c) => c.id === id))
-      
-      // Si des IDs ont été supprimés, mettre à jour l'état
-      if (validIds.length !== excludedCompteIds.length) {
-        setExcludedCompteIds(validIds)
-        // Sauvegarder immédiatement
-        window.localStorage.setItem(STORAGE_KEY_EXCLUDED, JSON.stringify(validIds))
+      if (typeof window === 'undefined' || comptes.length === 0) return
+      const raw = window.localStorage.getItem(STORAGE_KEY_EXCLUDED)
+      if (!raw) return
+
+      const parsed = JSON.parse(raw) as string[]
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        window.localStorage.removeItem(STORAGE_KEY_EXCLUDED)
+        return
       }
 
-      // Traiter un éventuel "nouveau compte à exclure" (flag posé par le formulaire)
-      const pending = window.localStorage.getItem(STORAGE_KEY_PENDING_EXCLUDE_NEW)
-      if (pending === '1') {
-        const comptesAvecDate = [...comptes].sort((a, b) => {
-          const da = a.createdAt ? new Date(a.createdAt).getTime() : 0
-          const db = b.createdAt ? new Date(b.createdAt).getTime() : 0
-          return db - da // plus récent d'abord
-        })
+      const validIds = parsed.filter((id) => comptes.some((c) => c.id === id))
+      const idsToSet = validIds.filter((id) => {
+        const c = comptes.find((x) => x.id === id)
+        return c && !c.excludeFromTotal
+      })
 
-        const newest = comptesAvecDate[0] || comptes[0]
-        if (newest && !validIds.includes(newest.id)) {
-          const updatedIds = [...validIds, newest.id]
-          setExcludedCompteIds(updatedIds)
-          window.localStorage.setItem(STORAGE_KEY_EXCLUDED, JSON.stringify(updatedIds))
-        }
-
-        // On consume le flag pour ne pas l'appliquer plusieurs fois
-        window.localStorage.removeItem(STORAGE_KEY_PENDING_EXCLUDE_NEW)
+      if (idsToSet.length > 0) {
+        void bulkSetExcludeFromTotal(idsToSet, true)
       }
-    } catch (error) {
-      console.error('Erreur lors de la synchronisation des comptes exclus:', error)
-    }
-  }, [comptes]) // Seulement quand les comptes changent, pas excludedCompteIds
 
-  // Sauvegarder les comptes exclus dans le localStorage à chaque modification
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem(STORAGE_KEY_EXCLUDED, JSON.stringify(excludedCompteIds))
+      // Une fois migré, on supprime le localStorage (source unique = DB)
+      window.localStorage.removeItem(STORAGE_KEY_EXCLUDED)
     } catch (error) {
-      console.error('Erreur lors de la sauvegarde des comptes exclus dans le localStorage:', error)
+      console.error('Erreur lors de la migration des exclusions depuis localStorage:', error)
     }
-  }, [excludedCompteIds])
+  }, [comptes, bulkSetExcludeFromTotal])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -216,9 +178,30 @@ export default function ComptesBancairesPage() {
 
   // On ne filtre plus la liste des comptes avec le champ de recherche :
   // le champ sert uniquement à rechercher dans l'historique des transactions.
-  // Ici on trie simplement les comptes par solde (du plus élevé au plus faible).
+  // Ici on trie les comptes par:
+  // 1) comptes NON exclus du total en premier (solde décroissant)
+  // 2) comptes exclus en second (solde décroissant)
   const filteredComptes = React.useMemo(
-    () => [...comptes].sort((a, b) => (b.soldeActuel || 0) - (a.soldeActuel || 0)),
+    () =>
+      [...comptes].sort((a, b) => {
+        const aExcluded = a.excludeFromTotal
+        const bExcluded = b.excludeFromTotal
+
+        // Non-exclus d'abord
+        if (aExcluded !== bExcluded) return aExcluded ? 1 : -1
+
+        // Puis par montant (solde) décroissant
+        const aSolde = a.soldeActuel || 0
+        const bSolde = b.soldeActuel || 0
+        if (aSolde !== bSolde) return bSolde - aSolde
+
+        // Tie-breakers stables (optionnels) pour éviter les "sauts" visuels
+        const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        if (aCreated !== bCreated) return bCreated - aCreated
+
+        return (a.nom || '').localeCompare(b.nom || '', 'fr', { sensitivity: 'base' })
+      }),
     [comptes]
   )
 
@@ -392,10 +375,10 @@ export default function ComptesBancairesPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-blue-100 text-sm mb-1">
-                      Total des Soldes{excludedCompteIds.length > 0 ? ' (après exclusions)' : ''}
+                      Total des Soldes{comptes.some((c) => c.excludeFromTotal) ? ' (après exclusions)' : ''}
                     </p>
                     <p className="text-3xl font-bold">{formatCurrency(adjustedTotalSoldes)}</p>
-                    {excludedCompteIds.length > 0 && (
+                    {comptes.some((c) => c.excludeFromTotal) && (
                       <p className="mt-1 text-[11px] text-blue-100/90">
                         Total global sans exclusion :{' '}
                         <span className="font-semibold">{formatCurrency(totalSoldes)}</span>
@@ -682,7 +665,7 @@ export default function ComptesBancairesPage() {
             >
               <Card
                 className={`shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden h-full ${
-                  excludedCompteIds.includes(compte.id)
+                  compte.excludeFromTotal
                     ? 'bg-orange-100/80 border border-orange-300'
                     : 'bg-white border-0'
                 }`}
@@ -714,16 +697,10 @@ export default function ComptesBancairesPage() {
                     <label className="ml-auto inline-flex items-center gap-1 text-[11px] text-slate-500">
                       <input
                         type="checkbox"
-                        checked={excludedCompteIds.includes(compte.id)}
+                        checked={compte.excludeFromTotal}
                         onChange={(e) => {
                           const checked = e.target.checked
-                          setExcludedCompteIds((prev) => {
-                            if (checked) {
-                              if (prev.includes(compte.id)) return prev
-                              return [...prev, compte.id]
-                            }
-                            return prev.filter((id) => id !== compte.id)
-                          })
+                          void updateCompte(compte.id, { excludeFromTotal: checked })
                         }}
                         className="h-3 w-3 rounded border border-slate-300 text-blue-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500"
                       />
