@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import React, { useState, useEffect, useRef } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useComptesBancaires } from '@/contexts/compte-bancaire-context'
 import { useReceipts } from '@/contexts/receipt-context'
 import { CompteBancaire, TransactionBancaire, Receipt } from '@/lib/shared-data'
@@ -28,7 +28,11 @@ import { TransactionFormDialog } from '@/components/transaction-form-dialog'
 export default function CompteBancaireDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const compteId = params.id as string
+  const highlightTransactionId = searchParams.get('highlight')
+  const transactionRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+  const hasScrolledToHighlight = useRef(false)
 
   const { 
     comptes, 
@@ -57,6 +61,7 @@ export default function CompteBancaireDetailPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | 'credit' | 'debit'>('all')
   const [monthFilter, setMonthFilter] = useState<string>('all')
+  const [activeHighlight, setActiveHighlight] = useState<string | null>(highlightTransactionId)
 
   // ✅ Toujours dériver le compte depuis le contexte pour rester synchronisé
   // (ex: après suppression d'un débit, `refreshComptes()` met à jour le solde)
@@ -98,6 +103,43 @@ export default function CompteBancaireDetailPage() {
   }, [])
 
   const compteTransactions = getTransactionsByCompte(compteId)
+
+  // Scroller automatiquement vers la transaction highlightée (UNE SEULE FOIS)
+  useEffect(() => {
+    if (!highlightTransactionId || hasScrolledToHighlight.current) {
+      return
+    }
+
+    // Attendre un peu que le rendu soit terminé
+    const timer = setTimeout(() => {
+      const element = transactionRefs.current[highlightTransactionId]
+      if (element) {
+        element.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        })
+        
+        // Marquer comme scrollé pour éviter de répéter
+        hasScrolledToHighlight.current = true
+        
+        // Retirer le surlignage visuel après 3 secondes
+        setTimeout(() => {
+          setActiveHighlight(null)
+        }, 3000)
+        
+        // Nettoyer le paramètre URL après 3 secondes pour éviter le re-scroll lors du prochain visit
+        setTimeout(() => {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('highlight')
+          window.history.replaceState({}, '', url.toString())
+        }, 3000)
+      }
+    }, 500)
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [highlightTransactionId])
 
   const normalizedSearchTerm = searchTerm.trim().toLowerCase()
   const numericSearchDigits = normalizedSearchTerm.replace(/[^\d]/g, '')
@@ -775,18 +817,23 @@ export default function CompteBancaireDetailPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       {filteredTransactions.map((transaction, index) => {
-                        const rowBg =
-                          index % 2 === 0
+                        const isHighlighted = activeHighlight === transaction.id
+                        const rowBg = isHighlighted
+                          ? 'bg-amber-100 hover:bg-amber-200 ring-2 ring-amber-400 ring-inset'
+                          : index % 2 === 0
                             ? 'bg-white hover:bg-indigo-50/50'
                             : 'bg-slate-50 hover:bg-indigo-50/50'
 
                         return (
                           <motion.tr
                             key={transaction.id}
+                            ref={(el) => {
+                              transactionRefs.current[transaction.id] = el
+                            }}
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: 0.04 * index }}
-                            className={`${rowBg} transition-colors`}
+                            className={`${rowBg} transition-all duration-300`}
                           >
                             <td className="px-6 py-4 text-sm text-slate-700">
                               <div className="flex items-center gap-2">

@@ -45,6 +45,76 @@ const mapMouvement = (row: any): BudgetSalaireMouvement => ({
 })
 
 export const BudgetSalaireService = {
+  async getBudgetMois(annee: number, mois: number): Promise<BudgetSalaireMois | null> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+
+    const { data, error } = await supabase
+      .from('budget_salaire_mois')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('annee', annee)
+      .eq('mois', mois)
+      .maybeSingle()
+
+    if (error || !data) return null
+    return mapBudgetMois(data)
+  },
+
+  async copyRubriquesFromBudget(params: {
+    fromBudgetMoisId: string
+    toBudgetMoisId: string
+  }): Promise<{ success: boolean; insertedCount: number }> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, insertedCount: 0 }
+
+    // Éviter de copier si le budget destination a déjà des rubriques
+    const { data: existingDest, error: existingError } = await supabase
+      .from('budget_salaire_rubriques')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('budget_mois_id', params.toBudgetMoisId)
+      .limit(1)
+
+    if (existingError) {
+      console.error('❌ Erreur vérification rubriques destination:', existingError)
+      return { success: false, insertedCount: 0 }
+    }
+
+    if ((existingDest || []).length > 0) {
+      return { success: true, insertedCount: 0 }
+    }
+
+    const sourceRubriques = await this.getRubriques(params.fromBudgetMoisId)
+    if (sourceRubriques.length === 0) {
+      return { success: true, insertedCount: 0 }
+    }
+
+    const nowIso = new Date().toISOString()
+    const payload = sourceRubriques.map((r) => ({
+      user_id: user.id,
+      budget_mois_id: params.toBudgetMoisId,
+      nom: r.nom,
+      montant_budgete: r.montantBudgete,
+      montant_depense: 0,
+      type_depense: r.typeDepense,
+      statut: 'en_cours',
+      created_at: nowIso,
+      updated_at: nowIso
+    }))
+
+    const { error: insertError } = await supabase
+      .from('budget_salaire_rubriques')
+      .insert(payload)
+
+    if (insertError) {
+      console.error('❌ Erreur copie rubriques budget salaire:', insertError)
+      return { success: false, insertedCount: 0 }
+    }
+
+    return { success: true, insertedCount: payload.length }
+  },
+
   async getOrCreateBudgetMois(annee: number, mois: number, revenuMensuel?: number): Promise<BudgetSalaireMois | null> {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return null

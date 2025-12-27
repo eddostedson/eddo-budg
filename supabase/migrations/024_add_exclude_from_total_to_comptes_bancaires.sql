@@ -7,3 +7,8 @@ create index if not exists idx_comptes_bancaires_exclude_from_total
 on public.comptes_bancaires(exclude_from_total);
 
 
+
+
+
+
+

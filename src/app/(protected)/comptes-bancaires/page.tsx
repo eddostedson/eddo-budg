@@ -445,7 +445,13 @@ export default function ComptesBancairesPage() {
               {globalSearchResults.map(({ tx, compte }) => (
                 <div
                   key={tx.id}
-                  onClick={() => handleViewCompte(compte!)}
+                  onClick={() => {
+                    if (!compte) {
+                      console.error('Compte not found for transaction', tx)
+                      return
+                    }
+                    router.push(`/comptes-bancaires/${compte.id}?highlight=${tx.id}`)
+                  }}
                   className="rounded-xl bg-white border border-slate-200 shadow-sm px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 hover:border-indigo-300 hover:shadow-md cursor-pointer transition-all"
                 >
                   {/* Colonne compte */}
@@ -585,7 +591,10 @@ export default function ComptesBancairesPage() {
                 {recentMovements.map(({ tx, compte }) => (
                   <div
                     key={tx.id}
-                    onClick={() => handleViewCompte(compte!)}
+                    onClick={() => {
+                      if (!compte) return
+                      router.push(`/comptes-bancaires/${compte.id}?highlight=${tx.id}`)
+                    }}
                     className="rounded-lg bg-white border border-slate-200 px-3 py-2 flex items-center justify-between gap-3 hover:border-indigo-300 hover:shadow-sm cursor-pointer transition-all"
                   >
                     <div className="flex flex-col">

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
 import { BudgetSalaireMois, BudgetSalaireRubrique, BudgetSalaireMouvement } from '@/lib/shared-data'
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Search as SearchIcon } from 'lucide-react'
+import { useUltraModernToastContext } from '@/contexts/ultra-modern-toast-context'
 
 const MONTHS = [
   'Janvier',
@@ -29,6 +30,7 @@ const MONTHS = [
 export default function BudgetSalairePage() {
   const router = useRouter()
   const supabase = createClient()
+  const { showSuccess, showError } = useUltraModernToastContext()
 
   const today = new Date()
   const [annee, setAnnee] = useState(today.getFullYear())
@@ -39,6 +41,16 @@ export default function BudgetSalairePage() {
   const [budgetMois, setBudgetMois] = useState<BudgetSalaireMois | null>(null)
   const [rubriques, setRubriques] = useState<BudgetSalaireRubrique[]>([])
   const [mouvementsBudget, setMouvementsBudget] = useState<BudgetSalaireMouvement[]>([])
+  const [previousRubriquesTemplate, setPreviousRubriquesTemplate] = useState<{
+    budgetMoisId: string
+    label: string
+    annee: number
+    mois: number
+    rubriquesCount: number
+  } | null>(null)
+  const [autoCopyRubriques, setAutoCopyRubriques] = useState(true)
+  const [copyingRubriques, setCopyingRubriques] = useState(false)
+  const autoAdvanceRef = useRef<{ justJumped: boolean; totalJumps: number }>({ justJumped: false, totalJumps: 0 })
 
   const [revenuInput, setRevenuInput] = useState('')
   const [newRubrique, setNewRubrique] = useState({
@@ -94,6 +106,48 @@ export default function BudgetSalairePage() {
         mvt.rubriqueId === rubriqueId &&
         (mvt.description || '').toLowerCase().includes(rubriqueSearchLower)
     )
+  }
+
+  // Fonction ultra-précise pour identifier TOUTES les raisons du match
+  const getRubriqueMatchReasons = (rubrique: BudgetSalaireRubrique): string[] => {
+    if (!hasRubriqueSearch) return []
+
+    const reasons: string[] = []
+    const resteRubrique = rubrique.montantBudgete - rubrique.montantDepense
+
+    if (isRubriqueNumericSearch && rubriqueNumericValue !== null) {
+      // Recherche numérique
+      if (rubrique.montantBudgete === rubriqueNumericValue) {
+        reasons.push('Budgeté')
+      }
+      if (rubrique.montantDepense === rubriqueNumericValue) {
+        reasons.push('Dépensé')
+      }
+      if (resteRubrique === rubriqueNumericValue) {
+        reasons.push('Reste')
+      }
+      const mouvementMatch = mouvementsBudget.find(
+        (mvt) => mvt.rubriqueId === rubrique.id && mvt.montant === rubriqueNumericValue
+      )
+      if (mouvementMatch) {
+        reasons.push('Mouvement')
+      }
+    } else {
+      // Recherche textuelle
+      if (rubrique.nom.toLowerCase().includes(rubriqueSearchLower)) {
+        reasons.push('Nom')
+      }
+      const mouvementDescMatch = mouvementsBudget.find(
+        (mvt) =>
+          mvt.rubriqueId === rubrique.id &&
+          (mvt.description || '').toLowerCase().includes(rubriqueSearchLower)
+      )
+      if (mouvementDescMatch) {
+        reasons.push('Mouvement')
+      }
+    }
+
+    return reasons
   }
 
   const filteredRubriques = rubriques.filter((rubrique) => {
@@ -152,7 +206,19 @@ export default function BudgetSalairePage() {
     checkAuth()
   }, [router, supabase])
 
-  const loadData = async (forceRevenuCreation?: number) => {
+  interface LoadDataResult {
+    budget: BudgetSalaireMois | null
+    rubriques: BudgetSalaireRubrique[]
+    previousTemplate: {
+      budgetMoisId: string
+      label: string
+      annee: number
+      mois: number
+      rubriquesCount: number
+    } | null
+  }
+
+  const loadData = async (forceRevenuCreation?: number): Promise<LoadDataResult> => {
     setLoadingData(true)
     try {
       const budget = await BudgetSalaireService.getOrCreateBudgetMois(
@@ -164,7 +230,9 @@ export default function BudgetSalairePage() {
       if (!budget) {
         setBudgetMois(null)
         setRubriques([])
-        return
+        setPreviousRubriquesTemplate(null)
+        setMouvementsBudget([])
+        return { budget: null, rubriques: [], previousTemplate: null }
       }
 
       const rubs = await BudgetSalaireService.getRubriques(budget.id)
@@ -193,6 +261,32 @@ export default function BudgetSalairePage() {
       setBudgetMois(budgetCorrige)
       setRubriques(rubriquesCorrigees)
       setMouvementsBudget(mouvementsBudgetData)
+      let template: LoadDataResult['previousTemplate'] = null
+
+      // Préparer un "template" (rubriques du mois précédent) uniquement si le mois courant est vide.
+      if (rubs.length === 0) {
+        const prevBudgetMonth = mois === 1 ? 12 : mois - 1
+        const prevBudgetYear = mois === 1 ? annee - 1 : annee
+        const prevBudgetLabel = `${MONTHS[prevBudgetMonth - 1]} ${prevBudgetYear}`
+
+        const prevBudget = await BudgetSalaireService.getBudgetMois(prevBudgetYear, prevBudgetMonth)
+        if (prevBudget) {
+          const prevRubs = await BudgetSalaireService.getRubriques(prevBudget.id)
+          if (prevRubs.length > 0) {
+            template = {
+              budgetMoisId: prevBudget.id,
+              label: prevBudgetLabel,
+              annee: prevBudgetYear,
+              mois: prevBudgetMonth,
+              rubriquesCount: prevRubs.length
+            }
+          }
+        }
+      }
+
+      setPreviousRubriquesTemplate(template)
+
+      return { budget: budgetCorrige, rubriques: rubriquesCorrigees, previousTemplate: template }
     } finally {
       setLoadingData(false)
     }
@@ -202,6 +296,42 @@ export default function BudgetSalairePage() {
     loadData()
   }, [annee, mois])
 
+  const totalBudgete = rubriques.reduce((sum, r) => sum + r.montantBudgete, 0)
+  const totalDepense = budgetMois?.montantDepenseTotal ?? 0
+  const disponiblePourBudget = (budgetMois?.revenuMensuel ?? 0) - totalBudgete
+  const resteApresDepensesReelles = (budgetMois?.revenuMensuel ?? 0) - totalDepense
+  const margeSurBudget = totalBudgete - totalDepense
+
+  useEffect(() => {
+    if (!budgetMois) return
+
+    // Si on vient de sauter, on attend le prochain chargement
+    if (autoAdvanceRef.current.justJumped) {
+      autoAdvanceRef.current.justJumped = false
+      return
+    }
+
+    // Si la marge est positive, on reset et on reste sur ce mois
+    if (margeSurBudget > 0) {
+      autoAdvanceRef.current.totalJumps = 0
+      return
+    }
+
+    // Marge nulle ou négative + moins de 12 sauts → on avance au mois suivant
+    if (autoAdvanceRef.current.totalJumps >= 12) {
+      return
+    }
+
+    const nextMonthValue = mois === 12 ? 1 : mois + 1
+    const nextYearValue = mois === 12 ? annee + 1 : annee
+
+    autoAdvanceRef.current.justJumped = true
+    autoAdvanceRef.current.totalJumps += 1
+
+    setAnnee(nextYearValue)
+    setMois(nextMonthValue)
+  }, [budgetMois, margeSurBudget])
+
   const handleCreateBudgetMois = async (e: React.FormEvent) => {
     e.preventDefault()
     const revenu = parseFloat(revenuInput.replace(',', '.'))
@@ -209,20 +339,40 @@ export default function BudgetSalairePage() {
       alert('Veuillez saisir un revenu valide pour le mois.')
       return
     }
-    await loadData(revenu)
+    const result = await loadData(revenu)
     setRevenuInput('')
-  }
 
-  const totalBudgete = rubriques.reduce((sum, r) => sum + r.montantBudgete, 0)
-  const totalDepense = budgetMois?.montantDepenseTotal ?? 0
-  const disponiblePourBudget = (budgetMois?.revenuMensuel ?? 0) - totalBudgete
-  const resteApresDepensesReelles = (budgetMois?.revenuMensuel ?? 0) - totalDepense
-  const margeSurBudget = totalBudgete - totalDepense
+    if (
+      autoCopyRubriques &&
+      result?.budget &&
+      result?.previousTemplate &&
+      (result.rubriques?.length ?? 0) === 0
+    ) {
+      const confirmed = window.confirm(
+        `Copier automatiquement les rubriques de ${result.previousTemplate.label} ?\n\n` +
+          'Les montants budgétés seront identiques et les dépenses redémarreront à 0.'
+      )
+      if (confirmed) {
+        await copyRubriquesFromTemplate(result.previousTemplate, result.budget)
+      }
+    }
+  }
 
   // Mois précédent (pour afficher "Revenu du mois de {mois précédent} {année}")
   const previousMonthIndex = mois === 1 ? 11 : mois - 2
   const previousMonthYear = mois === 1 ? annee - 1 : annee
   const previousMonthLabel = MONTHS[previousMonthIndex]
+  const currentMonthLabel = MONTHS[mois - 1]
+
+  const parseYearMonthFromDateInput = (value: string): { year: number; month: number } | null => {
+    // value attendu: YYYY-MM-DD
+    const parts = value.split('-')
+    if (parts.length < 2) return null
+    const year = Number(parts[0])
+    const month = Number(parts[1])
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null
+    return { year, month }
+  }
 
   const handleCreateRubrique = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -371,6 +521,15 @@ export default function BudgetSalairePage() {
     e.preventDefault()
     if (!mouvementEnEdition || !rubriqueMouvementsRubrique || !budgetMois) return
 
+    const editYm = parseYearMonthFromDateInput(editMouvementForm.dateOperation)
+    if (!editYm || editYm.year !== annee || editYm.month !== mois) {
+      alert(
+        `La date du mouvement (${editMouvementForm.dateOperation}) n'appartient pas à ${currentMonthLabel} ${annee}.\n\n` +
+          `➡️ Astuce: change d'abord le mois/année en haut, puis modifie ce mouvement dans le bon budget.`
+      )
+      return
+    }
+
     const montant = parseFloat(editMouvementForm.montant.replace(',', '.'))
     if (Number.isNaN(montant) || montant <= 0) {
       alert('Veuillez saisir un montant valide pour le mouvement.')
@@ -425,9 +584,62 @@ export default function BudgetSalairePage() {
     }
   }
 
+  const copyRubriquesFromTemplate = async (
+    template: NonNullable<LoadDataResult['previousTemplate']>,
+    targetBudget: BudgetSalaireMois
+  ) => {
+    setCopyingRubriques(true)
+    try {
+      const result = await BudgetSalaireService.copyRubriquesFromBudget({
+        fromBudgetMoisId: template.budgetMoisId,
+        toBudgetMoisId: targetBudget.id
+      })
+
+      if (!result.success) {
+        showError(
+          'Erreur',
+          "Impossible de copier les rubriques du mois précédent. Réessaie dans quelques secondes.",
+          'delete'
+        )
+        return false
+      }
+
+      await loadData()
+
+      if (result.insertedCount > 0) {
+        showSuccess(
+          '✅ Rubriques copiées',
+          `${result.insertedCount} rubriques importées depuis ${template.label}. Dépensé réinitialisé à 0.`,
+          'success'
+        )
+      } else {
+        showSuccess(
+          'ℹ️ Aucune rubrique copiée',
+          "Le mois courant contient déjà des rubriques, ou il n'y avait rien à importer.",
+          'edit'
+        )
+      }
+      return result.insertedCount > 0
+    } finally {
+      setCopyingRubriques(false)
+    }
+  }
+
   const handleAddMouvement = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!budgetMois || !selectedRubrique) return
+
+    // ✅ Un mouvement est rattaché au budget du mois affiché via la rubrique (pas via la date).
+    // On empêche les dates hors mois pour éviter de ranger des dépenses de Janvier dans Décembre.
+    const ym = parseYearMonthFromDateInput(mouvementForm.dateOperation)
+    if (!ym || ym.year !== annee || ym.month !== mois) {
+      alert(
+        `La date du mouvement (${mouvementForm.dateOperation}) n'appartient pas à ${currentMonthLabel} ${annee}.\n\n` +
+          `➡️ Change le mois/année en haut (ex: Janvier 2026) puis ajoute le mouvement, ` +
+          `pour que l'historique reste cohérent.`
+      )
+      return
+    }
 
     const montant = parseFloat(mouvementForm.montant.replace(',', '.'))
     if (Number.isNaN(montant) || montant <= 0) {
@@ -452,6 +664,13 @@ export default function BudgetSalairePage() {
         description: ''
       })
     }
+  }
+
+  const handleCopyRubriquesFromPreviousMonth = async () => {
+    if (!budgetMois || !previousRubriquesTemplate) return
+    if (rubriques.length > 0) return
+
+    await copyRubriquesFromTemplate(previousRubriquesTemplate, budgetMois)
   }
 
   const formatCurrency = (amount: number) =>
@@ -502,15 +721,34 @@ export default function BudgetSalairePage() {
                 {/* Champ de recherche ultramoderne pour les rubriques */}
                 <div className="relative flex-1">
                   <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <SearchIcon className="h-4 w-4 text-slate-400" />
+                    <SearchIcon className="h-5 w-5 text-indigo-500" />
                   </span>
                   <Input
                     type="text"
                     value={rubriqueSearch}
                     onChange={(e) => setRubriqueSearch(e.target.value)}
-                    placeholder="Rechercher une rubrique ou un montant (ex: Internet, 50000)"
-                    className="w-full min-w-[260px] pl-10 pr-4 py-2.5 rounded-full border border-indigo-300 bg-indigo-50/80 shadow-md text-sm md:text-base placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 transition-all"
+                    placeholder="Rechercher une rubrique, montant ou mouvement..."
+                    className="w-full min-w-[260px] pl-11 pr-24 py-3 rounded-2xl border-2 border-indigo-300 bg-white shadow-lg text-sm md:text-base placeholder:text-slate-400 focus-visible:ring-4 focus-visible:ring-indigo-300 focus-visible:ring-offset-0 focus-visible:border-indigo-500 transition-all duration-300 hover:shadow-xl"
                   />
+                  {hasRubriqueSearch && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setRubriqueSearch('')}
+                        className="absolute inset-y-0 right-12 flex items-center pr-2 text-slate-400 hover:text-slate-700 transition-colors"
+                        title="Effacer la recherche"
+                      >
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                      <span className="absolute inset-y-0 right-2 flex items-center pr-2">
+                        <span className="inline-flex items-center rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white shadow-sm">
+                          {filteredRubriques.length}
+                        </span>
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -521,6 +759,32 @@ export default function BudgetSalairePage() {
                 onChange={(e) => setAnnee(parseInt(e.target.value, 10) || today.getFullYear())}
                 className="w-[110px] rounded-xl border-slate-300 bg-slate-50/80 shadow-inner text-sm"
               />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const prevMonth = mois === 1 ? 12 : mois - 1
+                  const prevYear = mois === 1 ? annee - 1 : annee
+                  setAnnee(prevYear)
+                  setMois(prevMonth)
+                }}
+                className="rounded-xl px-4 py-2 text-sm font-semibold"
+              >
+                Mois précédent
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const nextMonth = mois === 12 ? 1 : mois + 1
+                  const nextYear = mois === 12 ? annee + 1 : annee
+                  setAnnee(nextYear)
+                  setMois(nextMonth)
+                }}
+                className="rounded-xl px-4 py-2 text-sm font-semibold"
+              >
+                Mois suivant
+              </Button>
               <Button
                 type="button"
                 onClick={() => router.push('/comptes-bancaires')}
@@ -559,6 +823,19 @@ export default function BudgetSalairePage() {
                         className="rounded-xl border-slate-300 bg-white shadow-inner text-sm"
                       />
                     </div>
+                    <div className="mt-3 flex items-start gap-2 text-xs text-slate-600">
+                      <input
+                        id="autoCopyRubriques"
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                        checked={autoCopyRubriques}
+                        onChange={(e) => setAutoCopyRubriques(e.target.checked)}
+                      />
+                      <label htmlFor="autoCopyRubriques" className="leading-5">
+                        Copier automatiquement les rubriques du mois précédent après création
+                        (confirmation demandée, dépensé remis à 0).
+                      </label>
+                    </div>
                   </div>
                   <Button
                     type="submit"
@@ -576,10 +853,13 @@ export default function BudgetSalairePage() {
             <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="rounded-xl bg-slate-100 px-5 py-4 shadow-md">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Revenu du mois de {previousMonthLabel} {previousMonthYear}
+                  Salaire (payé fin {previousMonthLabel} {previousMonthYear})
                 </p>
                 <p className="mt-2 text-2xl md:text-3xl font-semibold text-slate-900">
                   {formatCurrency(budgetMois.revenuMensuel)}
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Utilisé pour les dépenses de {currentMonthLabel} {annee}
                 </p>
               </div>
               <div className="rounded-xl bg-rose-100/80 px-5 py-4 shadow-md">
@@ -600,22 +880,20 @@ export default function BudgetSalairePage() {
                   </span>
                 </p>
               </div>
-              <div className="rounded-xl bg-emerald-100/80 px-5 py-4 shadow-md">
-                <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
-                  Marge sur le budget (plafonds - dépenses)
-                </p>
-                <p
-                  className={`mt-2 text-2xl md:text-3xl font-semibold ${
-                    margeSurBudget >= 0 ? 'text-emerald-900' : 'text-red-700'
-                  }`}
-                >
-                  {formatCurrency(margeSurBudget)}
-                </p>
-                <p className="mt-1 text-[11px] text-emerald-900/80">
-                  Différence entre le total budgété et le total dépensé ce mois. Si ce montant devient
-                  négatif, les plafonds sont dépassés.
-                </p>
-              </div>
+              {margeSurBudget > 0 && (
+                <div className="rounded-xl bg-emerald-100/80 px-5 py-4 shadow-md">
+                  <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
+                    Marge sur le budget (plafonds - dépenses)
+                  </p>
+                  <p className="mt-2 text-2xl md:text-3xl font-semibold text-emerald-900">
+                    {formatCurrency(margeSurBudget)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-emerald-900/80">
+                    Différence entre le total budgété et le total dépensé ce mois. Si ce montant devient
+                    négatif, les plafonds sont dépassés.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -630,12 +908,109 @@ export default function BudgetSalairePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 md:px-6">
-                {hasRubriqueSearch && filteredRubriques.length === 0 && (
-                  <p className="mb-3 text-xs text-rose-600">
-                    Aucune rubrique ou montant ne correspond à{' '}
-                    <span className="font-semibold">"{trimmedRubriqueSearch}"</span>.
-                  </p>
+                {/* Panneau de résultats de recherche ultra moderne */}
+                {hasRubriqueSearch && filteredRubriques.length > 0 && (
+                  <div className="mb-4 rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50 p-4 shadow-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 rounded-full bg-indigo-600 p-2">
+                        <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-bold text-indigo-900">
+                          {filteredRubriques.length} résultat{filteredRubriques.length > 1 ? 's' : ''} trouvé{filteredRubriques.length > 1 ? 's' : ''} pour « {trimmedRubriqueSearch} »
+                        </h3>
+                        <p className="mt-1 text-xs text-slate-700">
+                          {isRubriqueNumericSearch ? (
+                            <>
+                              Recherche numérique : <span className="font-semibold">{formatCurrency(rubriqueNumericValue ?? 0)}</span>
+                              <br />
+                              <span className="text-[11px] text-slate-600">
+                                Critères : montant budgeté, dépensé, reste ou mouvement exact
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              Recherche textuelle dans : <span className="font-semibold">noms de rubriques</span> et{' '}
+                              <span className="font-semibold">descriptions de mouvements</span>
+                            </>
+                          )}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          {Array.from(
+                            new Set(
+                              filteredRubriques.flatMap((r) => getRubriqueMatchReasons(r))
+                            )
+                          ).map((reason) => {
+                            const count = filteredRubriques.filter((r) =>
+                              getRubriqueMatchReasons(r).includes(reason)
+                            ).length
+                            return (
+                              <span
+                                key={reason}
+                                className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-semibold text-slate-700 shadow-sm border border-indigo-200"
+                              >
+                                {reason} ({count})
+                              </span>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
+
+                {hasRubriqueSearch && filteredRubriques.length === 0 && (
+                  <div className="mb-4 rounded-2xl border-2 border-rose-200 bg-gradient-to-br from-rose-50 to-pink-50 p-4 shadow-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 rounded-full bg-rose-600 p-2">
+                        <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-rose-900">
+                          Aucun résultat trouvé
+                        </h3>
+                        <p className="mt-1 text-xs text-slate-700">
+                          Aucune rubrique ou montant ne correspond à{' '}
+                          <span className="font-semibold">« {trimmedRubriqueSearch} »</span>
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-600">
+                          💡 Essayez : un nom de rubrique, un montant (ex: 50000), ou un mot-clé de mouvement
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Aide: copier les rubriques du mois précédent pour ne pas tout ressaisir */}
+                {!hasRubriqueSearch && rubriques.length === 0 && budgetMois && previousRubriquesTemplate && (
+                  <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/60 px-4 py-3">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div className="text-sm text-slate-800">
+                        <p className="font-semibold">
+                          Import rapide des rubriques
+                        </p>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          Copier {previousRubriquesTemplate.rubriquesCount} rubriques depuis{' '}
+                          <span className="font-semibold">{previousRubriquesTemplate.label}</span> : mêmes montants budgétés,
+                          <span className="font-semibold"> dépensé = 0</span> pour ce mois.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={handleCopyRubriquesFromPreviousMonth}
+                        disabled={loadingData || copyingRubriques}
+                        className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white"
+                      >
+                        {copyingRubriques ? 'Copie...' : 'Copier les rubriques'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50/60">
                   <div className="overflow-x-auto max-h-[calc(100vh-260px)] relative">
                     <table className="min-w-full text-sm">
@@ -691,6 +1066,7 @@ export default function BudgetSalairePage() {
                                 : 'text-emerald-600'
 
                           const hasMovementDescriptionMatch = rubriqueHasMovementDescriptionMatch(rubrique.id)
+                          const matchReasons = getRubriqueMatchReasons(rubrique)
 
                           const highlightBudget =
                             isRubriqueNumericSearch &&
@@ -705,22 +1081,48 @@ export default function BudgetSalairePage() {
                             rubriqueNumericValue !== null &&
                             resteRubrique === rubriqueNumericValue
 
+                          const reasonBadgeColors: Record<string, string> = {
+                            Nom: 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white',
+                            Budgeté: 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white',
+                            Dépensé: 'bg-gradient-to-r from-rose-500 to-pink-500 text-white',
+                            Reste: 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white',
+                            Mouvement: 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+                          }
+
                           return (
                             <tr key={rubrique.id} className={`${rowBg} transition-colors`}>
                               <td className="px-5 py-4 align-top">
                                 <div className="inline-flex items-start gap-2">
                                   <span className="mt-1 h-2 w-2 rounded-full bg-indigo-400" />
-                                  <div>
+                                  <div className="flex-1">
                                     <span className="font-semibold text-slate-900">
                                       {highlightRubriqueNom(rubrique.nom)}
                                     </span>
-                                    {hasMovementDescriptionMatch &&
-                                      !rubrique.nom.toLowerCase().includes(rubriqueSearchLower) && (
-                                        <p className="mt-0.5 text-[11px] text-amber-700">
-                                          Mouvement contenant «{' '}
-                                          <span className="font-semibold">{trimmedRubriqueSearch}</span> »
-                                        </p>
-                                      )}
+                                    {hasRubriqueSearch && matchReasons.length > 0 && (
+                                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                        {matchReasons.map((reason) => (
+                                          <span
+                                            key={reason}
+                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm ${
+                                              reasonBadgeColors[reason] || 'bg-slate-500 text-white'
+                                            }`}
+                                          >
+                                            <svg
+                                              className="h-2.5 w-2.5"
+                                              fill="currentColor"
+                                              viewBox="0 0 20 20"
+                                            >
+                                              <path
+                                                fillRule="evenodd"
+                                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                                clipRule="evenodd"
+                                              />
+                                            </svg>
+                                            {reason}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </td>

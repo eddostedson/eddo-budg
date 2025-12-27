@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 import { useTenants } from '@/hooks/useTenants'
 import { SharedFundsService } from '@/lib/supabase/shared-funds-service'
+import { createClient } from '@/lib/supabase/browser'
+import { useUltraModernToastContext } from '@/contexts/ultra-modern-toast-context'
 
 interface TransactionFormDialogProps {
   open: boolean
@@ -26,6 +28,7 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
   const { comptes, crediterCompte, debiterCompte, refreshComptes, refreshTransactions } = useComptesBancaires()
   const { createReceipt } = useReceipts()
   const { tenantOptions } = useTenants()
+  const { showSuccess } = useUltraModernToastContext()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     montant: '',
@@ -44,9 +47,36 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
   const [sharedFundTargetCompteId, setSharedFundTargetCompteId] = useState('')
   const [availableSharedFunds, setAvailableSharedFunds] = useState<SharedFund[]>([])
   const [selectedSharedFundId, setSelectedSharedFundId] = useState('')
+  const supabase = React.useMemo(() => createClient(), [])
 
   // Vérifier si le compte est "Cité kennedy"
   const isCiteKennedy = compte?.nom?.toLowerCase().includes('cité kennedy') || compte?.nom?.toLowerCase().includes('cite kennedy')
+
+  const formatFca = (amount: number) => `${Math.round(amount).toLocaleString('fr-FR')} F CFA`
+
+  const fetchCompteSoldeActuel = async (compteId: string): Promise<{ nom: string; soldeActuel: number } | null> => {
+    try {
+      const { data: authData } = await supabase.auth.getUser()
+      const userId = authData?.user?.id
+      if (!userId) return null
+
+      const { data, error } = await supabase
+        .from('comptes_bancaires')
+        .select('nom, solde_actuel')
+        .eq('id', compteId)
+        .eq('user_id', userId)
+        .single()
+
+      if (error || !data) return null
+
+      return {
+        nom: String((data as any).nom || ''),
+        soldeActuel: parseFloat((data as any).solde_actuel || 0)
+      }
+    } catch {
+      return null
+    }
+  }
 
   React.useEffect(() => {
     if (open) {
@@ -334,6 +364,16 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
 
               if (!creditId) {
                 toast.error('Erreur lors du crédit du compte de destination')
+              } else {
+                const info = await fetchCompteSoldeActuel(compteDestination.id)
+                const nomCible = info?.nom || compteDestination.nom
+                const soldeCible = info?.soldeActuel ?? (compteDestination.soldeActuel + montant)
+
+                showSuccess(
+                  '✅ Compte crédité',
+                  `${nomCible} • +${formatFca(montant)} • Solde: ${formatFca(soldeCible)}`,
+                  'success'
+                )
               }
             }
           }

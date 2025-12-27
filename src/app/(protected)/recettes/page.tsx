@@ -412,6 +412,7 @@ export default function RecettesPage() {
                     </CardContent>
                   </Card>
                 </motion.div>
+                </AnimatedListItem>
               )
             })}
           </div>
