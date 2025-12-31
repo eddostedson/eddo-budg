@@ -119,6 +119,8 @@ export interface TransactionBancaire {
   dateTransaction: string
   createdAt: string
   updatedAt: string
+  receiptUrl?: string // URL du reçu uploadé
+  receiptFileName?: string // Nom du fichier reçu
 }
 
 // ✅ Interface pour les DÉPENSES

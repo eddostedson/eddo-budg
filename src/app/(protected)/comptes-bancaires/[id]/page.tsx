@@ -17,13 +17,18 @@ import {
   Building2Icon,
   CalendarIcon,
   FileTextIcon,
-  TrashIcon
+  TrashIcon,
+  EyeIcon,
+  PaperclipIcon,
+  InfoIcon
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { TransactionFormDialog } from '@/components/transaction-form-dialog'
+import { ReceiptUpload } from '@/components/receipt-upload'
 
 export default function CompteBancaireDetailPage() {
   const params = useParams()
@@ -56,11 +61,14 @@ export default function CompteBancaireDetailPage() {
     description: '',
     categorie: '',
     date: '',
-    montant: ''
+    montant: '',
+    receiptUrl: undefined as string | undefined,
+    receiptFileName: undefined as string | undefined
   })
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | 'credit' | 'debit'>('all')
   const [monthFilter, setMonthFilter] = useState<string>('all')
+  const [receiptPreview, setReceiptPreview] = useState<{ url: string; fileName: string } | null>(null)
   const [activeHighlight, setActiveHighlight] = useState<string | null>(highlightTransactionId)
 
   // ✅ Toujours dériver le compte depuis le contexte pour rester synchronisé
@@ -343,7 +351,9 @@ export default function CompteBancaireDetailPage() {
       montant: (transaction.montant ?? 0).toString(),
       date: transaction.dateTransaction
         ? new Date(transaction.dateTransaction).toISOString().split('T')[0]
-        : new Date().toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0],
+      receiptUrl: transaction.receiptUrl,
+      receiptFileName: transaction.receiptFileName
     })
   }
 
@@ -367,7 +377,9 @@ export default function CompteBancaireDetailPage() {
       description: editForm.description,
       categorie: editForm.categorie,
       dateTransaction: dateIso,
-      montant: montantNumber
+      montant: montantNumber,
+      receiptUrl: editForm.receiptUrl,
+      receiptFileName: editForm.receiptFileName
     })
 
     if (success) {
@@ -835,13 +847,13 @@ export default function CompteBancaireDetailPage() {
                             transition={{ delay: 0.04 * index }}
                             className={`${rowBg} transition-all duration-300`}
                           >
-                            <td className="px-6 py-4 text-sm text-slate-700">
+                            <td className="px-6 py-3 text-sm text-slate-700">
                               <div className="flex items-center gap-2">
                                 <CalendarIcon className="h-4 w-4 text-slate-400" />
                                 {formatDate(transaction.dateTransaction)}
                               </div>
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-6 py-3">
                               <Badge
                                 className={
                                   transaction.typeTransaction === 'credit'
@@ -860,29 +872,47 @@ export default function CompteBancaireDetailPage() {
                                 )}
                               </Badge>
                             </td>
-                            <td className="px-6 py-4">
-                              <div>
+                            <td className="px-6 py-3">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <div className="font-medium text-slate-900">
                                   {highlightText(transaction.libelle)}
                                 </div>
-                                {transaction.description && (
-                                  <div className="text-xs text-slate-500 mt-1">
-                                    {highlightText(transaction.description)}
-                                  </div>
-                                )}
                                 {transaction.categorie && (
-                                  <div className="text-xs text-indigo-600 mt-1 font-medium">
+                                  <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded whitespace-nowrap">
                                     {highlightText(transaction.categorie)}
-                                  </div>
+                                  </span>
                                 )}
                                 {transaction.reference && (
-                                  <div className="text-xs text-slate-400 mt-1">
+                                  <span className="text-xs text-slate-400 whitespace-nowrap">
                                     Ref: {highlightText(transaction.reference)}
+                                  </span>
+                                )}
+                                {/* Icône info avec tooltip pour la description */}
+                                {transaction.description && (
+                                  <div className="relative inline-block group">
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 hover:bg-blue-200 transition-colors"
+                                      title="Voir la description"
+                                    >
+                                      <InfoIcon className="h-3.5 w-3.5 text-blue-600" />
+                                    </button>
+                                    {/* Tooltip au survol - positionné à droite */}
+                                    <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[100] invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                                      <div className="bg-slate-900 text-white text-xs rounded-lg shadow-2xl p-4 min-w-[300px] max-w-[400px] border border-slate-700">
+                                        <div className="font-bold mb-2 text-yellow-300 text-sm">📝 Description</div>
+                                        <div className="whitespace-pre-wrap leading-relaxed text-white font-semibold">
+                                          {transaction.description}
+                                        </div>
+                                        {/* Flèche pointant vers la gauche */}
+                                        <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-8 border-t-transparent border-b-8 border-b-transparent border-r-8 border-r-slate-900"></div>
+                                      </div>
+                                    </div>
                                   </div>
                                 )}
                               </div>
                             </td>
-                            <td className="px-6 py-4 text-right font-semibold">
+                            <td className="px-6 py-3 text-right font-semibold">
                               <span
                                 className={`${
                                   transaction.typeTransaction === 'credit'
@@ -899,29 +929,45 @@ export default function CompteBancaireDetailPage() {
                                 {formatCurrency(transaction.montant)}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-right text-sm text-slate-600">
+                            <td className="px-6 py-3 text-right text-sm text-slate-600">
                               {formatCurrency(transaction.soldeAvant)}
                             </td>
-                            <td className="px-6 py-4 text-right text-sm font-semibold text-slate-800">
+                            <td className="px-6 py-3 text-right text-sm font-semibold text-slate-800">
                               {formatCurrency(transaction.soldeApres)}
                             </td>
-                            <td className="px-6 py-4 text-right">
-                              <div className="flex justify-end gap-2">
+                            <td className="px-6 py-3 text-right">
+                              <div className="flex justify-end gap-1.5">
+                                {/* Bouton Voir le reçu pour les débits avec reçu */}
+                                {transaction.typeTransaction === 'debit' && transaction.receiptUrl && (
+                                  <Button
+                                    size="sm"
+                                    type="button"
+                                    onClick={() => setReceiptPreview({ 
+                                      url: transaction.receiptUrl!, 
+                                      fileName: transaction.receiptFileName || 'Reçu' 
+                                    })}
+                                    className="px-2 py-1.5 rounded-md text-[11px] font-semibold shadow-sm bg-blue-500 hover:bg-blue-600 text-white"
+                                    title="Voir le reçu"
+                                  >
+                                    <PaperclipIcon className="h-3.5 w-3.5 mr-0.5" />
+                                    Reçu
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm"
                                   type="button"
                                   onClick={() => openEditModal(transaction)}
-                                  className="px-3 py-2 rounded-lg text-xs font-semibold shadow-sm bg-orange-500 hover:bg-orange-600 text-white"
+                                  className="px-2 py-1.5 rounded-md text-[11px] font-semibold shadow-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-nowrap"
                                 >
                                   Modifier
                                 </Button>
                                 <Button
                                   size="sm"
                                   type="button"
-                                  className="px-3 py-2 rounded-lg text-xs font-semibold shadow-sm bg-red-600 hover:bg-red-700 text-white"
+                                  className="px-2 py-1.5 rounded-md text-[11px] font-semibold shadow-sm bg-red-600 hover:bg-red-700 text-white whitespace-nowrap"
                                   onClick={() => handleDeleteTransaction(transaction)}
                                 >
-                                  <TrashIcon className="h-4 w-4 mr-1" />
+                                  <TrashIcon className="h-3.5 w-3.5 mr-0.5" />
                                   Supprimer
                                 </Button>
                               </div>
@@ -944,6 +990,52 @@ export default function CompteBancaireDetailPage() {
         compte={compte}
         type={transactionType}
       />
+
+      {/* Modal de prévisualisation du reçu */}
+      {receiptPreview && (
+        <Dialog open={!!receiptPreview} onOpenChange={(open) => !open && setReceiptPreview(null)}>
+          <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <PaperclipIcon className="h-5 w-5 text-blue-600" />
+                {receiptPreview.fileName}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="mt-4">
+              {receiptPreview.url.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={receiptPreview.url}
+                  className="w-full h-[600px] border rounded-lg"
+                  title={receiptPreview.fileName}
+                />
+              ) : (
+                <img
+                  src={receiptPreview.url}
+                  alt={receiptPreview.fileName}
+                  className="w-full h-auto rounded-lg border"
+                />
+              )}
+            </div>
+            <DialogFooter className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setReceiptPreview(null)}
+              >
+                Fermer
+              </Button>
+              <Button
+                type="button"
+                onClick={() => window.open(receiptPreview.url, '_blank')}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <EyeIcon className="h-4 w-4 mr-2" />
+                Ouvrir dans un nouvel onglet
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Modal de modification de transaction (libellé / description / catégorie / date) */}
         {transactionToEdit && (
@@ -1015,6 +1107,28 @@ export default function CompteBancaireDetailPage() {
                     required
                   />
                 </div>
+
+                {/* 📎 Upload de reçu pour les débits */}
+                {transactionToEdit.typeTransaction === 'debit' && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">
+                      Reçu (optionnel)
+                    </Label>
+                    <ReceiptUpload
+                      onReceiptUploaded={(url, fileName) => {
+                        setEditForm({ ...editForm, receiptUrl: url, receiptFileName: fileName })
+                      }}
+                      onReceiptRemoved={() => {
+                        setEditForm({ ...editForm, receiptUrl: undefined, receiptFileName: undefined })
+                      }}
+                      currentReceiptUrl={editForm.receiptUrl}
+                      currentFileName={editForm.receiptFileName}
+                    />
+                    <p className="text-xs text-gray-500">
+                      Vous pouvez joindre ou modifier le reçu de cette dépense
+                    </p>
+                  </div>
+                )}
                 <DialogFooter>
                   <Button
                     type="button"

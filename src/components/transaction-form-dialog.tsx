@@ -16,6 +16,7 @@ import { useTenants } from '@/hooks/useTenants'
 import { SharedFundsService } from '@/lib/supabase/shared-funds-service'
 import { createClient } from '@/lib/supabase/browser'
 import { useUltraModernToastContext } from '@/contexts/ultra-modern-toast-context'
+import { ReceiptUpload } from '@/components/receipt-upload'
 
 interface TransactionFormDialogProps {
   open: boolean
@@ -47,6 +48,8 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
   const [sharedFundTargetCompteId, setSharedFundTargetCompteId] = useState('')
   const [availableSharedFunds, setAvailableSharedFunds] = useState<SharedFund[]>([])
   const [selectedSharedFundId, setSelectedSharedFundId] = useState('')
+  const [receiptUrl, setReceiptUrl] = useState<string | undefined>()
+  const [receiptFileName, setReceiptFileName] = useState<string | undefined>()
   const supabase = React.useMemo(() => createClient(), [])
 
   // Vérifier si le compte est "Cité kennedy"
@@ -96,6 +99,8 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
       setCreateSharedFund(false)
       setSharedFundTargetCompteId('')
       setSelectedSharedFundId('')
+      setReceiptUrl(undefined)
+      setReceiptFileName(undefined)
     } else {
       setAvailableSharedFunds([])
       setSelectedSharedFundId('')
@@ -321,7 +326,9 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
           formData.description || undefined,
           undefined,
           categorieFinale || undefined,
-          new Date(formData.dateOperation).toISOString()
+          new Date(formData.dateOperation).toISOString(),
+          receiptUrl,
+          receiptFileName
         )
 
         if (!debitSuccess) {
@@ -659,6 +666,31 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
               disabled={loading}
             />
           </div>
+
+          {/* 📎 Upload de reçu pour les débits */}
+          {type === 'debit' && (
+            <div className="space-y-2">
+              <Label>
+                Reçu (optionnel)
+              </Label>
+              <ReceiptUpload
+                onReceiptUploaded={(url, fileName) => {
+                  setReceiptUrl(url)
+                  setReceiptFileName(fileName)
+                }}
+                onReceiptRemoved={() => {
+                  setReceiptUrl(undefined)
+                  setReceiptFileName(undefined)
+                }}
+                currentReceiptUrl={receiptUrl}
+                currentFileName={receiptFileName}
+                disabled={loading}
+              />
+              <p className="text-xs text-gray-500">
+                Vous pouvez joindre une photo ou un PDF du reçu de cette dépense
+              </p>
+            </div>
+          )}
 
           {/* Pour "Cité kennedy" : afficher Nom, Villa et Période AU CRÉDIT uniquement.
               Pour tous les autres cas (débit, autres comptes), afficher le champ Catégorie simple. */}

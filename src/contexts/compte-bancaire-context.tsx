@@ -18,7 +18,7 @@ interface CompteBancaireContextType {
   bulkSetExcludeFromTotal: (ids: string[], exclude: boolean) => Promise<boolean>
   deleteCompte: (id: string) => Promise<boolean>
   crediterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string, dateTransaction?: string) => Promise<string | null>
-  debiterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string, dateTransaction?: string) => Promise<boolean>
+  debiterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string, dateTransaction?: string, receiptUrl?: string, receiptFileName?: string) => Promise<boolean>
   getTransactionsByCompte: (compteId: string) => TransactionBancaire[]
   getTotalSoldes: () => number
   initializeDefaultComptes: () => Promise<boolean>
@@ -294,7 +294,9 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         categorie: transaction.categorie,
         dateTransaction: transaction.date_transaction,
         createdAt: transaction.created_at,
-        updatedAt: transaction.updated_at
+        updatedAt: transaction.updated_at,
+        receiptUrl: transaction.receipt_url || undefined,
+        receiptFileName: transaction.receipt_file_name || undefined
       }))
 
       setTransactions(mappedTransactions)
@@ -640,7 +642,9 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     description?: string,
     reference?: string,
     categorie?: string,
-    dateTransaction?: string
+    dateTransaction?: string,
+    receiptUrl?: string,
+    receiptFileName?: string
   ): Promise<boolean> => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -677,22 +681,29 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       const soldeApres = soldeAvant - montant
       const dateOp = dateTransaction || new Date().toISOString()
 
+      // Préparer les données de la transaction
+      const transactionData: any = {
+        user_id: user.id,
+        compte_id: compteId,
+        type_transaction: 'debit',
+        montant: montant,
+        solde_avant: soldeAvant,
+        solde_apres: soldeApres,
+        libelle: libelle,
+        description: description,
+        reference: reference,
+        categorie: categorie,
+        date_transaction: dateOp
+      }
+
+      // Ajouter les champs receipt si fournis
+      if (receiptUrl) transactionData.receipt_url = receiptUrl
+      if (receiptFileName) transactionData.receipt_file_name = receiptFileName
+
       // Créer la transaction
       const { error } = await supabase
         .from('transactions_bancaires')
-        .insert({
-          user_id: user.id,
-          compte_id: compteId,
-          type_transaction: 'debit',
-          montant: montant,
-          solde_avant: soldeAvant,
-          solde_apres: soldeApres,
-          libelle: libelle,
-          description: description,
-          reference: reference,
-          categorie: categorie,
-          date_transaction: dateOp
-        })
+        .insert(transactionData)
 
       if (error) {
         console.error('❌ Erreur lors du débit:', error)
@@ -1019,6 +1030,8 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       if (updates.categorie !== undefined) payload.categorie = updates.categorie
       if (updates.dateTransaction !== undefined) payload.date_transaction = updates.dateTransaction
       if (updates.montant !== undefined) payload.montant = updates.montant
+      if (updates.receiptUrl !== undefined) payload.receipt_url = updates.receiptUrl
+      if (updates.receiptFileName !== undefined) payload.receipt_file_name = updates.receiptFileName
 
       if (Object.keys(payload).length === 0) {
         return true
