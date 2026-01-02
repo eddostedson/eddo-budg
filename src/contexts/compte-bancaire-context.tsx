@@ -201,6 +201,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         if (error && typeof error === 'object') {
           // Vérifier si c'est une erreur "Failed to fetch" qui peut être vide
           const errorStr = String(error)
+          
           if (errorStr === '[object Object]' || errorStr === '{}') {
             // L'erreur est vide, probablement une erreur réseau
             errorMessage = 'Failed to fetch'

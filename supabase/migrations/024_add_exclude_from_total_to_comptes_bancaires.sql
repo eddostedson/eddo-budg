@@ -12,3 +12,10 @@ on public.comptes_bancaires(exclude_from_total);
 
 
 
+
+
+
+
+
+
+
