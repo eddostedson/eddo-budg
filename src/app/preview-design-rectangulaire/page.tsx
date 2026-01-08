@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react'
 import { useRecettes } from '@/contexts/recette-context-direct'
-import { useDepenses } from '@/contexts/depense-context'
+import { useDepenses } from '@/contexts/depense-context-direct'
 import { formatCurrency } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
