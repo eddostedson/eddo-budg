@@ -1,7 +1,7 @@
 // 🗑️ PAGE CORBEILLE - RESTAURATION DES RECETTES SUPPRIMÉES
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useRecettes } from '@/contexts/recette-context-direct'
 import { Recette } from '@/lib/shared-data'
@@ -19,11 +19,7 @@ export default function CorbeillePage() {
   const [deletedRecettes, setDeletedRecettes] = useState<Recette[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadDeletedRecettes()
-  }, [])
-
-  const loadDeletedRecettes = async () => {
+  const loadDeletedRecettes = useCallback(async () => {
     setLoading(true)
     try {
       const recettes = await getDeletedRecettes()
@@ -34,7 +30,11 @@ export default function CorbeillePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [getDeletedRecettes])
+
+  useEffect(() => {
+    loadDeletedRecettes()
+  }, [loadDeletedRecettes])
 
   const handleRestore = async (id: string) => {
     try {

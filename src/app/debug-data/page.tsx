@@ -124,7 +124,7 @@ export default function DebugDataPage() {
     }
 
     runDiagnostic()
-  }, [supabase.auth])
+  }, [supabase])
 
   const createTestData = async () => {
     try {

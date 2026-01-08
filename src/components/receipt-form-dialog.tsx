@@ -73,7 +73,7 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
         refreshTransactions(compteKennedy.id)
       }
     }
-  }, [receiptToEdit, open])
+  }, [receiptToEdit, open, selectedTransactionId, compteKennedy, comptes, refreshTransactions])
   
   // Charger les transactions et reçus quand le compte Kennedy est disponible (séparément pour éviter les réinitialisations)
   useEffect(() => {
@@ -82,7 +82,7 @@ export function ReceiptFormDialog({ open, onOpenChange, receiptToEdit }: Receipt
       refreshTransactions(compteKennedy.id)
       refreshReceipts()
     }
-  }, [compteKennedy?.id, open, receiptToEdit, refreshTransactions, refreshReceipts])
+  }, [compteKennedy, open, receiptToEdit, refreshTransactions, refreshReceipts])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

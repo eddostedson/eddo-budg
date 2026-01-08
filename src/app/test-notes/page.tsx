@@ -79,7 +79,7 @@ export default function TestNotesPage() {
     }
 
     testNotes()
-  }, [])
+  }, [supabase])
 
   if (loading) {
     return (

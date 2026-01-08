@@ -12,7 +12,8 @@ import {
   Settings, 
   LogOut,
   Database,
-  Activity
+  Activity,
+  BarChart3
 } from 'lucide-react'
 
 const navigation = [
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'Dépenses', href: '/depenses', icon: CreditCard },
   { name: 'Budgets', href: '/budgets', icon: FileText },
   { name: 'Journal', href: '/journal-activite', icon: Activity },
+  { name: 'Monitoring', href: '/monitoring', icon: BarChart3 },
   { name: 'Sauvegardes', href: '/backup', icon: Database },
   { name: 'Debug', href: '/debug', icon: Settings },
 ]

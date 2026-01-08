@@ -69,7 +69,7 @@ export default function DebugNotesPage() {
     }
 
     debugNotes()
-  }, [])
+  }, [supabase])
 
   if (loading) {
     return (

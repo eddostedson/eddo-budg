@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 export interface Notification {
   id: string
@@ -25,6 +25,13 @@ export function ModernNotification({ notification, onRemove }: NotificationProps
     return () => clearTimeout(timer)
   }, [])
 
+  const handleClose = useCallback(() => {
+    setIsLeaving(true)
+    setTimeout(() => {
+      onRemove(notification.id)
+    }, 300)
+  }, [notification.id, onRemove])
+
   useEffect(() => {
     // Auto-suppression après la durée spécifiée
     const duration = notification.duration || 4000
@@ -33,14 +40,7 @@ export function ModernNotification({ notification, onRemove }: NotificationProps
     }, duration)
 
     return () => clearTimeout(timer)
-  }, [notification.duration])
-
-  const handleClose = () => {
-    setIsLeaving(true)
-    setTimeout(() => {
-      onRemove(notification.id)
-    }, 300)
-  }
+  }, [handleClose, notification.duration])
 
   const getIcon = () => {
     switch (notification.type) {

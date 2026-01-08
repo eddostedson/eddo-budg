@@ -1,15 +1,20 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
 import { BudgetSalaireMois, BudgetSalaireRubrique, BudgetSalaireMouvement } from '@/lib/shared-data'
-import { BudgetSalaireService } from '@/lib/supabase/budget-salaire-service'
+import {
+  BudgetSalaireGlobalMouvementResult,
+  BudgetSalaireGlobalRubriqueResult,
+  BudgetSalaireService
+} from '@/lib/supabase/budget-salaire-service'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search as SearchIcon } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { AlertTriangle, Search as SearchIcon, Sparkles, Target } from 'lucide-react'
 import { useUltraModernToastContext } from '@/contexts/ultra-modern-toast-context'
 
 const MONTHS = [
@@ -33,8 +38,11 @@ export default function BudgetSalairePage() {
   const { showSuccess, showError } = useUltraModernToastContext()
 
   const today = new Date()
-  const [annee, setAnnee] = useState(today.getFullYear())
-  const [mois, setMois] = useState(today.getMonth() + 1)
+  const currentYear = today.getFullYear()
+  const currentMonth = today.getMonth() + 1
+  const [annee, setAnnee] = useState(currentYear)
+  const [mois, setMois] = useState(currentMonth)
+  const [autoAdvanceEnabled, setAutoAdvanceEnabled] = useState(true)
 
   const [loadingAuth, setLoadingAuth] = useState(true)
   const [loadingData, setLoadingData] = useState(false)
@@ -51,6 +59,11 @@ export default function BudgetSalairePage() {
   const [autoCopyRubriques, setAutoCopyRubriques] = useState(true)
   const [copyingRubriques, setCopyingRubriques] = useState(false)
   const autoAdvanceRef = useRef<{ justJumped: boolean; totalJumps: number }>({ justJumped: false, totalJumps: 0 })
+  const markManualNavigation = useCallback(() => {
+    setAutoAdvanceEnabled(false)
+    autoAdvanceRef.current.justJumped = false
+    autoAdvanceRef.current.totalJumps = 0
+  }, [])
 
   const [revenuInput, setRevenuInput] = useState('')
   const [newRubrique, setNewRubrique] = useState({
@@ -84,9 +97,28 @@ export default function BudgetSalairePage() {
 
   // Recherche ultramoderne sur les rubriques (libellés + montants)
   const [rubriqueSearch, setRubriqueSearch] = useState('')
-  // Pour éviter que la fenêtre auto ne se rouvre en boucle pour la même recherche
-  const [autoOpenSearchKey, setAutoOpenSearchKey] = useState<string | null>(null)
+  const [globalSearchResults, setGlobalSearchResults] = useState<{
+    rubriques: BudgetSalaireGlobalRubriqueResult[]
+    mouvements: BudgetSalaireGlobalMouvementResult[]
+  } | null>(null)
+  const [globalSearchLoading, setGlobalSearchLoading] = useState(false)
+  const [globalSearchError, setGlobalSearchError] = useState<string | null>(null)
+  const globalSearchRequestId = useRef(0)
+  const [showOnlyOverBudget, setShowOnlyOverBudget] = useState(false)
+  const [compactPulse, setCompactPulse] = useState(true)
 
+  // Modal État (filtres multi-mois/années)
+  const [etatModalOpen, setEtatModalOpen] = useState(false)
+  const [etatYear, setEtatYear] = useState(currentYear)
+  const [etatMonth, setEtatMonth] = useState(currentMonth)
+  const [etatBudget, setEtatBudget] = useState<BudgetSalaireMois | null>(null)
+  const [etatRubriques, setEtatRubriques] = useState<BudgetSalaireRubrique[]>([])
+  const [etatSelectedRubriqueId, setEtatSelectedRubriqueId] = useState<string>('')
+  const [etatSelectedRubrique, setEtatSelectedRubrique] = useState<BudgetSalaireRubrique | null>(null)
+  const [etatRubriqueMouvements, setEtatRubriqueMouvements] = useState<BudgetSalaireMouvement[]>([])
+  const [etatLoading, setEtatLoading] = useState(false)
+  const [etatError, setEtatError] = useState<string | null>(null)
+  const [etatRubriqueLoading, setEtatRubriqueLoading] = useState(false)
   // Préparation de la recherche (texte ou montant exact)
   const trimmedRubriqueSearch = rubriqueSearch.trim()
   const hasRubriqueSearch = trimmedRubriqueSearch !== ''
@@ -170,7 +202,131 @@ export default function BudgetSalairePage() {
     const matchesMovementDescription = rubriqueHasMovementDescriptionMatch(rubrique.id)
 
     return matchesNom || matchesMovementDescription
+  }).filter((rubrique) => {
+    if (!showOnlyOverBudget) return true
+    return rubrique.montantDepense > rubrique.montantBudgete
   })
+
+  const getRubriqueResteRatio = useCallback((rubrique: BudgetSalaireRubrique) => {
+    const budget = rubrique.montantBudgete ?? 0
+    const reste = Math.max(0, budget - (rubrique.montantDepense ?? 0))
+
+    if (budget <= 0) {
+      return reste > 0 ? 1 : 0
+    }
+
+    return reste / budget
+  }, [])
+
+  const sortedRubriques = useMemo(() => {
+    return [...filteredRubriques].sort((a, b) => {
+      const ratioB = getRubriqueResteRatio(b)
+      const ratioA = getRubriqueResteRatio(a)
+
+      if (ratioB !== ratioA) {
+        return ratioB - ratioA
+      }
+
+      const resteB = Math.max(0, (b.montantBudgete ?? 0) - (b.montantDepense ?? 0))
+      const resteA = Math.max(0, (a.montantBudgete ?? 0) - (a.montantDepense ?? 0))
+
+      return resteB - resteA
+    })
+  }, [filteredRubriques, getRubriqueResteRatio])
+  const totalBudgete = rubriques.reduce((sum, r) => sum + r.montantBudgete, 0)
+  const totalDepense = budgetMois?.montantDepenseTotal ?? 0
+  const disponiblePourBudget = (budgetMois?.revenuMensuel ?? 0) - totalBudgete
+  const resteApresDepensesReelles = (budgetMois?.revenuMensuel ?? 0) - totalDepense
+  const margeSurBudget = totalBudgete - totalDepense
+
+  const totalGlobalSearchResults =
+    (globalSearchResults?.rubriques.length ?? 0) + (globalSearchResults?.mouvements.length ?? 0)
+
+  const overBudgetRubriques = rubriques.filter((r) => r.montantDepense > r.montantBudgete)
+  const overBudgetCount = overBudgetRubriques.length
+  const overBudgetTotal = overBudgetRubriques.reduce(
+    (sum, r) => sum + (r.montantDepense - r.montantBudgete),
+    0
+  )
+  const budgetUsagePercent = budgetMois?.revenuMensuel
+    ? Math.min(100, Math.round((totalBudgete / budgetMois.revenuMensuel) * 100))
+    : 0
+  const depenseUsagePercent = budgetMois?.revenuMensuel
+    ? Math.min(100, Math.round((totalDepense / budgetMois.revenuMensuel) * 100))
+    : 0
+  const priorityRubrique = useMemo(() => {
+    if (rubriques.length === 0) return null
+    return [...rubriques]
+      .sort((a, b) => {
+        const ratioA =
+          a.montantBudgete > 0 ? (a.montantDepense ?? 0) / a.montantBudgete : a.montantDepense ?? 0
+        const ratioB =
+          b.montantBudgete > 0 ? (b.montantDepense ?? 0) / b.montantBudgete : b.montantDepense ?? 0
+        return ratioB - ratioA
+      })
+      .find((r) => r.montantBudgete > 0)
+  }, [rubriques])
+
+  useEffect(() => {
+    if (overBudgetCount === 0 && showOnlyOverBudget) {
+      setShowOnlyOverBudget(false)
+    }
+  }, [overBudgetCount, showOnlyOverBudget])
+
+  const etatTotalBudgete = useMemo(
+    () => etatRubriques.reduce((sum, r) => sum + r.montantBudgete, 0),
+    [etatRubriques]
+  )
+  const etatTotalDepense = useMemo(
+    () =>
+      etatBudget?.montantDepenseTotal ??
+      etatRubriques.reduce((sum, r) => sum + (r.montantDepense ?? 0), 0),
+    [etatBudget, etatRubriques]
+  )
+  const etatDisponible = (etatBudget?.revenuMensuel ?? 0) - etatTotalBudgete
+  const etatSelectedRubriqueReste = Math.max(
+    0,
+    (etatSelectedRubrique?.montantBudgete ?? 0) - (etatSelectedRubrique?.montantDepense ?? 0)
+  )
+
+  useEffect(() => {
+    if (!hasRubriqueSearch) {
+      setGlobalSearchResults(null)
+      setGlobalSearchError(null)
+      setGlobalSearchLoading(false)
+      return
+    }
+
+    const requestId = ++globalSearchRequestId.current
+    setGlobalSearchLoading(true)
+    setGlobalSearchError(null)
+
+    BudgetSalaireService.searchGlobalBudgets({
+      term: trimmedRubriqueSearch,
+      isNumeric: isRubriqueNumericSearch,
+      numericValue: rubriqueNumericValue
+    })
+      .then((results) => {
+        if (globalSearchRequestId.current !== requestId) return
+        setGlobalSearchResults(results)
+      })
+      .catch((error) => {
+        console.error('❌ Recherche globale Budget Salaire', error)
+        if (globalSearchRequestId.current !== requestId) return
+        setGlobalSearchResults(null)
+        setGlobalSearchError('Impossible de charger les résultats globaux.')
+      })
+      .finally(() => {
+        if (globalSearchRequestId.current === requestId) {
+          setGlobalSearchLoading(false)
+        }
+      })
+  }, [
+    hasRubriqueSearch,
+    trimmedRubriqueSearch,
+    isRubriqueNumericSearch,
+    rubriqueNumericValue
+  ])
 
   const highlightRubriqueNom = (nom: string) => {
     if (!hasRubriqueSearch || isRubriqueNumericSearch) return nom
@@ -183,6 +339,152 @@ export default function BudgetSalairePage() {
     const match = nom.slice(index, index + trimmedRubriqueSearch.length)
     const after = nom.slice(index + trimmedRubriqueSearch.length)
 
+    return (
+      <>
+        {before}
+        <span className="bg-yellow-200 text-slate-900 rounded px-1">{match}</span>
+        {after}
+      </>
+    )
+  }
+
+  const goToCurrentMonth = useCallback(() => {
+    markManualNavigation()
+    setAnnee(currentYear)
+    setMois(currentMonth)
+  }, [currentMonth, currentYear, markManualNavigation])
+
+  const handleJumpToBudget = useCallback(
+    (targetYear: number, targetMonth: number) => {
+      markManualNavigation()
+      setAnnee(targetYear)
+      setMois(targetMonth)
+    },
+    [markManualNavigation]
+  )
+
+  const handleOpenEtatModal = () => {
+    setEtatYear(annee)
+    setEtatMonth(mois)
+    setEtatSelectedRubriqueId('')
+    setEtatSelectedRubrique(null)
+    setEtatRubriqueMouvements([])
+    setEtatError(null)
+    setEtatModalOpen(true)
+  }
+
+  const handleCloseEtatModal = () => {
+    setEtatModalOpen(false)
+  }
+
+  useEffect(() => {
+    if (!etatModalOpen) return
+    let cancelled = false
+
+    const loadEtatBudget = async () => {
+      setEtatLoading(true)
+      setEtatError(null)
+      try {
+        const budget = await BudgetSalaireService.getBudgetMois(etatYear, etatMonth)
+        if (!budget) {
+          if (!cancelled) {
+            setEtatBudget(null)
+            setEtatRubriques([])
+            setEtatSelectedRubriqueId('')
+            setEtatSelectedRubrique(null)
+            setEtatRubriqueMouvements([])
+            setEtatError(`Aucun budget trouvé pour ${MONTHS[etatMonth - 1]} ${etatYear}.`)
+          }
+          return
+        }
+
+        const rubs = await BudgetSalaireService.getRubriques(budget.id)
+        if (cancelled) return
+
+        setEtatBudget(budget)
+        setEtatRubriques(rubs)
+
+        if (rubs.length === 0) {
+          setEtatSelectedRubriqueId('')
+          setEtatSelectedRubrique(null)
+          setEtatRubriqueMouvements([])
+        } else {
+          setEtatSelectedRubriqueId(rubs[0].id)
+        }
+      } catch (error) {
+        console.error('❌ Chargement état budget', error)
+        if (!cancelled) {
+          setEtatError('Impossible de charger ce budget.')
+          setEtatBudget(null)
+          setEtatRubriques([])
+          setEtatSelectedRubriqueId('')
+          setEtatSelectedRubrique(null)
+          setEtatRubriqueMouvements([])
+        }
+      } finally {
+        if (!cancelled) {
+          setEtatLoading(false)
+        }
+      }
+    }
+
+    loadEtatBudget()
+
+    return () => {
+      cancelled = true
+    }
+  }, [etatModalOpen, etatYear, etatMonth])
+
+  useEffect(() => {
+    if (!etatModalOpen) return
+    if (!etatSelectedRubriqueId) {
+      setEtatSelectedRubrique(null)
+      setEtatRubriqueMouvements([])
+      return
+    }
+
+    const rubrique = etatRubriques.find((r) => r.id === etatSelectedRubriqueId) ?? null
+    setEtatSelectedRubrique(rubrique)
+    if (!rubrique) {
+      setEtatRubriqueMouvements([])
+      return
+    }
+
+    let cancelled = false
+    const loadRubriqueDetails = async () => {
+      setEtatRubriqueLoading(true)
+      try {
+        const mouvements = await BudgetSalaireService.getMouvementsPourRubrique(rubrique.id)
+        if (!cancelled) {
+          setEtatRubriqueMouvements(mouvements)
+        }
+      } catch (error) {
+        console.error('❌ Chargement mouvements état', error)
+        if (!cancelled) {
+          setEtatRubriqueMouvements([])
+        }
+      } finally {
+        if (!cancelled) {
+          setEtatRubriqueLoading(false)
+        }
+      }
+    }
+
+    loadRubriqueDetails()
+
+    return () => {
+      cancelled = true
+    }
+  }, [etatModalOpen, etatSelectedRubriqueId, etatRubriques])
+
+  const highlightSearchText = (text: string) => {
+    if (!hasRubriqueSearch || isRubriqueNumericSearch) return text
+    const lower = text.toLowerCase()
+    const index = lower.indexOf(rubriqueSearchLower)
+    if (index === -1) return text
+    const before = text.slice(0, index)
+    const match = text.slice(index, index + trimmedRubriqueSearch.length)
+    const after = text.slice(index + trimmedRubriqueSearch.length)
     return (
       <>
         {before}
@@ -218,7 +520,7 @@ export default function BudgetSalairePage() {
     } | null
   }
 
-  const loadData = async (forceRevenuCreation?: number): Promise<LoadDataResult> => {
+  const loadData = useCallback(async (forceRevenuCreation?: number): Promise<LoadDataResult> => {
     setLoadingData(true)
     try {
       const budget = await BudgetSalaireService.getOrCreateBudgetMois(
@@ -290,20 +592,14 @@ export default function BudgetSalairePage() {
     } finally {
       setLoadingData(false)
     }
-  }
+  }, [annee, mois])
 
   useEffect(() => {
     loadData()
-  }, [annee, mois])
-
-  const totalBudgete = rubriques.reduce((sum, r) => sum + r.montantBudgete, 0)
-  const totalDepense = budgetMois?.montantDepenseTotal ?? 0
-  const disponiblePourBudget = (budgetMois?.revenuMensuel ?? 0) - totalBudgete
-  const resteApresDepensesReelles = (budgetMois?.revenuMensuel ?? 0) - totalDepense
-  const margeSurBudget = totalBudgete - totalDepense
+  }, [loadData])
 
   useEffect(() => {
-    if (!budgetMois) return
+    if (!budgetMois || !autoAdvanceEnabled) return
 
     // Si on vient de sauter, on attend le prochain chargement
     if (autoAdvanceRef.current.justJumped) {
@@ -330,7 +626,7 @@ export default function BudgetSalairePage() {
 
     setAnnee(nextYearValue)
     setMois(nextMonthValue)
-  }, [budgetMois, margeSurBudget])
+  }, [budgetMois, margeSurBudget, annee, mois, autoAdvanceEnabled])
 
   const handleCreateBudgetMois = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -480,31 +776,7 @@ export default function BudgetSalairePage() {
   const closeMouvementsModal = () => {
     setRubriqueMouvementsRubrique(null)
     setRubriqueMouvements([])
-    // Marquer cette recherche comme déjà traitée pour ne pas rouvrir automatiquement
-    if (hasRubriqueSearch) {
-      setAutoOpenSearchKey(trimmedRubriqueSearch)
-    }
   }
-
-  // Ouvrir automatiquement la fenêtre des mouvements quand une seule rubrique correspond à la recherche
-  useEffect(() => {
-    if (!hasRubriqueSearch) {
-      // Reset quand on efface la recherche
-      if (autoOpenSearchKey !== null) {
-        setAutoOpenSearchKey(null)
-      }
-      return
-    }
-    if (rubriqueMouvementsRubrique) return
-    if (filteredRubriques.length !== 1) return
-    // Ne pas rouvrir si on a déjà ouvert (ou fermé) pour cette recherche
-    if (autoOpenSearchKey === trimmedRubriqueSearch) return
-
-    const [uniqueRubrique] = filteredRubriques
-    setAutoOpenSearchKey(trimmedRubriqueSearch)
-    // Appel sans await pour ne pas bloquer le rendu
-    void handleVoirMouvementsRubrique(uniqueRubrique)
-  }, [hasRubriqueSearch, trimmedRubriqueSearch, filteredRubriques, rubriqueMouvementsRubrique, autoOpenSearchKey])
 
   const openEditMouvement = (mvt: BudgetSalaireMouvement) => {
     setMouvementEnEdition(mvt)
@@ -756,7 +1028,11 @@ export default function BudgetSalairePage() {
               <Input
                 type="number"
                 value={annee}
-                onChange={(e) => setAnnee(parseInt(e.target.value, 10) || today.getFullYear())}
+                onChange={(e) => {
+                  const parsedYear = parseInt(e.target.value, 10)
+                  markManualNavigation()
+                  setAnnee(Number.isFinite(parsedYear) ? parsedYear : currentYear)
+                }}
                 className="w-[110px] rounded-xl border-slate-300 bg-slate-50/80 shadow-inner text-sm"
               />
               <Button
@@ -765,6 +1041,7 @@ export default function BudgetSalairePage() {
                 onClick={() => {
                   const prevMonth = mois === 1 ? 12 : mois - 1
                   const prevYear = mois === 1 ? annee - 1 : annee
+                  markManualNavigation()
                   setAnnee(prevYear)
                   setMois(prevMonth)
                 }}
@@ -778,12 +1055,29 @@ export default function BudgetSalairePage() {
                 onClick={() => {
                   const nextMonth = mois === 12 ? 1 : mois + 1
                   const nextYear = mois === 12 ? annee + 1 : annee
+                  markManualNavigation()
                   setAnnee(nextYear)
                   setMois(nextMonth)
                 }}
                 className="rounded-xl px-4 py-2 text-sm font-semibold"
               >
                 Mois suivant
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleOpenEtatModal}
+                className="rounded-xl px-4 py-2 text-sm font-semibold"
+              >
+                État
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={goToCurrentMonth}
+                className="rounded-xl px-4 py-2 text-sm font-semibold"
+              >
+                Revenir au mois courant
               </Button>
               <Button
                 type="button"
@@ -795,104 +1089,423 @@ export default function BudgetSalairePage() {
             </div>
           </div>
 
-          {/* Création du budget mensuel si inexistant */}
-          {!budgetMois && (
-            <Card className="border-dashed border-slate-300 bg-slate-50/80 rounded-xl shadow-none">
-              <CardContent className="pt-4">
-                <form
-                  onSubmit={handleCreateBudgetMois}
-                  className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
-                >
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-slate-800">
-                      Créer le budget pour {MONTHS[mois - 1]} {annee}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Indique ton revenu net du mois pour commencer à répartir ton budget par rubriques.
-                    </p>
-                    <div className="mt-3 max-w-xs">
-                      <label className="block text-xs font-medium text-slate-600 mb-1">
-                        Revenu du mois (salaire net)
-                      </label>
-                      <Input
-                        type="number"
-                        placeholder="Ex: 500000"
-                        value={revenuInput}
-                        onChange={(e) => setRevenuInput(e.target.value)}
-                        required
-                        className="rounded-xl border-slate-300 bg-white shadow-inner text-sm"
-                      />
+        {hasRubriqueSearch && (
+          <div className="mb-8 rounded-2xl border border-indigo-100 bg-white/70 px-5 py-5 shadow-sm">
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">
+                Recherche globale (tous les mois)
+              </p>
+              <p className="text-sm text-slate-600">
+                {globalSearchLoading
+                  ? 'Analyse de ton historique...'
+                  : `Résultats trouvés : ${totalGlobalSearchResults}`}
+              </p>
+            </div>
+            {globalSearchLoading && (
+              <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
+                Exploration de toutes les années...
+              </div>
+            )}
+            {!globalSearchLoading && globalSearchError && (
+              <p className="mt-4 text-sm text-red-600">{globalSearchError}</p>
+            )}
+            {!globalSearchLoading && !globalSearchError && (
+              <>
+                {totalGlobalSearchResults === 0 && (
+                  <p className="mt-4 text-sm text-slate-600">
+                    Aucun historique (rubrique ou mouvement) ne correspond à{' '}
+                    <span className="font-semibold">« {trimmedRubriqueSearch} »</span>.
+                  </p>
+                )}
+                {totalGlobalSearchResults > 0 && (
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-indigo-900">
+                          Rubriques ({globalSearchResults?.rubriques.length ?? 0})
+                        </p>
+                        {(globalSearchResults?.rubriques.length ?? 0) > 5 && (
+                          <span className="text-[11px] text-slate-500">Top 5 récents</span>
+                        )}
+                      </div>
+                      <div className="mt-3 space-y-3">
+                        {(globalSearchResults?.rubriques.slice(0, 5) ?? []).map(({ budget, rubrique }) => (
+                          <div
+                            key={`${rubrique.id}-${budget.id}`}
+                            className="rounded-lg border border-indigo-100 bg-white/80 px-3 py-2"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">
+                                  {highlightRubriqueNom(rubrique.nom)}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  {MONTHS[budget.mois - 1]} {budget.annee}
+                                </p>
+                                <p className="mt-1 text-[11px] text-slate-600">
+                                  Budgeté {formatCurrency(rubrique.montantBudgete)} · Dépensé{' '}
+                                  {formatCurrency(rubrique.montantDepense)}
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="rounded-lg px-2 py-1 text-xs font-semibold"
+                                onClick={() => handleJumpToBudget(budget.annee, budget.mois)}
+                              >
+                                Ouvrir
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="mt-3 flex items-start gap-2 text-xs text-slate-600">
-                      <input
-                        id="autoCopyRubriques"
-                        type="checkbox"
-                        className="mt-0.5 h-4 w-4 rounded border-slate-300"
-                        checked={autoCopyRubriques}
-                        onChange={(e) => setAutoCopyRubriques(e.target.checked)}
-                      />
-                      <label htmlFor="autoCopyRubriques" className="leading-5">
-                        Copier automatiquement les rubriques du mois précédent après création
-                        (confirmation demandée, dépensé remis à 0).
-                      </label>
+                    <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-rose-900">
+                          Mouvements ({globalSearchResults?.mouvements.length ?? 0})
+                        </p>
+                        {(globalSearchResults?.mouvements.length ?? 0) > 5 && (
+                          <span className="text-[11px] text-slate-500">Top 5 récents</span>
+                        )}
+                      </div>
+                      <div className="mt-3 space-y-3">
+                        {(globalSearchResults?.mouvements.slice(0, 5) ?? []).map(
+                          ({ budget, rubrique, mouvement }) => (
+                            <div
+                              key={mouvement.id}
+                              className="rounded-lg border border-rose-100 bg-white/80 px-3 py-2"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="space-y-1">
+                                  <p className="text-sm font-semibold text-rose-900">
+                                    {formatCurrency(mouvement.montant)}
+                                  </p>
+                                  <p className="text-[11px] text-slate-500">
+                                    {mouvement.dateOperation
+                                      ? new Date(mouvement.dateOperation).toLocaleDateString('fr-FR')
+                                      : 'Date inconnue'}{' '}
+                                    · {MONTHS[budget.mois - 1]} {budget.annee}
+                                  </p>
+                                  <p className="text-xs text-slate-600">
+                                    Rubrique : <span className="font-semibold">{highlightRubriqueNom(rubrique.nom)}</span>
+                                  </p>
+                                  {mouvement.description && (
+                                    <p className="text-xs text-slate-600">
+                                      {highlightSearchText(mouvement.description ?? '')}
+                                    </p>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="rounded-lg px-2 py-1 text-xs font-semibold"
+                                  onClick={() => handleJumpToBudget(budget.annee, budget.mois)}
+                                >
+                                  Voir le mois
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <Button
-                    type="submit"
-                    className="mt-2 md:mt-0 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Création du budget mensuel si inexistant */}
+          {!budgetMois && (
+            <>
+              <Alert className="mb-6 border-slate-200 bg-slate-50/80 text-slate-800">
+                <AlertTitle>
+                  Aucun budget pour {MONTHS[mois - 1]} {annee}
+                </AlertTitle>
+                <AlertDescription>
+                  Aucun revenu ou rubriques n&apos;ont été renseignés pour cette période. Crée un budget pour commencer à suivre tes dépenses.
+                </AlertDescription>
+              </Alert>
+              <Card className="border-dashed border-slate-300 bg-slate-50/80 rounded-xl shadow-none">
+                <CardContent className="pt-4">
+                  <form
+                    onSubmit={handleCreateBudgetMois}
+                    className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
                   >
-                    Créer le budget du mois
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-slate-800">
+                        Créer le budget pour {MONTHS[mois - 1]} {annee}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Indique ton revenu net du mois pour commencer à répartir ton budget par rubriques.
+                      </p>
+                      <div className="mt-3 max-w-xs">
+                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                          Revenu du mois (salaire net)
+                        </label>
+                        <Input
+                          type="number"
+                          placeholder="Ex: 500000"
+                          value={revenuInput}
+                          onChange={(e) => setRevenuInput(e.target.value)}
+                          required
+                          className="rounded-xl border-slate-300 bg-white shadow-inner text-sm"
+                        />
+                      </div>
+                      <div className="mt-3 flex items-start gap-2 text-xs text-slate-600">
+                        <input
+                          id="autoCopyRubriques"
+                          type="checkbox"
+                          className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                          checked={autoCopyRubriques}
+                          onChange={(e) => setAutoCopyRubriques(e.target.checked)}
+                        />
+                        <label htmlFor="autoCopyRubriques" className="leading-5">
+                          Copier automatiquement les rubriques du mois précédent après création
+                          (confirmation demandée, dépensé remis à 0).
+                        </label>
+                      </div>
+                    </div>
+                    <Button
+                      type="submit"
+                      className="mt-2 md:mt-0 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+                    >
+                      Créer le budget du mois
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </>
           )}
 
-          {/* Résumé du mois courant */}
           {budgetMois && (
-            <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="rounded-xl bg-slate-100 px-5 py-4 shadow-md">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  Salaire (payé fin {previousMonthLabel} {previousMonthYear})
-                </p>
-                <p className="mt-2 text-2xl md:text-3xl font-semibold text-slate-900">
-                  {formatCurrency(budgetMois.revenuMensuel)}
-                </p>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Utilisé pour les dépenses de {currentMonthLabel} {annee}
-                </p>
-              </div>
-              <div className="rounded-xl bg-rose-100/80 px-5 py-4 shadow-md">
-                <p className="text-xs font-medium uppercase tracking-wide text-rose-800">
-                  Total dépensé ce mois
-                </p>
-                <p className="mt-2 text-2xl md:text-3xl font-semibold text-rose-900">
-                  {formatCurrency(totalDepense)}
-                </p>
-                <p className="mt-1 text-[11px] text-rose-900/80">
-                  Reste après dépenses réelles:&nbsp;
-                  <span
-                    className={`font-semibold ${
-                      resteApresDepensesReelles >= 0 ? 'text-emerald-700' : 'text-red-700'
-                    }`}
-                  >
-                    {formatCurrency(resteApresDepensesReelles)}
-                  </span>
-                </p>
-              </div>
-              {margeSurBudget > 0 && (
-                <div className="rounded-xl bg-emerald-100/80 px-5 py-4 shadow-md">
-                  <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
-                    Marge sur le budget (plafonds - dépenses)
+            <div className="mt-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Synthèse budget & Pulse
                   </p>
-                  <p className="mt-2 text-2xl md:text-3xl font-semibold text-emerald-900">
-                    {formatCurrency(margeSurBudget)}
-                  </p>
-                  <p className="mt-1 text-[11px] text-emerald-900/80">
-                    Différence entre le total budgété et le total dépensé ce mois. Si ce montant devient
-                    négatif, les plafonds sont dépassés.
-                  </p>
+                  <p className="text-sm text-slate-500">Basculer entre la vue compacte et détaillée selon le besoin.</p>
                 </div>
+                <Button
+                  variant="outline"
+                  className="rounded-full text-xs"
+                  onClick={() => setCompactPulse((prev) => !prev)}
+                >
+                  {compactPulse ? 'Vue détaillée' : 'Mode compact'}
+                </Button>
+              </div>
+
+              {compactPulse ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                    <p className="text-[11px] font-semibold uppercase text-slate-500">Salaire perçu</p>
+                    <p className="text-lg font-bold text-slate-900">{formatCurrency(budgetMois.revenuMensuel)}</p>
+                    <p className="text-[11px] text-slate-500">Payé fin {previousMonthLabel} {previousMonthYear}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                    <p className="text-[11px] font-semibold uppercase text-slate-500">Total dépensé</p>
+                    <p className="text-lg font-bold text-rose-600">{formatCurrency(totalDepense)}</p>
+                    <p className="text-[11px] text-slate-500">
+                      Reste réel {formatCurrency(resteApresDepensesReelles)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                    <p className="text-[11px] font-semibold uppercase text-slate-500">Marge sur budget</p>
+                    <p className="text-lg font-bold text-emerald-600">{formatCurrency(margeSurBudget)}</p>
+                    <p className="text-[11px] text-slate-500">Plafonds − dépenses</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                    <p className="text-[11px] font-semibold uppercase text-slate-500 flex items-center gap-1">
+                      <Sparkles className="h-3.5 w-3.5" /> Utilisation
+                    </p>
+                    <p className="text-lg font-bold text-slate-900">{budgetUsagePercent}% planifié</p>
+                    <p className="text-[11px] text-slate-500">{depenseUsagePercent}% déjà dépensé</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                    <p className="text-[11px] font-semibold uppercase text-slate-500 flex items-center gap-1">
+                      <AlertTriangle className="h-3.5 w-3.5" /> Alertes
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-lg font-bold text-slate-900">{overBudgetCount}</p>
+                      <Button
+                        variant="outline"
+                        className="rounded-full text-xs"
+                        disabled={overBudgetCount === 0}
+                        onClick={() => setShowOnlyOverBudget((prev) => !prev)}
+                      >
+                        {showOnlyOverBudget ? 'Tous' : 'Filtrer'}
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      {overBudgetCount === 0 ? 'Aucun dépassement' : formatCurrency(overBudgetTotal) + ' en excès'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                    <p className="text-[11px] font-semibold uppercase text-slate-500 flex items-center gap-1">
+                      <Target className="h-3.5 w-3.5" /> Focus auto
+                    </p>
+                    <p className="text-lg font-bold text-slate-900">{priorityRubrique?.nom ?? 'Aucune'}</p>
+                    <Button
+                      variant="outline"
+                      className="mt-1 w-full text-xs"
+                      disabled={!priorityRubrique}
+                      onClick={() => priorityRubrique && handleVoirMouvementsRubrique(priorityRubrique)}
+                    >
+                      Explorer
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div className="rounded-xl bg-slate-100 px-5 py-4 shadow-md">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        Salaire (payé fin {previousMonthLabel} {previousMonthYear})
+                      </p>
+                      <p className="mt-2 text-2xl md:text-3xl font-semibold text-slate-900">
+                        {formatCurrency(budgetMois.revenuMensuel)}
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Utilisé pour les dépenses de {currentMonthLabel} {annee}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-rose-100/80 px-5 py-4 shadow-md">
+                      <p className="text-xs font-medium uppercase tracking-wide text-rose-800">
+                        Total dépensé ce mois
+                      </p>
+                      <p className="mt-2 text-2xl md:text-3xl font-semibold text-rose-900">
+                        {formatCurrency(totalDepense)}
+                      </p>
+                      <p className="mt-1 text-[11px] text-rose-900/80">
+                        Reste après dépenses réelles:&nbsp;
+                        <span
+                          className={`font-semibold ${
+                            resteApresDepensesReelles >= 0 ? 'text-emerald-700' : 'text-red-700'
+                          }`}
+                        >
+                          {formatCurrency(resteApresDepensesReelles)}
+                        </span>
+                      </p>
+                    </div>
+                    {margeSurBudget > 0 && (
+                      <div className="rounded-xl bg-emerald-100/80 px-5 py-4 shadow-md">
+                        <p className="text-xs font-medium uppercase tracking-wide text-emerald-800">
+                          Marge sur le budget (plafonds - dépenses)
+                        </p>
+                        <p className="mt-2 text-2xl md:text-3xl font-semibold text-emerald-900">
+                          {formatCurrency(margeSurBudget)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-emerald-900/80">
+                          Différence entre le total budgété et le total dépensé ce mois. Si ce montant devient
+                          négatif, les plafonds sont dépassés.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 flex items-center gap-1">
+                            <Sparkles className="h-4 w-4" /> Vue Pulse
+                          </p>
+                          <h3 className="mt-2 text-lg font-bold text-slate-900">Utilisation du budget</h3>
+                          <p className="text-sm text-slate-500">
+                            {budgetUsagePercent}% budgété · {depenseUsagePercent}% déjà dépensé
+                          </p>
+                        </div>
+                        <div
+                          className="h-20 w-20 rounded-full border-2 border-indigo-100 flex items-center justify-center text-sm font-semibold text-indigo-900"
+                          style={{
+                            background: `conic-gradient(#4ade80 ${budgetUsagePercent * 3.6}deg, #e2e8f0 0deg)`
+                          }}
+                        >
+                          <div className="h-16 w-16 rounded-full bg-white flex flex-col items-center justify-center">
+                            <span className="text-lg font-bold">{budgetUsagePercent}%</span>
+                            <span className="text-[10px] text-slate-500">planifié</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-4 space-y-2 text-sm text-slate-600">
+                        <div className="flex items-center justify-between">
+                          <span>Capacité restante</span>
+                          <span className="font-semibold text-emerald-600">
+                            {formatCurrency((budgetMois.revenuMensuel ?? 0) - totalBudgete)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Dépenses réelles</span>
+                          <span className="font-semibold text-rose-600">{formatCurrency(totalDepense)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 flex items-center gap-1">
+                        <AlertTriangle className="h-4 w-4" /> Rubriques en alerte
+                      </p>
+                      <div className="mt-3 flex items-end justify-between">
+                        <div>
+                          <h3 className="text-3xl font-bold text-slate-900">{overBudgetCount}</h3>
+                          <p className="text-sm text-slate-500">
+                            {overBudgetCount === 0
+                              ? 'Aucune rubrique ne dépasse son budget.'
+                              : `Total en dépassement · ${formatCurrency(overBudgetTotal)}`}
+                          </p>
+                        </div>
+                        <Button
+                          variant={showOnlyOverBudget ? 'default' : 'outline'}
+                          className="rounded-full text-xs"
+                          disabled={overBudgetCount === 0}
+                          onClick={() => setShowOnlyOverBudget((prev) => !prev)}
+                        >
+                          {showOnlyOverBudget ? 'Afficher tout' : 'Voir uniquement'}
+                        </Button>
+                      </div>
+                      <p className="mt-3 text-xs text-slate-500">
+                        Ce filtre synchronise le tableau avec les postes urgents pour accélérer les arbitrages.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 flex items-center gap-1">
+                        <Target className="h-4 w-4" /> Focus automatique
+                      </p>
+                      {priorityRubrique ? (
+                        <>
+                          <h3 className="mt-2 text-lg font-bold text-slate-900">{priorityRubrique.nom}</h3>
+                          <p className="text-sm text-slate-500">
+                            {formatCurrency(priorityRubrique.montantDepense)} dépensé sur{' '}
+                            {formatCurrency(priorityRubrique.montantBudgete)}
+                          </p>
+                          <div className="mt-3 flex items-center justify-between text-sm">
+                            <span>Reste disponible</span>
+                            <span className="font-semibold text-slate-900">
+                              {formatCurrency(
+                                Math.max(0, priorityRubrique.montantBudgete - priorityRubrique.montantDepense)
+                              )}
+                            </span>
+                          </div>
+                          <Button
+                            className="mt-4 w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-sm"
+                            onClick={() => handleVoirMouvementsRubrique(priorityRubrique)}
+                          >
+                            Explorer les mouvements
+                          </Button>
+                        </>
+                      ) : (
+                        <p className="mt-2 text-sm text-slate-600">
+                          Ajoute des rubriques pour activer cette suggestion intelligente.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -1011,7 +1624,7 @@ export default function BudgetSalairePage() {
                   </div>
                 )}
 
-                <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50/60">
+                <div className="overflow-hidden">
                   <div className="overflow-x-auto max-h-[calc(100vh-260px)] relative">
                     <table className="min-w-full text-sm">
                       <thead className="bg-white text-slate-700 sticky top-0 z-10">
@@ -1040,7 +1653,7 @@ export default function BudgetSalairePage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
-                        {filteredRubriques.map((rubrique, index) => {
+                        {sortedRubriques.map((rubrique, index) => {
                           const resteRubrique = rubrique.montantBudgete - rubrique.montantDepense
                           const depenseRatio =
                             rubrique.montantBudgete > 0
@@ -1208,7 +1821,6 @@ export default function BudgetSalairePage() {
                               <td className="px-5 py-4 text-right align-top">
                                 <div className="flex justify-end gap-2">
                                   <Button
-                                    size="sm"
                                     type="button"
                                     onClick={() => setSelectedRubrique(rubrique)}
                                     className="px-4 py-2 rounded-lg text-xs font-semibold shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -1216,7 +1828,6 @@ export default function BudgetSalairePage() {
                                     Ajouter mouvement
                                   </Button>
                                   <Button
-                                    size="sm"
                                     type="button"
                                     onClick={() => handleVoirMouvementsRubrique(rubrique)}
                                     className="px-4 py-2 rounded-lg text-xs font-semibold shadow-sm bg-slate-700 hover:bg-slate-800 text-white"
@@ -1224,7 +1835,6 @@ export default function BudgetSalairePage() {
                                     Voir
                                   </Button>
                                   <Button
-                                    size="sm"
                                     type="button"
                                     onClick={() => openEditRubriqueModal(rubrique)}
                                     className="px-4 py-2 rounded-lg text-xs font-semibold shadow-sm bg-orange-500 hover:bg-orange-600 text-white"
@@ -1232,7 +1842,6 @@ export default function BudgetSalairePage() {
                                     Modifier
                                   </Button>
                                   <Button
-                                    size="sm"
                                     type="button"
                                     className="px-4 py-2 rounded-lg text-xs font-semibold shadow-sm bg-red-600 hover:bg-red-700 text-white"
                                     onClick={() => handleDeleteRubrique(rubrique)}
@@ -1305,6 +1914,224 @@ export default function BudgetSalairePage() {
                 </form>
               </CardContent>
             </Card>
+
+            {/* Modal État */}
+            {etatModalOpen && (
+              <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4 py-8">
+                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 md:p-8">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900">État budgétaire global</h2>
+                      <p className="text-sm text-slate-500">
+                        Filtre par année, mois et rubrique pour consulter l&apos;historique complet.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Button variant="outline" onClick={handleCloseEtatModal}>
+                        Fermer
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-4 md:grid-cols-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                        Année
+                      </label>
+                      <Input
+                        type="number"
+                        value={etatYear}
+                        onChange={(e) => {
+                          const parsed = parseInt(e.target.value, 10)
+                          setEtatYear(Number.isFinite(parsed) ? parsed : currentYear)
+                        }}
+                        className="rounded-xl border-slate-200"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                        Mois
+                      </label>
+                      <Select value={String(etatMonth)} onValueChange={(value) => setEtatMonth(parseInt(value, 10))}>
+                        <SelectTrigger className="rounded-xl border-slate-200">
+                          <SelectValue placeholder="Mois" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MONTHS.map((label, index) => (
+                            <SelectItem key={index + 1} value={String(index + 1)}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                        Rubrique
+                      </label>
+                      <Select
+                        value={etatSelectedRubriqueId}
+                        onValueChange={(value) => setEtatSelectedRubriqueId(value)}
+                        disabled={etatRubriques.length === 0}
+                      >
+                        <SelectTrigger className="rounded-xl border-slate-200">
+                          <SelectValue placeholder="Sélectionne une rubrique" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {etatRubriques.map((rubrique) => (
+                            <SelectItem key={rubrique.id} value={rubrique.id}>
+                              {rubrique.nom}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    {etatLoading ? (
+                      <div className="flex items-center gap-3 text-slate-500">
+                        <span className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
+                        Chargement des données...
+                      </div>
+                    ) : (
+                      <>
+                        {etatError && (
+                          <Alert variant="destructive" className="mt-4">
+                            <AlertTitle>Impossible d&apos;afficher ce mois</AlertTitle>
+                            <AlertDescription>{etatError}</AlertDescription>
+                          </Alert>
+                        )}
+
+                        {!etatError && etatBudget && (
+                          <>
+                            <div className="grid gap-4 md:grid-cols-3 mt-4">
+                              <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                  Revenu mensuel
+                                </p>
+                                <p className="mt-2 text-2xl font-bold text-slate-900">
+                                  {formatCurrency(etatBudget.revenuMensuel ?? 0)}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                                  Total budgété
+                                </p>
+                                <p className="mt-2 text-2xl font-bold text-indigo-900">
+                                  {formatCurrency(etatTotalBudgete)}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl border border-rose-100 bg-rose-50/60 p-4">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
+                                  Total dépensé
+                                </p>
+                                <p className="mt-2 text-2xl font-bold text-rose-900">
+                                  {formatCurrency(etatTotalDepense)}
+                                </p>
+                                <p className="text-[11px] text-rose-700 mt-1">
+                                  Disponible : {formatCurrency(etatDisponible)}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="mt-6">
+                              {etatSelectedRubrique ? (
+                                <div className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5 space-y-4">
+                                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                    <div>
+                                      <p className="text-xs uppercase tracking-wide text-slate-500">
+                                        Rubrique analysée
+                                      </p>
+                                      <p className="text-xl font-semibold text-slate-900">
+                                        {etatSelectedRubrique.nom}
+                                      </p>
+                                      <p className="text-sm text-slate-500">
+                                        {MONTHS[etatMonth - 1]} {etatYear} ·{' '}
+                                        {etatSelectedRubrique.typeDepense === 'progressive'
+                                          ? 'Progressive'
+                                          : 'Unique'}
+                                      </p>
+                                    </div>
+                                    <div className="flex gap-4">
+                                      <div>
+                                        <p className="text-xs text-slate-500 uppercase tracking-wide">Budgeté</p>
+                                        <p className="text-lg font-bold text-slate-900">
+                                          {formatCurrency(etatSelectedRubrique.montantBudgete)}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-slate-500 uppercase tracking-wide">Dépensé</p>
+                                        <p className="text-lg font-bold text-rose-600">
+                                          {formatCurrency(etatSelectedRubrique.montantDepense ?? 0)}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-slate-500 uppercase tracking-wide">Reste</p>
+                                        <p className="text-lg font-bold text-emerald-600">
+                                          {formatCurrency(etatSelectedRubriqueReste)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {etatRubriqueLoading ? (
+                                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-slate-500" />
+                                      Chargement des mouvements...
+                                    </div>
+                                  ) : (
+                                    <>
+                                      {etatRubriqueMouvements.length === 0 ? (
+                                        <p className="text-sm text-slate-600">
+                                          Aucun mouvement enregistré pour cette rubrique sur la période choisie.
+                                        </p>
+                                      ) : (
+                                        <div className="overflow-hidden rounded-xl border border-slate-100">
+                                          <table className="w-full text-sm">
+                                            <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
+                                              <tr>
+                                                <th className="px-4 py-2 text-left">Date</th>
+                                                <th className="px-4 py-2 text-right">Montant</th>
+                                                <th className="px-4 py-2 text-left">Description</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {etatRubriqueMouvements.slice(0, 8).map((mvt) => (
+                                                <tr key={mvt.id} className="border-t border-slate-100">
+                                                  <td className="px-4 py-2 text-slate-700">
+                                                    {mvt.dateOperation
+                                                      ? new Date(mvt.dateOperation).toLocaleDateString('fr-FR')
+                                                      : 'Date inconnue'}
+                                                  </td>
+                                                  <td className="px-4 py-2 text-right font-semibold text-rose-600">
+                                                    {formatCurrency(mvt.montant)}
+                                                  </td>
+                                                  <td className="px-4 py-2 text-slate-600">{mvt.description || '—'}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-slate-600">
+                                  Crée une rubrique ou sélectionne un mois contenant des données pour afficher les
+                                  détails.
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Modal simple pour ajouter un mouvement */}
             {selectedRubrique && (
@@ -1519,7 +2346,6 @@ export default function BudgetSalairePage() {
                                 <td className="px-4 py-2 text-right">
                                   <div className="flex justify-end gap-2">
                                     <Button
-                                      size="xs"
                                       variant="outline"
                                       className="text-xs"
                                       type="button"
@@ -1528,7 +2354,6 @@ export default function BudgetSalairePage() {
                                       Modifier
                                     </Button>
                                     <Button
-                                      size="xs"
                                       variant="outline"
                                       type="button"
                                       className="text-xs text-red-600 border-red-200 hover:bg-red-50"

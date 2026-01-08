@@ -30,6 +30,15 @@ export function RecetteFormDialog({ open, onOpenChange, recetteToEdit }: Recette
     compteId: 'none' // Compte bancaire où créditer la recette
   })
 
+  // 🕐 Fonction pour combiner la date du formulaire avec l'heure actuelle
+  const getFullDateTime = (dateString: string): string => {
+    const selectedDate = new Date(dateString + 'T00:00:00')
+    const now = new Date()
+    // Combiner la date sélectionnée avec l'heure actuelle
+    selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds())
+    return selectedDate.toISOString()
+  }
+
   // Charger les données de la recette à modifier quand le modal s'ouvre
   React.useEffect(() => {
     if (recetteToEdit && open) {
@@ -53,7 +62,7 @@ export function RecetteFormDialog({ open, onOpenChange, recetteToEdit }: Recette
         compteId: comptes.length > 0 ? comptes[0].id : 'none'
       })
     }
-  }, [recetteToEdit, open])
+  }, [recetteToEdit, open, comptes])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -124,7 +133,7 @@ export function RecetteFormDialog({ open, onOpenChange, recetteToEdit }: Recette
                 `Recette enregistrée le ${new Date(formData.date).toLocaleDateString('fr-FR')}`,
                 undefined,
                 'Recette',
-                new Date(formData.date).toISOString()
+                getFullDateTime(formData.date)
               )
               if (!transactionId) {
                 console.warn('⚠️ Recette créée mais crédit sur compte bancaire échoué')

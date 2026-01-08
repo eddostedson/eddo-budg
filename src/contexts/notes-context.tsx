@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
 import { Note, NoteFormData, ConvertNoteToRecetteData, ConvertNoteToDepenseData } from '@/types/notes'
 import { NotesService } from '@/lib/supabase/notes-service'
 import { useNotifications } from './notification-context'
@@ -30,7 +30,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
   const { showSuccess, showError, showWarning } = useNotifications()
 
   // Rafraîchir les notes
-  const refreshNotes = async () => {
+  const refreshNotes = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -53,12 +53,12 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [showError])
 
   // Charger les notes au montage
   useEffect(() => {
     refreshNotes()
-  }, [])
+  }, [refreshNotes])
 
   // Créer une nouvelle note
   const createNote = async (note: NoteFormData) => {

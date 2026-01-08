@@ -1,11 +1,46 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { CompteBancaire, TransactionBancaire } from '@/lib/shared-data'
 import { createClient } from '@/lib/supabase/browser'
 import { notifySuccess, notifyError, notifyCreated, notifyUpdated, notifyDeleted } from '@/lib/notify'
 
 const supabase = createClient()
+
+const retryWithBackoff = async <T,>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  delay = 1000
+): Promise<T> => {
+  let lastError: any
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn()
+    } catch (error: any) {
+      lastError = error
+      const isNetworkError =
+        error?.message?.includes('Failed to fetch') ||
+        error?.message?.includes('NetworkError') ||
+        error?.message?.includes('Network request failed') ||
+        error?.code === 'ECONNREFUSED' ||
+        error?.code === 'ETIMEDOUT'
+
+      if (isNetworkError && i < maxRetries - 1) {
+        const waitTime = delay * Math.pow(2, i)
+        console.warn(`⚠️ Erreur réseau détectée, nouvelle tentative dans ${waitTime}ms... (${i + 1}/${maxRetries})`)
+        await new Promise(resolve => setTimeout(resolve, waitTime))
+        continue
+      }
+      throw error
+    }
+  }
+  throw lastError
+}
+
+interface TransactionFlags {
+  isInternalTransfer?: boolean
+  transferGroupId?: string
+}
 
 interface CompteBancaireContextType {
   comptes: CompteBancaire[]
@@ -17,10 +52,16 @@ interface CompteBancaireContextType {
   updateCompte: (id: string, updates: Partial<CompteBancaire>) => Promise<boolean>
   bulkSetExcludeFromTotal: (ids: string[], exclude: boolean) => Promise<boolean>
   deleteCompte: (id: string) => Promise<boolean>
-  crediterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string, dateTransaction?: string) => Promise<string | null>
-  debiterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string, dateTransaction?: string, receiptUrl?: string, receiptFileName?: string) => Promise<boolean>
+  crediterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string, dateTransaction?: string, options?: TransactionFlags) => Promise<string | null>
+  debiterCompte: (compteId: string, montant: number, libelle: string, description?: string, reference?: string, categorie?: string, dateTransaction?: string, receiptUrl?: string, receiptFileName?: string, options?: TransactionFlags) => Promise<boolean>
   getTransactionsByCompte: (compteId: string) => TransactionBancaire[]
   getTotalSoldes: () => number
+  getNetTotals: () => {
+    totalCredits: number
+    totalDebits: number
+    externalCredits: number
+    externalDebits: number
+  }
   initializeDefaultComptes: () => Promise<boolean>
   deleteTransaction: (transactionId: string) => Promise<boolean>
   updateTransaction: (transactionId: string, updates: Partial<TransactionBancaire>) => Promise<boolean>
@@ -43,7 +84,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
   const [loading, setLoading] = useState(true)
 
   // 🔄 RECHARGER LES COMPTES
-  const refreshComptes = async () => {
+  const refreshComptes = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -86,41 +127,10 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       console.error('❌ Erreur inattendue:', error)
       setComptes([])
     }
-  }
-
-  // Fonction utilitaire pour retry avec gestion d'erreurs réseau
-  const retryWithBackoff = async <T,>(
-    fn: () => Promise<T>,
-    maxRetries = 3,
-    delay = 1000
-  ): Promise<T> => {
-    let lastError: any
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        return await fn()
-      } catch (error: any) {
-        lastError = error
-        const isNetworkError = 
-          error?.message?.includes('Failed to fetch') ||
-          error?.message?.includes('NetworkError') ||
-          error?.message?.includes('Network request failed') ||
-          error?.code === 'ECONNREFUSED' ||
-          error?.code === 'ETIMEDOUT'
-        
-        if (isNetworkError && i < maxRetries - 1) {
-          const waitTime = delay * Math.pow(2, i) // Exponential backoff
-          console.warn(`⚠️ Erreur réseau détectée, nouvelle tentative dans ${waitTime}ms... (${i + 1}/${maxRetries})`)
-          await new Promise(resolve => setTimeout(resolve, waitTime))
-          continue
-        }
-        throw error
-      }
-    }
-    throw lastError
-  }
+  }, [])
 
   // 🔄 RECHARGER LES TRANSACTIONS
-  const refreshTransactions = async (compteId?: string) => {
+  const refreshTransactions = useCallback(async (compteId?: string) => {
     try {
       // Vérifier la configuration Supabase
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -169,19 +179,38 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       console.log('🔄 Chargement des transactions pour l\'utilisateur:', user.id, compteId ? `(compte: ${compteId})` : '(tous les comptes)')
 
       // Construire la requête avec retry
+      const columns = [
+        'id',
+        'user_id',
+        'compte_id',
+        'type_transaction',
+        'montant',
+        'solde_avant',
+        'solde_apres',
+        'libelle',
+        'description',
+        'categorie',
+        'reference',
+        'date_transaction',
+        'created_at',
+        'updated_at',
+        'is_internal_transfer',
+        'transfer_group_id'
+      ].join(', ')
+
       const { data, error } = await retryWithBackoff(async () => {
         let query = supabase
           .from('transactions_bancaires')
-          .select('*')
+          .select(columns)
           .eq('user_id', user.id)
           .order('date_transaction', { ascending: false })
+          .limit(500)
 
         if (compteId) {
           query = query.eq('compte_id', compteId)
         }
 
-        const result = await query
-        return result
+        return await query
       }, 3, 1000)
       
       console.log('📊 Résultat de la requête:', { 
@@ -297,7 +326,9 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         createdAt: transaction.created_at,
         updatedAt: transaction.updated_at,
         receiptUrl: transaction.receipt_url || undefined,
-        receiptFileName: transaction.receipt_file_name || undefined
+        receiptFileName: transaction.receipt_file_name || undefined,
+        isInternalTransfer: transaction.is_internal_transfer === true,
+        transferGroupId: transaction.transfer_group_id || null
       }))
 
       setTransactions(mappedTransactions)
@@ -335,6 +366,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       // setTransactions([]) - commenté pour préserver l'état existant
     }
   }
+  , [])
 
   // ➕ CRÉER UN COMPTE
   const createCompte = async (compte: Omit<CompteBancaire, 'id' | 'createdAt' | 'updatedAt'>): Promise<boolean> => {
@@ -563,6 +595,13 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
   }
 
   // 💰 CRÉDITER UN COMPTE (Ajouter de l'argent)
+  const getTransferGroupId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  }
+
   const crediterCompte = async (
     compteId: string,
     montant: number,
@@ -570,7 +609,8 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     description?: string,
     reference?: string,
     categorie?: string,
-    dateTransaction?: string
+    dateTransaction?: string,
+    options?: TransactionFlags
   ): Promise<string | null> => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -615,7 +655,9 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
           description: description,
           reference: reference,
           categorie: categorie,
-          date_transaction: dateOp
+          date_transaction: dateOp,
+          is_internal_transfer: options?.isInternalTransfer ?? false,
+          transfer_group_id: options?.transferGroupId ?? null
         })
         .select()
         .single()
@@ -645,7 +687,8 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     categorie?: string,
     dateTransaction?: string,
     receiptUrl?: string,
-    receiptFileName?: string
+    receiptFileName?: string,
+    options?: TransactionFlags
   ): Promise<boolean> => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -694,7 +737,9 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         description: description,
         reference: reference,
         categorie: categorie,
-        date_transaction: dateOp
+        date_transaction: dateOp,
+        is_internal_transfer: options?.isInternalTransfer ?? false,
+        transfer_group_id: options?.transferGroupId ?? null
       }
 
       // Ajouter les champs receipt si fournis
@@ -729,6 +774,31 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
   // 💵 CALCULER LE TOTAL DES SOLDES
   const getTotalSoldes = (): number => {
     return comptes.reduce((total, compte) => total + compte.soldeActuel, 0)
+  }
+
+  const getNetTotals = () => {
+    return transactions.reduce(
+      (acc, tx) => {
+        if (tx.typeTransaction === 'credit') {
+          acc.totalCredits += tx.montant
+          if (!tx.isInternalTransfer) {
+            acc.externalCredits += tx.montant
+          }
+        } else {
+          acc.totalDebits += tx.montant
+          if (!tx.isInternalTransfer) {
+            acc.externalDebits += tx.montant
+          }
+        }
+        return acc
+      },
+      {
+        totalCredits: 0,
+        totalDebits: 0,
+        externalCredits: 0,
+        externalDebits: 0
+      }
+    )
   }
 
   // 🔄 TRANSFÉRER ENTRE COMPTES (Sans générer de reçu)
@@ -772,6 +842,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       }
 
       const dateOp = dateTransaction || new Date().toISOString()
+      const transferGroupId = getTransferGroupId()
       const libelleTransfert = `Transfert vers ${compteDestination.nom}`
       const libelleReception = `Transfert depuis ${compteSource.nom}`
 
@@ -791,7 +862,9 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
           libelle: libelleTransfert,
           description: description || `Transfert vers ${compteDestination.nom}`,
           categorie: 'Transfert',
-          date_transaction: dateOp
+          date_transaction: dateOp,
+          is_internal_transfer: true,
+          transfer_group_id: transferGroupId
         })
 
       if (debitError) {
@@ -816,7 +889,9 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
           libelle: libelleReception,
           description: description || `Transfert depuis ${compteSource.nom}`,
           categorie: 'Transfert',
-          date_transaction: dateOp
+          date_transaction: dateOp,
+          is_internal_transfer: true,
+          transfer_group_id: transferGroupId
         })
         .select()
         .single()
@@ -932,7 +1007,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     return true
   }
 
-  // 🗑️ SUPPRIMER UNE TRANSACTION avec UNDO
+  // 🗑️ SUPPRIMER UNE TRANSACTION avec UNDO (et suppression en cascade des transferts internes)
   const deleteTransaction = async (transactionId: string): Promise<boolean> => {
     try {
       const __agentStart = Date.now()
@@ -942,56 +1017,158 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
         return false
       }
 
-      // 1) Supprimer la transaction en récupérant la ligne supprimée
-      // => 1 seule requête au lieu de (select + delete)
-      const { data: deletedTx, error: deleteError } = await supabase
+      // 1) Charger la transaction pour vérifier si elle fait partie d'un transfert interne
+      const { data: txToDelete, error: fetchError } = await supabase
         .from('transactions_bancaires')
-        .delete()
+        .select('*')
         .eq('id', transactionId)
         .eq('user_id', user.id)
-        .select('*')
         .single()
 
-      if (deleteError || !deletedTx) {
-        console.error('❌ Erreur lors de la suppression de la transaction:', deleteError)
+      if (fetchError || !txToDelete) {
+        console.error('❌ Erreur lors du chargement de la transaction:', fetchError)
+        notifyError('Transaction introuvable')
+        return false
+      }
+
+      const transferGroupId = txToDelete.transfer_group_id as string | null
+      const compteIdsToRecalc = new Set<string>([txToDelete.compte_id as string])
+      const transactionsToDelete: any[] = [txToDelete]
+
+      // 2) Si c'est un transfert interne, trouver toutes les transactions du même groupe
+      if (transferGroupId) {
+        const { data: relatedTxs, error: relatedError } = await supabase
+          .from('transactions_bancaires')
+          .select('*')
+          .eq('transfer_group_id', transferGroupId)
+          .eq('user_id', user.id)
+          .neq('id', transactionId)
+
+        if (!relatedError && relatedTxs) {
+          transactionsToDelete.push(...relatedTxs)
+          relatedTxs.forEach((tx) => {
+            compteIdsToRecalc.add(tx.compte_id as string)
+          })
+        }
+      }
+
+      // 3) Supprimer toutes les transactions du groupe (ou juste celle-ci si pas de groupe)
+      const idsToDelete = transactionsToDelete.map((tx) => tx.id)
+      const { error: deleteError } = await supabase
+        .from('transactions_bancaires')
+        .delete()
+        .in('id', idsToDelete)
+        .eq('user_id', user.id)
+
+      if (deleteError) {
+        console.error('❌ Erreur lors de la suppression des transactions:', deleteError)
         notifyError('Erreur lors de la suppression de la transaction')
         return false
       }
 
-      const compteId = deletedTx.compte_id as string
-      const transactionData = { ...deletedTx }
+      // 4) Nettoyer les fonds partagés et reçus associés aux transactions supprimées
+      try {
+        // Nettoyer les fonds partagés pour toutes les transactions crédit supprimées
+        const creditTxIds = transactionsToDelete
+          .filter((tx) => tx.type_transaction === 'credit')
+          .map((tx) => tx.id)
 
-      // Optimistic UI: mettre à jour le solde local + retirer la transaction immédiatement
-      // (le recalcul RPC + refresh remettront l'état exact ensuite)
-      const montant = typeof deletedTx.montant === 'number' ? deletedTx.montant : parseFloat(deletedTx.montant || 0)
-      const delta = deletedTx.type_transaction === 'credit' ? -montant : montant
+        if (creditTxIds.length > 0) {
+          const { data: funds, error: fundsError } = await supabase
+            .from('shared_funds')
+            .select('id')
+            .in('transaction_source_id', creditTxIds)
+            .eq('user_id', user.id)
 
-      setComptes((prev) =>
-        prev.map((c) => (c.id === compteId ? { ...c, soldeActuel: (c.soldeActuel || 0) + delta } : c))
-      )
-      setTransactions((prev) => prev.filter((t) => t.id !== transactionId))
+          if (!fundsError && funds && funds.length > 0) {
+            // Supprimer les mouvements associés
+            for (const fund of funds) {
+              await supabase
+                .from('shared_fund_movements')
+                .delete()
+                .eq('shared_fund_id', fund.id)
+                .eq('user_id', user.id)
+            }
+            // Supprimer les fonds
+            await supabase
+              .from('shared_funds')
+              .delete()
+              .in('id', funds.map((f) => f.id))
+              .eq('user_id', user.id)
+          }
+        }
 
+        // Nettoyer les reçus associés aux transactions supprimées
+        const { error: receiptsError } = await supabase
+          .from('receipts')
+          .delete()
+          .in('transaction_id', idsToDelete)
+          .eq('user_id', user.id)
 
-      // 3. Recalculer le solde du compte
-      const ok = await recalculateCompteSolde(compteId, user.id)
-      if (!ok) {
-        return false
+        if (receiptsError) {
+          console.warn('⚠️ Erreur lors du nettoyage des reçus:', receiptsError)
+          // Ne pas bloquer la suppression si le nettoyage des reçus échoue
+        }
+      } catch (cleanupError) {
+        console.error('⚠️ Erreur lors du nettoyage des données associées:', cleanupError)
+        // Ne pas bloquer la suppression si le nettoyage échoue
       }
 
-      // Notification avec UNDO
-      notifyDeleted('Transaction', async () => {
-        // Restaurer la transaction
-        const { error: restoreError } = await supabase
-          .from('transactions_bancaires')
-          .insert(transactionData)
+      // 5) Optimistic UI: mettre à jour les soldes locaux
+      transactionsToDelete.forEach((tx) => {
+        const montant = typeof tx.montant === 'number' ? tx.montant : parseFloat(tx.montant || 0)
+        const delta = tx.type_transaction === 'credit' ? -montant : montant
+        const compteId = tx.compte_id as string
 
-        if (!restoreError) {
-          await recalculateCompteSolde(compteId, user.id)
-          await Promise.all([refreshComptes(), refreshTransactions(compteId)])
-        }
+        setComptes((prev) =>
+          prev.map((c) => (c.id === compteId ? { ...c, soldeActuel: (c.soldeActuel || 0) + delta } : c))
+        )
       })
 
-      await Promise.all([refreshComptes(), refreshTransactions(compteId)])
+      setTransactions((prev) => prev.filter((t) => !idsToDelete.includes(t.id)))
+
+      // 6) Recalculer les soldes de tous les comptes concernés
+      const recalcPromises = Array.from(compteIdsToRecalc).map((compteId) =>
+        recalculateCompteSolde(compteId, user.id)
+      )
+      const recalcResults = await Promise.all(recalcPromises)
+      if (recalcResults.some((ok) => !ok)) {
+        console.warn('⚠️ Certains recalculs de solde ont échoué')
+      }
+
+      // 7) Notification avec UNDO (restauration de toutes les transactions du groupe)
+      notifyDeleted(
+        transactionsToDelete.length > 1 ? 'Transfert interne' : 'Transaction',
+        async () => {
+          // Restaurer toutes les transactions du groupe
+          const restoreData = transactionsToDelete.map((tx) => {
+            const { id, ...rest } = tx
+            return rest
+          })
+
+          const { error: restoreError } = await supabase
+            .from('transactions_bancaires')
+            .insert(restoreData)
+
+          if (!restoreError) {
+            const restoreRecalcPromises = Array.from(compteIdsToRecalc).map((compteId) =>
+              recalculateCompteSolde(compteId, user.id)
+            )
+            await Promise.all(restoreRecalcPromises)
+            await Promise.all([
+              refreshComptes(),
+              ...Array.from(compteIdsToRecalc).map((id) => refreshTransactions(id))
+            ])
+          }
+        }
+      )
+
+      // 8) Rafraîchir tous les comptes concernés
+      await Promise.all([
+        refreshComptes(),
+        ...Array.from(compteIdsToRecalc).map((id) => refreshTransactions(id))
+      ])
+
       return true
     } catch (error) {
       console.error('❌ Erreur inattendue lors de la suppression de la transaction:', error)
@@ -1033,6 +1210,8 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       if (updates.montant !== undefined) payload.montant = updates.montant
       if (updates.receiptUrl !== undefined) payload.receipt_url = updates.receiptUrl
       if (updates.receiptFileName !== undefined) payload.receipt_file_name = updates.receiptFileName
+      if (updates.isInternalTransfer !== undefined) payload.is_internal_transfer = updates.isInternalTransfer
+      if (updates.transferGroupId !== undefined) payload.transfer_group_id = updates.transferGroupId || null
 
       if (Object.keys(payload).length === 0) {
         return true
@@ -1163,7 +1342,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
       setLoading(false)
     }
     loadData()
-  }, [])
+  }, [refreshComptes, refreshTransactions])
 
   const value: CompteBancaireContextType = {
     comptes,
@@ -1179,6 +1358,7 @@ export const CompteBancaireProvider: React.FC<{ children: React.ReactNode }> = (
     debiterCompte,
     getTransactionsByCompte,
     getTotalSoldes,
+    getNetTotals,
     initializeDefaultComptes,
     deleteTransaction,
     updateTransaction,

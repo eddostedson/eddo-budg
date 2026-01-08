@@ -7,6 +7,7 @@ import { useScroll } from '@/hooks/useScroll'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ForgotPasswordModal } from './forgot-password-modal'
+import { GlobalSoldesIndicator } from '@/components/global-soldes-indicator'
 
 export function TopHeader() {
   const { user, signOut } = useAuth()
@@ -82,7 +83,17 @@ export function TopHeader() {
         </div>
 
         {/* Right side - Time, status, profile */}
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
+          <GlobalSoldesIndicator
+            appearance="dark"
+            size="compact"
+            className="sm:hidden w-[165px]"
+          />
+          <GlobalSoldesIndicator
+            appearance="dark"
+            size="comfortable"
+            className="hidden sm:flex"
+          />
           {/* Time - caché sur mobile */}
           <div className="hidden md:block text-white font-medium">
             {new Date().toLocaleTimeString('fr-FR', { 

@@ -9,6 +9,17 @@ import {
 
 const supabase = createClient()
 
+export interface BudgetSalaireGlobalRubriqueResult {
+  budget: BudgetSalaireMois
+  rubrique: BudgetSalaireRubrique
+}
+
+export interface BudgetSalaireGlobalMouvementResult {
+  budget: BudgetSalaireMois
+  rubrique: BudgetSalaireRubrique
+  mouvement: BudgetSalaireMouvement
+}
+
 const mapBudgetMois = (row: any): BudgetSalaireMois => ({
   id: row.id,
   userId: row.user_id,
@@ -529,6 +540,105 @@ export const BudgetSalaireService = {
     }
 
     return true
+  },
+
+  async searchGlobalBudgets(params: {
+    term: string
+    isNumeric: boolean
+    numericValue: number | null
+  }): Promise<{
+    rubriques: BudgetSalaireGlobalRubriqueResult[]
+    mouvements: BudgetSalaireGlobalMouvementResult[]
+  }> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { rubriques: [], mouvements: [] }
+    }
+
+    const trimmed = params.term.trim()
+    if (!trimmed) {
+      return { rubriques: [], mouvements: [] }
+    }
+
+    const budgetSelection = 'id, annee, mois, libelle, revenu_mensuel, montant_depense_total'
+
+    // --- Rubriques ---
+    let rubriqueQuery = supabase
+      .from('budget_salaire_rubriques')
+      .select(`*, budget_salaire_mois!inner(${budgetSelection})`)
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+
+    if (!params.isNumeric) {
+      rubriqueQuery = rubriqueQuery.ilike('nom', `%${trimmed}%`).limit(60)
+    } else {
+      // Pour la recherche numérique, on récupère plus de données et on filtrera côté client
+      rubriqueQuery = rubriqueQuery.limit(200)
+    }
+
+    const { data: rubriquesData, error: rubriquesError } = await rubriqueQuery
+
+    if (rubriquesError) {
+      console.error('❌ Erreur recherche globale rubriques budget salaire:', rubriquesError)
+    }
+
+    const rubriques: BudgetSalaireGlobalRubriqueResult[] = (rubriquesData ?? [])
+      .filter((row: any) => {
+        if (!params.isNumeric || params.numericValue === null) return true
+        const budgete = parseFloat(row.montant_budgete ?? 0)
+        const depense = parseFloat(row.montant_depense ?? 0)
+        const reste = Math.max(0, budgete - depense)
+        return (
+          budgete === params.numericValue ||
+          depense === params.numericValue ||
+          reste === params.numericValue
+        )
+      })
+      .slice(0, 60)
+      .map((row: any) => ({
+        budget: mapBudgetMois(row.budget_salaire_mois),
+        rubrique: mapRubrique(row)
+      }))
+
+    // --- Mouvements ---
+    let mouvementsQuery = supabase
+      .from('budget_salaire_mouvements')
+      .select(
+        `*, budget_salaire_rubriques!inner(*, budget_salaire_mois!inner(${budgetSelection}))`
+      )
+      .eq('user_id', user.id)
+      .order('date_operation', { ascending: false })
+      .limit(100)
+
+    if (params.isNumeric && params.numericValue !== null) {
+      mouvementsQuery = mouvementsQuery.eq('montant', params.numericValue)
+    } else {
+      mouvementsQuery = mouvementsQuery.ilike('description', `%${trimmed}%`)
+    }
+
+    const { data: mouvementsData, error: mouvementsError } = await mouvementsQuery
+
+    if (mouvementsError) {
+      console.error('❌ Erreur recherche globale mouvements budget salaire:', mouvementsError)
+    }
+
+    const mouvements: BudgetSalaireGlobalMouvementResult[] = (mouvementsData ?? [])
+      .map((row: any) => {
+        const rubriqueRow = row.budget_salaire_rubriques
+        const budgetRow = rubriqueRow?.budget_salaire_mois
+        if (!rubriqueRow || !budgetRow) {
+          return null
+        }
+
+        return {
+          budget: mapBudgetMois(budgetRow),
+          rubrique: mapRubrique(rubriqueRow),
+          mouvement: mapMouvement(row)
+        }
+      })
+      .filter((row): row is BudgetSalaireGlobalMouvementResult => row !== null)
+
+    return { rubriques, mouvements }
   }
 }
 

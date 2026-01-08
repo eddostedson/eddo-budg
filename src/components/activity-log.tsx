@@ -42,11 +42,6 @@ const ActivityLogComponent: React.FC<ActivityLogProps> = ({ className = '' }) =>
     loadStats()
   }, [])
 
-  // Appliquer les filtres
-  useEffect(() => {
-    applyFilters()
-  }, [logs, filters])
-
   const loadLogs = () => {
     const allLogs = activityLogService.getAllLogs()
     setLogs(allLogs)
@@ -57,7 +52,7 @@ const ActivityLogComponent: React.FC<ActivityLogProps> = ({ className = '' }) =>
     setStats(logStats)
   }
 
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = [...logs]
 
     // Filtrer par type d'entité
@@ -93,7 +88,12 @@ const ActivityLogComponent: React.FC<ActivityLogProps> = ({ className = '' }) =>
     }
 
     setFilteredLogs(filtered)
-  }
+  }, [filters, logs])
+
+  // Appliquer les filtres
+  useEffect(() => {
+    applyFilters()
+  }, [applyFilters])
 
   const getActionIcon = (action: string) => {
     switch (action) {

@@ -16,21 +16,7 @@ export default function AIInsightsPage() {
   const [insights, setInsights] = useState<AIInsight[]>([])
   const [analyzing, setAnalyzing] = useState(false)
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/auth')
-        return
-      }
-      setLoading(false)
-      // Analyser automatiquement au chargement
-      performAnalysis()
-    }
-    checkAuth()
-  }, [router, supabase.auth, recettes, depenses])
-
-  const performAnalysis = async () => {
+  const performAnalysis = useCallback(async () => {
     setAnalyzing(true)
     
     // Simuler un délai d'analyse IA
@@ -160,7 +146,20 @@ export default function AIInsightsPage() {
 
     setInsights(generatedInsights)
     setAnalyzing(false)
-  }
+  }, [depenses, recettes])
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/auth')
+        return
+      }
+      setLoading(false)
+      performAnalysis()
+    }
+    checkAuth()
+  }, [router, supabase, performAnalysis])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA'

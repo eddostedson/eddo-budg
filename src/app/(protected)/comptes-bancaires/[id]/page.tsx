@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useComptesBancaires } from '@/contexts/compte-bancaire-context'
 import { useReceipts } from '@/contexts/receipt-context'
@@ -29,6 +29,7 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { TransactionFormDialog } from '@/components/transaction-form-dialog'
 import { ReceiptUpload } from '@/components/receipt-upload'
+import Image from 'next/image'
 
 export default function CompteBancaireDetailPage() {
   const params = useParams()
@@ -177,18 +178,52 @@ export default function CompteBancaireDetailPage() {
     [hasNumericSearchGlobal, searchAmountGlobal]
   )
 
+  const resolveTransactionDate = useCallback((transaction: TransactionBancaire): string | null => {
+    if (transaction.dateTransaction) {
+      return transaction.dateTransaction
+    }
+    if (transaction.createdAt) {
+      return transaction.createdAt
+    }
+    if (transaction.updatedAt) {
+      return transaction.updatedAt
+    }
+    return null
+  }, [])
+
+  const getTransactionTimestamp = useCallback((transaction: TransactionBancaire): number => {
+    const value = resolveTransactionDate(transaction)
+    if (!value) {
+      return 0
+    }
+    const timestamp = new Date(value).getTime()
+    return Number.isNaN(timestamp) ? 0 : timestamp
+  }, [resolveTransactionDate])
+
+  const getTransactionMonthKey = useCallback((transaction: TransactionBancaire): string | null => {
+    const value = resolveTransactionDate(transaction)
+    if (!value) {
+      return null
+    }
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return null
+    }
+    return date.toISOString().slice(0, 7)
+  }, [resolveTransactionDate])
+
   const filteredTransactions = React.useMemo(() => {
     const term = normalizedSearchTerm
 
-    return compteTransactions.filter((transaction) => {
+    const filtered = compteTransactions.filter((transaction) => {
       if (typeFilter !== 'all' && transaction.typeTransaction !== typeFilter) {
         return false
       }
 
       // 🎯 Filtre par mois (basé sur dateTransaction)
       if (monthFilter !== 'all') {
-        const txMonth = new Date(transaction.dateTransaction).toISOString().slice(0, 7) // YYYY-MM
-        if (txMonth !== monthFilter) {
+        const txMonth = getTransactionMonthKey(transaction)
+        if (!txMonth || txMonth !== monthFilter) {
           return false
         }
       }
@@ -225,6 +260,13 @@ export default function CompteBancaireDetailPage() {
 
       return textualMatch || numericInTextMatch || amountMatch
     })
+
+    // 🕐 Trier par date_transaction décroissante (plus récent en premier) en tenant compte de l'heure exacte
+    return filtered.sort((a, b) => {
+      const dateA = getTransactionTimestamp(a)
+      const dateB = getTransactionTimestamp(b)
+      return dateB - dateA // Tri décroissant (plus récent d'abord)
+    })
   }, [
     compteTransactions,
     normalizedSearchTerm,
@@ -233,7 +275,9 @@ export default function CompteBancaireDetailPage() {
     hasNumericSearchGlobal,
     searchAmountGlobal,
     isPureNumericSearch,
-    textContainsNumberEqual
+    textContainsNumberEqual,
+    getTransactionMonthKey,
+    getTransactionTimestamp
   ])
 
   const hasSearchTerm = normalizedSearchTerm.length > 0
@@ -244,12 +288,13 @@ export default function CompteBancaireDetailPage() {
   const availableMonths = React.useMemo(() => {
     const set = new Set<string>()
     compteTransactions.forEach((t) => {
-      if (!t.dateTransaction) return
-      const key = new Date(t.dateTransaction).toISOString().slice(0, 7) // YYYY-MM
-      set.add(key)
+      const key = getTransactionMonthKey(t)
+      if (key) {
+        set.add(key)
+      }
     })
     return Array.from(set).sort().reverse()
-  }, [compteTransactions])
+  }, [compteTransactions, getTransactionMonthKey])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -259,14 +304,25 @@ export default function CompteBancaireDetailPage() {
     }).format(amount)
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
+  const formatTransactionDate = (transaction: TransactionBancaire) => {
+    const value = resolveTransactionDate(transaction)
+    if (!value) {
+      return 'Date inconnue'
+    }
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return 'Date inconnue'
+    }
+    const dateStr = date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    })
+    const timeStr = date.toLocaleTimeString('fr-FR', {
       hour: '2-digit',
       minute: '2-digit'
     })
+    return `${dateStr} à ${timeStr}`
   }
 
   const highlightText = (text: string | null | undefined) => {
@@ -344,14 +400,17 @@ export default function CompteBancaireDetailPage() {
 
   const openEditModal = (transaction: TransactionBancaire) => {
     setTransactionToEdit(transaction)
+    const resolvedDate = resolveTransactionDate(transaction)
+    const isoDate =
+      resolvedDate && !Number.isNaN(new Date(resolvedDate).getTime())
+        ? new Date(resolvedDate).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0]
     setEditForm({
       libelle: transaction.libelle || '',
       description: transaction.description || '',
       categorie: transaction.categorie || '',
       montant: (transaction.montant ?? 0).toString(),
-      date: transaction.dateTransaction
-        ? new Date(transaction.dateTransaction).toISOString().split('T')[0]
-        : new Date().toISOString().split('T')[0],
+      date: isoDate,
       receiptUrl: transaction.receiptUrl,
       receiptFileName: transaction.receiptFileName
     })
@@ -368,9 +427,10 @@ export default function CompteBancaireDetailPage() {
       return
     }
 
+    const resolvedTransactionDate = resolveTransactionDate(transactionToEdit)
     const dateIso = editForm.date
       ? new Date(editForm.date).toISOString()
-      : transactionToEdit.dateTransaction
+      : resolvedTransactionDate || undefined
 
     const success = await updateTransaction(transactionToEdit.id, {
       libelle: editForm.libelle,
@@ -488,11 +548,7 @@ export default function CompteBancaireDetailPage() {
   const transactionsForTotals =
     monthFilter === 'all'
       ? compteTransactions
-      : compteTransactions.filter((t) => {
-          if (!t.dateTransaction) return false
-          const key = new Date(t.dateTransaction).toISOString().slice(0, 7)
-          return key === monthFilter
-        })
+      : compteTransactions.filter((t) => getTransactionMonthKey(t) === monthFilter)
 
   const totalCredits = transactionsForTotals
     .filter((t) => t.typeTransaction === 'credit')
@@ -501,6 +557,17 @@ export default function CompteBancaireDetailPage() {
   const totalDebits = transactionsForTotals
     .filter((t) => t.typeTransaction === 'debit')
     .reduce((sum, t) => sum + t.montant, 0)
+
+  const totalCreditsExternes = transactionsForTotals
+    .filter((t) => t.typeTransaction === 'credit' && !t.isInternalTransfer)
+    .reduce((sum, t) => sum + t.montant, 0)
+
+  const totalDebitsExternes = transactionsForTotals
+    .filter((t) => t.typeTransaction === 'debit' && !t.isInternalTransfer)
+    .reduce((sum, t) => sum + t.montant, 0)
+
+  const internalCredits = Math.max(0, totalCredits - totalCreditsExternes)
+  const internalDebits = Math.max(0, totalDebits - totalDebitsExternes)
 
   return (
     <div className="min-h-screen bg-slate-100 py-8 px-4 md:px-8">
@@ -591,6 +658,12 @@ export default function CompteBancaireDetailPage() {
               </p>
               <TrendingUpIcon className="h-10 w-10 text-blue-600" />
             </div>
+            <p className="text-[11px] text-blue-700 mt-1">
+              Flux externes: <span className="font-semibold">{formatCurrency(totalCreditsExternes)}</span>
+            </p>
+            <p className="text-[11px] text-blue-500">
+              Transferts internes: <span className="font-semibold">{formatCurrency(internalCredits)}</span>
+            </p>
           </div>
           <div className="rounded-xl bg-rose-100 px-5 py-4 shadow-md">
             <p className="text-xs font-medium uppercase tracking-wide text-rose-700">
@@ -602,6 +675,12 @@ export default function CompteBancaireDetailPage() {
               </p>
               <TrendingDownIcon className="h-10 w-10 text-rose-600" />
             </div>
+            <p className="text-[11px] text-rose-700 mt-1">
+              Flux externes: <span className="font-semibold">{formatCurrency(totalDebitsExternes)}</span>
+            </p>
+            <p className="text-[11px] text-rose-500">
+              Transferts internes: <span className="font-semibold">{formatCurrency(internalDebits)}</span>
+            </p>
           </div>
         </div>
 
@@ -822,7 +901,7 @@ export default function CompteBancaireDetailPage() {
                         <th className="px-6 py-3 text-right text-[11px] font-semibold uppercase tracking-wide">
                           Solde après
                         </th>
-                        <th className="px-6 py-3 text-right text-[11px] font-semibold uppercase tracking-wide">
+                        <th className="px-6 py-3 text-right text-[11px] font-semibold uppercase tracking-wide hidden">
                           Actions
                         </th>
                       </tr>
@@ -850,7 +929,7 @@ export default function CompteBancaireDetailPage() {
                             <td className="px-6 py-3 text-sm text-slate-700">
                               <div className="flex items-center gap-2">
                                 <CalendarIcon className="h-4 w-4 text-slate-400" />
-                                {formatDate(transaction.dateTransaction)}
+                                {formatTransactionDate(transaction)}
                               </div>
                             </td>
                             <td className="px-6 py-3">
@@ -871,8 +950,15 @@ export default function CompteBancaireDetailPage() {
                                   </>
                                 )}
                               </Badge>
+                              {transaction.isInternalTransfer && (
+                                <div className="mt-2">
+                                  <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                                    Transfert interne
+                                  </span>
+                                </div>
+                              )}
                             </td>
-                            <td className="px-6 py-3">
+                            <td className="px-6 py-3 align-top">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <div className="font-medium text-slate-900">
                                   {highlightText(transaction.libelle)}
@@ -899,17 +985,35 @@ export default function CompteBancaireDetailPage() {
                                     </button>
                                     {/* Tooltip au survol - positionné à droite */}
                                     <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 z-[100] invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                                      <div className="bg-slate-900 text-white text-xs rounded-lg shadow-2xl p-4 min-w-[300px] max-w-[400px] border border-slate-700">
-                                        <div className="font-bold mb-2 text-yellow-300 text-sm">📝 Description</div>
-                                        <div className="whitespace-pre-wrap leading-relaxed text-white font-semibold">
+                                      <div className="bg-slate-950 rounded-lg shadow-2xl p-5 min-w-[350px] max-w-[450px] border-2 border-yellow-400">
+                                        <div className="font-extrabold mb-3 text-yellow-300 text-lg">📝 Description</div>
+                                        <div className="whitespace-pre-wrap leading-relaxed text-lg" style={{ color: '#FFFFFF', fontWeight: '900' }}>
                                           {transaction.description}
                                         </div>
                                         {/* Flèche pointant vers la gauche */}
-                                        <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-8 border-t-transparent border-b-8 border-b-transparent border-r-8 border-r-slate-900"></div>
+                                        <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-r-[10px] border-r-yellow-400"></div>
                                       </div>
                                     </div>
                                   </div>
                                 )}
+                              </div>
+                              <div className="flex gap-2 mt-3 flex-wrap">
+                                <Button
+                                  size="sm"
+                                  type="button"
+                                  onClick={() => openEditModal(transaction)}
+                                  className="px-2 py-1.5 rounded-md text-[11px] font-semibold shadow-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-nowrap"
+                                >
+                                  Modifier
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  type="button"
+                                  onClick={() => handleDeleteTransaction(transaction)}
+                                  className="px-2 py-1.5 rounded-md text-[11px] font-semibold shadow-sm bg-red-600 hover:bg-red-700 text-white whitespace-nowrap"
+                                >
+                                  Supprimer
+                                </Button>
                               </div>
                             </td>
                             <td className="px-6 py-3 text-right font-semibold">
@@ -935,7 +1039,7 @@ export default function CompteBancaireDetailPage() {
                             <td className="px-6 py-3 text-right text-sm font-semibold text-slate-800">
                               {formatCurrency(transaction.soldeApres)}
                             </td>
-                            <td className="px-6 py-3 text-right">
+                            <td className="px-6 py-3 text-right hidden">
                               <div className="flex justify-end gap-1.5">
                                 {/* Bouton Voir le reçu pour les débits avec reçu */}
                                 {transaction.typeTransaction === 'debit' && transaction.receiptUrl && (
@@ -1009,10 +1113,13 @@ export default function CompteBancaireDetailPage() {
                   title={receiptPreview.fileName}
                 />
               ) : (
-                <img
+                <Image
                   src={receiptPreview.url}
                   alt={receiptPreview.fileName}
                   className="w-full h-auto rounded-lg border"
+                  width={800}
+                  height={600}
+                  unoptimized
                 />
               )}
             </div>

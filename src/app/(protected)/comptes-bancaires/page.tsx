@@ -33,6 +33,7 @@ export default function ComptesBancairesPage() {
     transactions,
     refreshComptes, 
     getTotalSoldes,
+    getNetTotals,
     initializeDefaultComptes,
     deleteCompte,
     updateCompte,
@@ -65,6 +66,12 @@ export default function ComptesBancairesPage() {
 
     return totalSoldes - excludedTotal
   }, [comptes, totalSoldes])
+
+  const netTotals = getNetTotals()
+  const internalTransfersVolume = Math.max(
+    0,
+    netTotals.totalCredits - netTotals.externalCredits
+  )
 
   // Précharger les pages de détail des comptes pour accélérer "Voir"
   useEffect(() => {
@@ -369,7 +376,7 @@ export default function ComptesBancairesPage() {
           </div>
 
           {/* Statistiques globales toujours visibles */}
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -414,6 +421,23 @@ export default function ComptesBancairesPage() {
                     </p>
                   </div>
                   <TrendingUpIcon className="h-12 w-12 text-purple-200" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-md">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-amber-100 text-sm mb-1">Flux externes (hors transferts)</p>
+                    <p className="text-3xl font-bold">
+                      {formatCurrency(netTotals.externalCredits - netTotals.externalDebits)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-amber-100/90">
+                      Transferts internes ignorés :{' '}
+                      <span className="font-semibold">{formatCurrency(internalTransfersVolume)}</span>
+                    </p>
+                  </div>
+                  <ArrowUpDownIcon className="h-12 w-12 text-amber-200" />
                 </div>
               </CardContent>
             </Card>
@@ -492,6 +516,11 @@ export default function ComptesBancairesPage() {
                     >
                       {tx.typeTransaction === 'credit' ? 'Crédit' : 'Débit'}
                     </span>
+                    {tx.isInternalTransfer && (
+                      <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold">
+                        Transfert interne
+                      </span>
+                    )}
                     <span
                       className={`text-sm font-semibold ${
                         tx.typeTransaction === 'credit' ? 'text-emerald-600' : 'text-rose-600'
@@ -502,13 +531,19 @@ export default function ComptesBancairesPage() {
                     </span>
                     <span className="text-[11px] text-slate-500">
                       {tx.dateTransaction
-                        ? new Date(tx.dateTransaction).toLocaleString('fr-FR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })
+                        ? (() => {
+                            const date = new Date(tx.dateTransaction)
+                            const dateStr = date.toLocaleDateString('fr-FR', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric'
+                            })
+                            const timeStr = date.toLocaleTimeString('fr-FR', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                            return `${dateStr} à ${timeStr}`
+                          })()
                         : ''}
                     </span>
                   </div>
@@ -606,6 +641,11 @@ export default function ComptesBancairesPage() {
                           {tx.libelle}
                         </span>
                       )}
+                      {tx.isInternalTransfer && (
+                        <span className="mt-0.5 inline-flex items-center rounded-full bg-amber-50 border border-amber-200 text-[10px] font-semibold text-amber-700 px-2 py-0.5">
+                          Transfert interne
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-0.5 text-right">
                       <span
@@ -620,13 +660,19 @@ export default function ComptesBancairesPage() {
                       </span>
                       <span className="text-[11px] text-slate-500">
                         {tx.dateTransaction
-                          ? new Date(tx.dateTransaction).toLocaleString('fr-FR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })
+                          ? (() => {
+                              const date = new Date(tx.dateTransaction)
+                              const dateStr = date.toLocaleDateString('fr-FR', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric'
+                              })
+                              const timeStr = date.toLocaleTimeString('fr-FR', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })
+                              return `${dateStr} à ${timeStr}`
+                            })()
                           : ''}
                       </span>
                     </div>

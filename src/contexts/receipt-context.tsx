@@ -124,6 +124,8 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
           receiptUrl: receipt.receipt_url || undefined,
           receiptFileName: receipt.receipt_file_name || undefined,
           signature,
+          loyerFactureId: receipt.loyer_facture_id || null,
+          soldeRestant: receipt.solde_restant !== null ? parseFloat(receipt.solde_restant) : null,
           createdAt: receipt.created_at,
           updatedAt: receipt.updated_at
         }
@@ -206,7 +208,9 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         date_transaction: receipt.dateTransaction,
         libelle: receipt.libelle || null,
         description: receipt.description || null,
-        qr_code_data: qrCodeData
+        qr_code_data: qrCodeData,
+        loyer_facture_id: receipt.loyerFactureId ?? null,
+        solde_restant: receipt.soldeRestant ?? null
       }
 
       // Ajouter receipt_url et receipt_file_name seulement s'ils existent dans la table
@@ -276,6 +280,8 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
       if (updates.description !== undefined) updateData.description = updates.description
       if (updates.receiptUrl !== undefined) updateData.receipt_url = updates.receiptUrl
       if (updates.receiptFileName !== undefined) updateData.receipt_file_name = updates.receiptFileName
+      if (updates.loyerFactureId !== undefined) updateData.loyer_facture_id = updates.loyerFactureId
+      if (updates.soldeRestant !== undefined) updateData.solde_restant = updates.soldeRestant
 
       // Mettre à jour le QR code si nécessaire
       if (updates.nomLocataire || updates.villa || updates.periode || updates.montant || updates.dateTransaction) {

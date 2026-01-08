@@ -34,6 +34,15 @@ export function DepenseFormDialog({ open, onOpenChange, compteId }: DepenseFormD
     nom: ''
   })
 
+  // 🕐 Fonction pour combiner la date du formulaire avec l'heure actuelle
+  const getFullDateTime = (dateString: string): string => {
+    const selectedDate = new Date(dateString + 'T00:00:00')
+    const now = new Date()
+    // Combiner la date sélectionnée avec l'heure actuelle
+    selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds())
+    return selectedDate.toISOString()
+  }
+
   // Vérifier si le compte sélectionné est "Cité kennedy" (mise à jour dynamique)
   const selectedCompte = comptes.find(c => c.id === formData.compteId)
   const isCiteKennedy = selectedCompte?.nom?.toLowerCase().includes('cité kennedy') || selectedCompte?.nom?.toLowerCase().includes('cite kennedy')
@@ -43,7 +52,7 @@ export function DepenseFormDialog({ open, onOpenChange, compteId }: DepenseFormD
     if (!isCiteKennedy && (formData.nom || formData.villa || formData.periode)) {
       setFormData(prev => ({ ...prev, nom: '', villa: '', periode: '' }))
     }
-  }, [isCiteKennedy, formData.compteId])
+  }, [isCiteKennedy, formData.nom, formData.villa, formData.periode])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -115,7 +124,7 @@ export function DepenseFormDialog({ open, onOpenChange, compteId }: DepenseFormD
           formData.description || undefined,
           undefined,
           categorieFinale || undefined,
-          new Date(formData.date).toISOString()
+          getFullDateTime(formData.date)
         )
 
         if (!debitSuccess) {

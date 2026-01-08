@@ -6,6 +6,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { Receipt } from '@/lib/shared-data'
 import { Button } from '@/components/ui/button'
 import { PrinterIcon, DownloadIcon } from 'lucide-react'
+import Image from 'next/image'
 
 interface ReceiptPreviewProps {
   receipt: Receipt
@@ -206,11 +207,14 @@ export function ReceiptPreview({ receipt, onClose }: ReceiptPreviewProps) {
                   <p className="text-xs font-semibold text-gray-700 mb-2">
                     Signature du bailleur
                   </p>
-                  <div className="mb-2">
-                    <img
+                  <div className="mb-2 flex justify-center">
+                    <Image
                       src="/signature-bailleur.png"
                       alt="Signature du bailleur"
-                      className="h-16 mx-auto object-contain"
+                      className="h-16 w-auto object-contain"
+                      width={200}
+                      height={64}
+                      priority
                     />
                   </div>
                   <div className="border-t border-gray-500 pt-1">

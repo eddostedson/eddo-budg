@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, ReactNode } from 'react'
+import Image from 'next/image'
 
 interface FilePreviewTooltipProps {
   file: File | null
@@ -17,9 +18,11 @@ export default function FilePreviewTooltip({ file, fileUrl, children, className 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
+    let objectUrl: string | null = null
+
     if (file) {
-      const url = URL.createObjectURL(file)
-      setPreviewUrl(url)
+      objectUrl = URL.createObjectURL(file)
+      setPreviewUrl(objectUrl)
       
       // Déterminer le type de fichier
       const fileType = file.type.toLowerCase()
@@ -52,8 +55,8 @@ export default function FilePreviewTooltip({ file, fileUrl, children, className 
     }
 
     return () => {
-      if (previewUrl && file) {
-        URL.revokeObjectURL(previewUrl)
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
       }
     }
   }, [file, fileUrl])
@@ -104,10 +107,13 @@ export default function FilePreviewTooltip({ file, fileUrl, children, className 
       case 'image':
         return (
           <div className="max-w-md max-h-96 overflow-hidden rounded-lg shadow-lg">
-            <img 
-              src={previewUrl} 
-              alt={file ? file.name : (fileUrl ? fileUrl.split('/').pop() : 'Image')}
+            <Image
+              src={previewUrl}
+              alt={file ? file.name : fileUrl ? fileUrl.split('/').pop() || 'Image' : 'Image'}
               className="w-full h-auto object-contain"
+              width={800}
+              height={600}
+              unoptimized
             />
           </div>
         )

@@ -63,6 +63,13 @@ Les migrations Supabase sont dans le dossier `supabase/migrations/`. Exécutez-l
 3. `003_complete_schema.sql`
 4. etc.
 
+## 🔁 Contrôle des transferts internes
+
+1. **Appliquer la migration 028** : `supabase/migrations/028_flag_internal_transfers.sql` ajoute les colonnes `is_internal_transfer` et `transfer_group_id` et marque les transferts historiques.  
+2. **Diagnostiquer les doublons** : exécuter `verification_internal_transfers.sql` (racine du projet) dans l'éditeur SQL Supabase ou via `psql -f verification_internal_transfers.sql`. Le script liste toutes les paires crédit/débit qui n'ont pas encore été flaggées.  
+3. **Recalculer si besoin** : après correction, relancer `verification_internal_transfers.sql` pour s'assurer qu'aucun montant ne reste compté deux fois avant de recalculer les soldes (`supabase/migrations/023_recalculate_compte_solde_rpc.sql`).  
+
+
 ## 📦 Scripts
 
 ```bash

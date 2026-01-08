@@ -17,6 +17,8 @@ import { SharedFundsService } from '@/lib/supabase/shared-funds-service'
 import { createClient } from '@/lib/supabase/browser'
 import { useUltraModernToastContext } from '@/contexts/ultra-modern-toast-context'
 import { ReceiptUpload } from '@/components/receipt-upload'
+import { useVillaConfigs } from '@/hooks/useVillaConfigs'
+import { LoyersService } from '@/lib/supabase/loyers-service'
 
 interface TransactionFormDialogProps {
   open: boolean
@@ -27,9 +29,10 @@ interface TransactionFormDialogProps {
 
 export function TransactionFormDialog({ open, onOpenChange, compte, type }: TransactionFormDialogProps) {
   const { comptes, crediterCompte, debiterCompte, refreshComptes, refreshTransactions } = useComptesBancaires()
-  const { createReceipt } = useReceipts()
+  const { createReceipt, updateReceipt } = useReceipts()
   const { tenantOptions } = useTenants()
   const { showSuccess } = useUltraModernToastContext()
+  const { villas, loading: villasLoading, addVilla, getVillaById } = useVillaConfigs()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     montant: '',
@@ -37,13 +40,22 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
     libelle: '',
     description: '',
     categorie: '',
-    villa: '',
+    villaId: '',
     periode: '',
     nom: '',
     compteSourceId: '',
     compteDestinationId: '',
     miroirKennedy: false
   })
+  const [showNewVillaForm, setShowNewVillaForm] = useState(false)
+  const [newVillaForm, setNewVillaForm] = useState({ label: '', montant: '' })
+  const [factureInfo, setFactureInfo] = useState<{
+    id: string
+    montantTotal: number
+    montantRestant: number
+  } | null>(null)
+  const [factureLoading, setFactureLoading] = useState(false)
+  const [factureError, setFactureError] = useState<string | null>(null)
   const [createSharedFund, setCreateSharedFund] = useState(false)
   const [sharedFundTargetCompteId, setSharedFundTargetCompteId] = useState('')
   const [availableSharedFunds, setAvailableSharedFunds] = useState<SharedFund[]>([])
@@ -51,11 +63,59 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
   const [receiptUrl, setReceiptUrl] = useState<string | undefined>()
   const [receiptFileName, setReceiptFileName] = useState<string | undefined>()
   const supabase = React.useMemo(() => createClient(), [])
+  const createTransferGroupId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
+    }
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  }
 
   // Vérifier si le compte est "Cité kennedy"
   const isCiteKennedy = compte?.nom?.toLowerCase().includes('cité kennedy') || compte?.nom?.toLowerCase().includes('cite kennedy')
+  const autresComptes = comptes.filter((c) => c.id !== (compte?.id ?? ''))
+  const isWaveAccount =
+    compte?.nom?.toLowerCase().includes('wave') || compte?.nom?.toLowerCase().includes('mobile')
+  const compteKennedy = comptes.find(
+    (c) =>
+      c.nom?.toLowerCase().includes('cité kennedy') || c.nom?.toLowerCase().includes('cite kennedy')
+  )
+  const canMirrorKennedy = !!compteKennedy && isWaveAccount
+  const shouldRenderRentFields =
+    type === 'credit' && (isCiteKennedy || (formData.miroirKennedy && canMirrorKennedy))
+
+  const selectedVilla = formData.villaId ? getVillaById(formData.villaId) : undefined
+  const periodeDate =
+    formData.periode && !Number.isNaN(new Date(formData.periode).getTime())
+      ? new Date(formData.periode)
+      : null
+  const periodeFormatee = periodeDate
+    ? periodeDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+    : ''
+  const rentMetadata =
+    formData.nom && selectedVilla && periodeDate
+      ? {
+          periodeFormatee,
+          villaLabel: selectedVilla.label,
+          categorieLabel: `${formData.nom} - ${selectedVilla.label} - ${periodeFormatee}`,
+          villaId: selectedVilla.id,
+          montantTotal: factureInfo?.montantTotal ?? selectedVilla.loyerMontant,
+          montantRestant: factureInfo?.montantRestant ?? selectedVilla.loyerMontant,
+          factureId: factureInfo?.id ?? null,
+          mois: periodeDate.getMonth() + 1,
+          annee: periodeDate.getFullYear()
+        }
+      : null
 
   const formatFca = (amount: number) => `${Math.round(amount).toLocaleString('fr-FR')} F CFA`
+
+  // 🕐 Fonction pour combiner la date du formulaire avec l'heure actuelle
+  const getFullDateTime = (dateString: string): string => {
+    const selectedDate = new Date(dateString + 'T00:00:00')
+    const now = new Date()
+    // Combiner la date sélectionnée avec l'heure actuelle
+    selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds())
+    return selectedDate.toISOString()
+  }
 
   const fetchCompteSoldeActuel = async (compteId: string): Promise<{ nom: string; soldeActuel: number } | null> => {
     try {
@@ -89,7 +149,7 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
         libelle: isCiteKennedy ? 'Loyer' : '',
         description: '',
         categorie: '',
-        villa: '',
+        villaId: '',
         periode: '',
         nom: '',
         compteSourceId: '',
@@ -104,6 +164,10 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
     } else {
       setAvailableSharedFunds([])
       setSelectedSharedFundId('')
+      setFactureInfo(null)
+      setFactureError(null)
+      setShowNewVillaForm(false)
+      setNewVillaForm({ label: '', montant: '' })
     }
   }, [open, isCiteKennedy])
 
@@ -124,7 +188,123 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
       }
     }
     loadFunds()
-  }, [open, type, compte?.id])
+  }, [open, type, compte])
+
+  React.useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/aec25d3d-f69f-4569-aa6b-763bde6b59a0', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'H1',
+        location: 'transaction-form-dialog.tsx:rentEffect',
+        message: 'Rent effect triggered',
+        data: {
+          shouldRenderRentFields,
+          nom: formData.nom,
+          villaId: formData.villaId,
+          periode: formData.periode,
+          hasSelectedVilla: !!selectedVilla
+        },
+        timestamp: Date.now()
+      })
+    }).catch(() => {})
+    // #endregion
+    if (!shouldRenderRentFields) {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/aec25d3d-f69f-4569-aa6b-763bde6b59a0', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'H1',
+          location: 'transaction-form-dialog.tsx:rentEffect',
+          message: 'Rent effect skipped - flag disabled',
+          data: {},
+          timestamp: Date.now()
+        })
+      }).catch(() => {})
+      // #endregion
+      setFactureInfo(null)
+      return
+    }
+    if (!formData.nom || !formData.villaId || !periodeDate || !selectedVilla) {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/aec25d3d-f69f-4569-aa6b-763bde6b59a0', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'H2',
+          location: 'transaction-form-dialog.tsx:rentEffect',
+          message: 'Rent effect missing data',
+          data: {
+            nom: formData.nom,
+            villaId: formData.villaId,
+            periode: formData.periode,
+            hasPeriodeDate: !!periodeDate,
+            hasSelectedVilla: !!selectedVilla
+          },
+          timestamp: Date.now()
+        })
+      }).catch(() => {})
+      // #endregion
+      setFactureInfo(null)
+      return
+    }
+    setFactureLoading(true)
+    setFactureError(null)
+    LoyersService.ensureFacture({
+      villaId: formData.villaId,
+      locataireNom: formData.nom.trim(),
+      periodeMois: periodeDate.getMonth() + 1,
+      periodeAnnee: periodeDate.getFullYear(),
+      montantTotal: selectedVilla.loyerMontant
+    })
+      .then((facture) => {
+        if (facture) {
+          // #region agent log
+          fetch('http://127.0.0.1:7244/ingest/aec25d3d-f69f-4569-aa6b-763bde6b59a0', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId: 'debug-session',
+              runId: 'run1',
+              hypothesisId: 'H3',
+              location: 'transaction-form-dialog.tsx:rentEffect',
+              message: 'Facture ensure result',
+              data: {
+                factureId: facture.id,
+                montantRestant: facture.montantRestant
+              },
+              timestamp: Date.now()
+            })
+          }).catch(() => {})
+          // #endregion
+          setFactureInfo({
+            id: facture.id,
+            montantTotal: facture.montantTotal,
+            montantRestant: facture.montantRestant
+          })
+        }
+      })
+      .catch((err) => {
+        console.error('❌ ensureFacture error', err)
+        setFactureError('Impossible de préparer la facture de ce loyer')
+      })
+      .finally(() => setFactureLoading(false))
+  }, [
+    shouldRenderRentFields,
+    formData.nom,
+    formData.villaId,
+    formData.periode,
+    selectedVilla?.id,
+    selectedVilla?.loyerMontant
+  ])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -139,13 +319,10 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
       return
     }
 
-    // Pour "Cité kennedy", vérifier que Nom, Villa et Période sont remplis
-    // 👉 Seulement pour les CRÉDITS (les débits restent simples)
-    if (isCiteKennedy && type === 'credit') {
-      if (!formData.nom || !formData.villa || !formData.periode) {
-        toast.error('Veuillez remplir le Nom, la Villa et la Période')
-        return
-      }
+    // Pour "Cité kennedy" ou miroir, vérifier que Nom, Villa et Période sont remplis
+    if (shouldRenderRentFields && !rentMetadata) {
+      toast.error('Veuillez remplir le Nom, la Villa et la Période')
+      return
     }
 
     if (!compte) {
@@ -159,10 +336,27 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
       return
     }
 
+    if (shouldRenderRentFields && factureInfo && montant > factureInfo.montantRestant + 0.0001) {
+      toast.error(
+        `Le montant dépasse le reste dû (${formatFca(factureInfo.montantRestant)})`
+      )
+      return
+    }
+
     if (type === 'debit' && compte.soldeActuel < montant) {
       toast.error(`Solde insuffisant. Solde disponible: ${compte.soldeActuel.toLocaleString()} F CFA`)
       return
     }
+
+    const isTransferToAnotherCompte = type === 'debit' && !!formData.compteDestinationId
+    const transferGroupId = isTransferToAnotherCompte ? createTransferGroupId() : undefined
+    const mirrorFundsForKennedy =
+      type === 'debit' && isCiteKennedy && compte
+        ? availableSharedFunds.filter(
+            (fund) => fund.primaryCompteId === compte.id && fund.montantRestant > 0
+          )
+        : []
+    const shouldAutoMirrorDebit = mirrorFundsForKennedy.length > 0
 
     setLoading(true)
     try {
@@ -170,22 +364,75 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
       // Par défaut, on prend la valeur saisie dans le formulaire.
       let categorieFinale = formData.categorie
 
-      // Pour Cité Kennedy au CRÉDIT uniquement, on construit une catégorie
-      // plus détaillée: "Nom - Villa - Mois Année" (cohérent avec les reçus).
-      if (isCiteKennedy && type === 'credit' && formData.nom && formData.villa && formData.periode) {
-        const periodeFormatee = new Date(formData.periode).toLocaleDateString('fr-FR', {
-          month: 'long',
-          year: 'numeric'
-        })
-        const villaLabels: Record<string, string> = {
-          'mini_villa_2_pieces_ean': 'mini Villa 2 Pièces EAN',
-          'villa_3_pieces_esp': 'Villa 3 Pièces ESP',
-          'villa_3_pieces_almyf': 'Villa 3 Pièces ALMYF',
-          'villa_4_pieces_ekb': 'Villa 4 Pièces EKB',
-          'villa_4_pieces_mad': 'Villa 4 Pièces MAD'
+      if (isCiteKennedy && type === 'credit' && rentMetadata) {
+        categorieFinale = rentMetadata.categorieLabel
+      }
+
+      const applyMirrorDebitOnSource = async () => {
+        if (!shouldAutoMirrorDebit) return
+        let remaining = montant
+        const orderedFunds = [...mirrorFundsForKennedy].sort((a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
+
+        for (const fund of orderedFunds) {
+          if (remaining <= 0) break
+          if (fund.montantRestant <= 0) continue
+
+          const portion = Math.min(remaining, fund.montantRestant)
+          const sourceCompte = comptes.find((c) => c.id === fund.sourceCompteId)
+          const sourceLibelle =
+            formData.libelle || `Débit miroir Cité Kennedy (${compte?.nom || 'Compte'})`
+
+          const transferGroup = createTransferGroupId()
+          const debitOk = await debiterCompte(
+            fund.sourceCompteId,
+            portion,
+            sourceLibelle,
+            formData.description || undefined,
+            undefined,
+            categorieFinale || undefined,
+            getFullDateTime(formData.dateOperation),
+            receiptUrl,
+            receiptFileName,
+            { transferGroupId: transferGroup }
+          )
+
+          if (!debitOk) {
+            toast.error(
+              `❌ Impossible de débiter le compte réel ${sourceCompte?.nom || fund.sourceCompteId}`
+            )
+            break
+          }
+
+          const registerOk = await SharedFundsService.registerMovement({
+            sharedFundId: fund.id,
+            compteId: compte.id,
+            type: 'debit',
+            montant: portion,
+            transactionId: undefined,
+            libelle: formData.libelle
+          })
+
+          if (!registerOk) {
+            toast.warning('⚠️ Mouvement miroir non enregistré. Vérifiez le fonds partagé.')
+            break
+          }
+
+          setAvailableSharedFunds((prev) =>
+            prev.map((f) =>
+              f.id === fund.id ? { ...f, montantRestant: f.montantRestant - portion } : f
+            )
+          )
+
+          remaining -= portion
         }
-        const villaLabel = villaLabels[formData.villa] || formData.villa
-        categorieFinale = `${formData.nom} - ${villaLabel} - ${periodeFormatee}`
+
+        if (remaining > 0) {
+          toast.warning('⚠️ Fonds virtuels insuffisants pour couvrir ce débit sur Cité Kennedy.')
+        } else {
+          toast.success('🔁 Débit synchronisé avec le compte d\'origine.')
+        }
       }
 
       let transactionId: string | null = null
@@ -198,11 +445,11 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
           formData.description || undefined,
           undefined,
           categorieFinale || undefined,
-          new Date(formData.dateOperation).toISOString()
+          getFullDateTime(formData.dateOperation)
         )
 
         // Option : créer un fonds partagé lié à ce crédit
-        if (transactionId && createSharedFund && sharedFundTargetCompteId) {
+        if (transactionId && createSharedFund && sharedFundTargetCompteId && !formData.miroirKennedy) {
           try {
             const fund = await SharedFundsService.createFundFromCredit({
               transactionId,
@@ -229,32 +476,23 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             transactionId: !!transactionId,
             isCiteKennedy,
             nom: !!formData.nom,
-            villa: !!formData.villa,
+            villa: !!selectedVilla,
             periode: !!formData.periode,
             nomValue: formData.nom,
-            villaValue: formData.villa,
+            villaValue: selectedVilla?.label,
             periodeValue: formData.periode
           })
 
-          if (formData.nom && formData.villa && formData.periode) {
+        if (rentMetadata) {
             console.log('🧾 Génération automatique du reçu pour Cité kennedy...')
-            const periodeFormatee = new Date(formData.periode).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
-            const villaLabels: Record<string, string> = {
-              'mini_villa_2_pieces_ean': 'mini Villa 2 Pièces EAN',
-              'villa_3_pieces_esp': 'Villa 3 Pièces ESP',
-              'villa_3_pieces_almyf': 'Villa 3 Pièces ALMYF',
-              'villa_4_pieces_ekb': 'Villa 4 Pièces EKB',
-              'villa_4_pieces_mad': 'Villa 4 Pièces MAD'
-            }
-            const villaLabel = villaLabels[formData.villa] || formData.villa
             
             try {
               console.log('📝 Données du reçu à créer:', {
                 transactionId,
                 compteId: compte.id,
-                nomLocataire: formData.nom,
-                villa: villaLabel,
-                periode: periodeFormatee,
+              nomLocataire: formData.nom,
+              villa: rentMetadata.villaLabel,
+              periode: rentMetadata.periodeFormatee,
                 montant,
                 dateTransaction: new Date(formData.dateOperation).toISOString(),
                 libelle: formData.libelle
@@ -264,10 +502,10 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
                 transactionId: transactionId,
                 compteId: compte.id,
                 nomLocataire: formData.nom,
-                villa: villaLabel,
-                periode: periodeFormatee,
+              villa: rentMetadata.villaLabel,
+              periode: rentMetadata.periodeFormatee,
                 montant: montant,
-                dateTransaction: new Date(formData.dateOperation).toISOString(),
+                dateTransaction: getFullDateTime(formData.dateOperation),
                 libelle: formData.libelle,
                 description: formData.description
               })
@@ -275,6 +513,31 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
               if (receiptId) {
                 console.log('✅ Reçu généré avec succès ! ID:', receiptId)
                 toast.success('🧾 Reçu généré automatiquement !')
+                if (factureInfo?.id) {
+                  const reglementResult = await LoyersService.registerReglement({
+                    factureId: factureInfo.id,
+                    montant,
+                    receiptId,
+                    transactionId: transactionId || undefined,
+                    dateOperation: getFullDateTime(formData.dateOperation)
+                  })
+                  if (reglementResult) {
+                    await updateReceipt(receiptId, {
+                      loyerFactureId: factureInfo.id,
+                      soldeRestant: reglementResult.updatedFacture.montantRestant
+                    })
+                    setFactureInfo({
+                      id: reglementResult.updatedFacture.id,
+                      montantTotal: reglementResult.updatedFacture.montantTotal,
+                      montantRestant: reglementResult.updatedFacture.montantRestant
+                    })
+                    toast.info(
+                      `Reste à payer : ${formatFca(reglementResult.updatedFacture.montantRestant)}`
+                    )
+                  } else {
+                    toast.warning('⚠️ Acompte non synchronisé avec la facture de loyer.')
+                  }
+                }
               } else {
                 console.warn('⚠️ Échec de la génération du reçu - receiptId est null')
                 toast.warning('⚠️ Le reçu n\'a pas pu être généré automatiquement. Vous pouvez le créer manuellement.')
@@ -287,10 +550,10 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             // Log détaillé pour déboguer pourquoi le reçu n'est pas généré
             console.warn('⚠️ Reçu non généré automatiquement - Champs manquants:', {
               nom: !!formData.nom,
-              villa: !!formData.villa,
+              villa: !!selectedVilla,
               periode: !!formData.periode,
               nomValue: formData.nom || 'VIDE',
-              villaValue: formData.villa || 'VIDE',
+              villaValue: selectedVilla?.label || 'VIDE',
               periodeValue: formData.periode || 'VIDE'
             })
             toast.warning('⚠️ Reçu non généré automatiquement. Veuillez remplir tous les champs (Nom, Villa, Période) pour la génération automatique.')
@@ -303,22 +566,106 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
 
         // Crédit miroir virtuel sur Compte Cité Kennedy (optionnel, uniquement si compte Wave)
         if (transactionId && canMirrorKennedy && compteKennedy && formData.miroirKennedy) {
-          const miroirOk = await crediterCompte(
+          const mirrorGroupId = createTransferGroupId()
+          
+          // 🔄 Marquer aussi la transaction source comme transfert interne pour éviter le double comptage
+          try {
+            const { error: updateError } = await supabase
+              .from('transactions_bancaires')
+              .update({
+                is_internal_transfer: true,
+                transfer_group_id: mirrorGroupId
+              })
+              .eq('id', transactionId)
+            
+            if (updateError) {
+              console.error('❌ Erreur lors du marquage de la transaction source:', updateError)
+            }
+          } catch (error) {
+            console.error('❌ Erreur inattendue lors du marquage:', error)
+          }
+          
+          const mirrorTransactionId = await crediterCompte(
             compteKennedy.id,
             montant,
             formData.libelle || 'Loyer Cité Kennedy',
             formData.description || undefined,
             undefined,
-            'Loyer Cité Kennedy (miroir)',
-            new Date(formData.dateOperation).toISOString()
+            rentMetadata?.categorieLabel || 'Loyer Cité Kennedy (miroir)',
+            getFullDateTime(formData.dateOperation),
+            { isInternalTransfer: true, transferGroupId: mirrorGroupId }
           )
 
-          if (!miroirOk) {
+          if (!mirrorTransactionId) {
             toast.warning('⚠️ Crédit virtuel sur "Compte Cité Kennedy" non enregistré')
+          } else {
+            // Créer automatiquement un fonds partagé pour lier le solde réel au virtuel
+            try {
+              const fund = await SharedFundsService.createFundFromCredit({
+                transactionId,
+                sourceCompteId: compte.id,
+                primaryCompteId: compteKennedy.id,
+                montant,
+                libelle: formData.libelle || 'Loyer Cité Kennedy',
+                description: formData.description || undefined
+              })
+              if (!fund) {
+                toast.warning('⚠️ Fonds miroir non créé. Les dépenses Kennedy ne seront pas synchronisées.')
+              }
+            } catch (error) {
+              console.error('❌ Erreur lors de la création automatique du fonds miroir:', error)
+              toast.warning('⚠️ Fonds miroir non créé (voir console).')
+            }
+
+            if (rentMetadata) {
+              try {
+                const mirrorReceiptId = await createReceipt({
+                  transactionId: mirrorTransactionId,
+                  compteId: compteKennedy.id,
+                  nomLocataire: formData.nom,
+                  villa: rentMetadata.villaLabel,
+                  periode: rentMetadata.periodeFormatee,
+                  montant,
+                  dateTransaction: getFullDateTime(formData.dateOperation),
+                  libelle: formData.libelle || 'Loyer Cité Kennedy',
+                  description: formData.description
+                })
+                if (mirrorReceiptId && factureInfo?.id) {
+                  const reglementResult = await LoyersService.registerReglement({
+                    factureId: factureInfo.id,
+                    montant,
+                    receiptId: mirrorReceiptId,
+                    transactionId: mirrorTransactionId || undefined,
+                    dateOperation: getFullDateTime(formData.dateOperation)
+                  })
+                  if (reglementResult) {
+                    await updateReceipt(mirrorReceiptId, {
+                      loyerFactureId: factureInfo.id,
+                      soldeRestant: reglementResult.updatedFacture.montantRestant
+                    })
+                    setFactureInfo({
+                      id: reglementResult.updatedFacture.id,
+                      montantTotal: reglementResult.updatedFacture.montantTotal,
+                      montantRestant: reglementResult.updatedFacture.montantRestant
+                    })
+                  }
+                }
+                toast.success('🧾 Reçu virtuel généré pour le miroir Cité Kennedy')
+              } catch (error) {
+                console.error('❌ Erreur génération reçu miroir:', error)
+                toast.warning('⚠️ Reçu miroir non généré automatiquement.')
+              }
+            }
           }
         }
       } else {
         // 💸 Débit simple ou transfert vers un autre compte
+        const debitOptions = isTransferToAnotherCompte
+          ? { isInternalTransfer: true, transferGroupId }
+          : shouldAutoMirrorDebit
+            ? { isInternalTransfer: true }
+            : undefined
+
         const debitSuccess = await debiterCompte(
           compte.id,
           montant,
@@ -326,16 +673,17 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
           formData.description || undefined,
           undefined,
           categorieFinale || undefined,
-          new Date(formData.dateOperation).toISOString(),
+          getFullDateTime(formData.dateOperation),
           receiptUrl,
-          receiptFileName
+          receiptFileName,
+          debitOptions
         )
 
         if (!debitSuccess) {
           transactionId = null
         } else {
           // Si un fonds partagé est sélectionné, enregistrer le mouvement
-          if (selectedSharedFundId) {
+          if (selectedSharedFundId && !shouldAutoMirrorDebit) {
             try {
               const ok = await SharedFundsService.registerMovement({
                 sharedFundId: selectedSharedFundId,
@@ -366,7 +714,8 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
                 formData.description || undefined,
                 undefined,
                 'Transfert depuis autre compte',
-                new Date(formData.dateOperation).toISOString()
+                getFullDateTime(formData.dateOperation),
+                { isInternalTransfer: true, transferGroupId }
               )
 
               if (!creditId) {
@@ -385,16 +734,52 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             }
           }
 
+          if (shouldAutoMirrorDebit) {
+            await applyMirrorDebitOnSource()
+          }
+
           // Débit miroir virtuel sur Compte Cité Kennedy (optionnel, uniquement si compte Wave)
-          if (canMirrorKennedy && compteKennedy && formData.miroirKennedy) {
+          if (canMirrorKennedy && compteKennedy && formData.miroirKennedy && debitSuccess) {
+            const mirrorGroupId = createTransferGroupId()
+            
+            // 🔄 Marquer aussi le débit source comme transfert interne pour éviter le double comptage
+            // On doit récupérer l'ID de la transaction débit créée
+            const { data: debitTx } = await supabase
+              .from('transactions_bancaires')
+              .select('id')
+              .eq('compte_id', compte.id)
+              .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+              .eq('libelle', formData.libelle)
+              .eq('montant', montant)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single()
+            
+            if (debitTx?.id) {
+              try {
+                await supabase
+                  .from('transactions_bancaires')
+                  .update({
+                    is_internal_transfer: true,
+                    transfer_group_id: mirrorGroupId
+                  })
+                  .eq('id', debitTx.id)
+              } catch (updateError) {
+                console.error('❌ Erreur lors du marquage du débit source:', updateError)
+              }
+            }
+            
             const miroirDebitOk = await debiterCompte(
               compteKennedy.id,
               montant,
               formData.libelle,
               formData.description || undefined,
               undefined,
-              'Loyer Cité Kennedy (miroir)',
-              new Date(formData.dateOperation).toISOString()
+              kennedyCategorie || 'Loyer Cité Kennedy (miroir)',
+              getFullDateTime(formData.dateOperation),
+              undefined,
+              undefined,
+              { isInternalTransfer: true, transferGroupId: mirrorGroupId }
             )
 
             if (!miroirDebitOk) {
@@ -418,7 +803,7 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
           libelle: isCiteKennedy ? 'Loyer' : '',
           description: '',
           categorie: '',
-          villa: '',
+          villaId: '',
           periode: '',
           nom: '',
           compteSourceId: '',
@@ -435,15 +820,31 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
     }
   }
 
-  if (!compte) return null
+  const handleCreateVilla = async () => {
+    if (!newVillaForm.label.trim() || !newVillaForm.montant.trim()) {
+      toast.error('Nom et montant requis pour la nouvelle villa')
+      return
+    }
+    const montant = parseFloat(newVillaForm.montant)
+    if (Number.isNaN(montant) || montant <= 0) {
+      toast.error('Montant de loyer invalide')
+      return
+    }
+    const villa = await addVilla({
+      label: newVillaForm.label.trim(),
+      loyerMontant: montant
+    })
+    if (villa) {
+      toast.success('Villa enregistrée')
+      setFormData((prev) => ({ ...prev, villaId: villa.id }))
+      setShowNewVillaForm(false)
+      setNewVillaForm({ label: '', montant: '' })
+    } else {
+      toast.error('Impossible d’enregistrer la villa')
+    }
+  }
 
-  const autresComptes = comptes.filter((c) => c.id !== compte.id)
-  const isWaveAccount = compte.nom?.toLowerCase().includes('wave') || compte.nom?.toLowerCase().includes('mobile')
-  const compteKennedy = comptes.find(
-    (c) =>
-      c.nom?.toLowerCase().includes('cité kennedy') || c.nom?.toLowerCase().includes('cite kennedy')
-  )
-  const canMirrorKennedy = !!compteKennedy && isWaveAccount
+  if (!compte) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -692,9 +1093,9 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
             </div>
           )}
 
-          {/* Pour "Cité kennedy" : afficher Nom, Villa et Période AU CRÉDIT uniquement.
-              Pour tous les autres cas (débit, autres comptes), afficher le champ Catégorie simple. */}
-          {isCiteKennedy && type === 'credit' ? (
+          {/* Afficher les champs spécifiques au loyer Kennedy lorsqu'on crédite ce compte
+              ou lorsqu'on active le miroir virtuel */}
+          {shouldRenderRentFields ? (
             <>
               <div className="space-y-2">
                 <Label htmlFor="nom">
@@ -743,21 +1144,77 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
                   Villa <span className="text-red-500">*</span>
                 </Label>
                 <Select
-                  value={formData.villa}
-                  onValueChange={(value) => setFormData({ ...formData, villa: value })}
-                  disabled={loading}
+                  value={formData.villaId || 'none'}
+                  onValueChange={(value) => {
+                    if (value === '__new') {
+                      setShowNewVillaForm(true)
+                      return
+                    }
+                    setShowNewVillaForm(false)
+                    setFormData((prev) => ({ ...prev, villaId: value === 'none' ? '' : value }))
+                  }}
+                  disabled={loading || villasLoading}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Sélectionner une villa" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="mini_villa_2_pieces_ean">mini Villa 2 Pièces EAN</SelectItem>
-                    <SelectItem value="villa_3_pieces_esp">Villa 3 Pièces ESP</SelectItem>
-                    <SelectItem value="villa_3_pieces_almyf">Villa 3 Pièces ALMYF</SelectItem>
-                    <SelectItem value="villa_4_pieces_ekb">Villa 4 Pièces EKB</SelectItem>
-                    <SelectItem value="villa_4_pieces_mad">Villa 4 Pièces MAD</SelectItem>
+                    <SelectItem value="none">Sélectionner une villa</SelectItem>
+                    {villas.map((villa) => (
+                      <SelectItem key={villa.id} value={villa.id}>
+                        {villa.label} — {villa.loyerMontant.toLocaleString('fr-FR')} F CFA
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__new">+ Ajouter une villa</SelectItem>
                   </SelectContent>
                 </Select>
+                {selectedVilla && (
+                  <p className="text-xs text-gray-500">
+                    Loyer par défaut : {selectedVilla.loyerMontant.toLocaleString('fr-FR')} F CFA
+                  </p>
+                )}
+                {showNewVillaForm && (
+                  <div className="mt-3 space-y-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
+                    <Input
+                      placeholder="Nom de la villa"
+                      value={newVillaForm.label}
+                      onChange={(e) =>
+                        setNewVillaForm((prev) => ({ ...prev, label: e.target.value }))
+                      }
+                      disabled={loading}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Montant du loyer (F CFA)"
+                      value={newVillaForm.montant}
+                      onChange={(e) =>
+                        setNewVillaForm((prev) => ({ ...prev, montant: e.target.value }))
+                      }
+                      disabled={loading}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleCreateVilla}
+                        disabled={loading}
+                      >
+                        Enregistrer
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setShowNewVillaForm(false)
+                          setNewVillaForm({ label: '', montant: '' })
+                        }}
+                      >
+                        Annuler
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -778,6 +1235,32 @@ export function TransactionFormDialog({ open, onOpenChange, compte, type }: Tran
                   </p>
                 )}
               </div>
+
+              {(factureLoading || factureInfo || factureError) && (
+                <div className="space-y-2">
+                  {factureLoading && (
+                    <p className="text-xs text-gray-500 animate-pulse">Préparation du loyer...</p>
+                  )}
+                  {factureError && !factureLoading && (
+                    <p className="text-xs text-red-600">{factureError}</p>
+                  )}
+                  {factureInfo && !factureLoading && (
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-3 text-sm">
+                      <div className="font-semibold text-indigo-900">
+                        Loyer {rentMetadata?.periodeFormatee}
+                      </div>
+                      <div className="flex items-center justify-between text-indigo-800">
+                        <span>Total</span>
+                        <span>{formatFca(factureInfo.montantTotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-indigo-800">
+                        <span>Reste à payer</span>
+                        <span>{formatFca(factureInfo.montantRestant)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <div className="space-y-2">

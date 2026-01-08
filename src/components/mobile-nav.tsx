@@ -14,6 +14,12 @@ const sidebarItems = [
     description: 'Dashboard'
   },
   { 
+    href: '/monitoring', 
+    label: 'Monitoring', 
+    icon: '📊',
+    description: 'Performance & Analytics'
+  },
+  { 
     href: '/recettes', 
     label: 'Recettes', 
     icon: '💰',

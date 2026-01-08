@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,37 +12,13 @@ export default function DebugPage() {
   const [logs, setLogs] = useState<string[]>([])
   const supabase = createClient()
 
-  const addLog = (message: string) => {
+  const addLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString()
     setLogs(prev => [...prev, `[${timestamp}] ${message}`])
     console.log(message)
-  }
-
-  useEffect(() => {
-    checkAuth()
   }, [])
 
-  const checkAuth = async () => {
-    try {
-      addLog('🔄 Vérification de l\'authentification...')
-      const { data: { user }, error } = await supabase.auth.getUser()
-      
-      if (error || !user) {
-        addLog('❌ Non connecté')
-        setUser(null)
-      } else {
-        addLog(`✅ Connecté: ${user.email}`)
-        setUser(user)
-        await loadRecettes()
-      }
-    } catch (err) {
-      addLog(`❌ Erreur auth: ${err}`)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadRecettes = async () => {
+  const loadRecettes = useCallback(async () => {
     if (!user) return
     
     try {
@@ -62,7 +38,31 @@ export default function DebugPage() {
     } catch (err) {
       addLog(`❌ Erreur: ${err}`)
     }
-  }
+  }, [addLog, supabase, user])
+
+  const checkAuth = useCallback(async () => {
+    try {
+      addLog('🔄 Vérification de l\'authentification...')
+      const { data: { user }, error } = await supabase.auth.getUser()
+      
+      if (error || !user) {
+        addLog('❌ Non connecté')
+        setUser(null)
+      } else {
+        addLog(`✅ Connecté: ${user.email}`)
+        setUser(user)
+        await loadRecettes()
+      }
+    } catch (err) {
+      addLog(`❌ Erreur auth: ${err}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [addLog, loadRecettes, supabase])
+
+  useEffect(() => {
+    checkAuth()
+  }, [checkAuth])
 
   const createTestData = async () => {
     if (!user) return

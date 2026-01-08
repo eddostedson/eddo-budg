@@ -121,6 +121,8 @@ export interface TransactionBancaire {
   updatedAt: string
   receiptUrl?: string // URL du reçu uploadé
   receiptFileName?: string // Nom du fichier reçu
+  isInternalTransfer?: boolean
+  transferGroupId?: string | null
 }
 
 // ✅ Interface pour les DÉPENSES
@@ -154,6 +156,8 @@ export interface Receipt {
   description?: string
   qrCodeData?: string
   signature?: string
+  loyerFactureId?: string | null
+  soldeRestant?: number | null
   createdAt: string
   updatedAt: string
 }
@@ -243,6 +247,48 @@ export interface BudgetSalaireMouvement {
   dateOperation: string
   montant: number
   description?: string
+  createdAt: string
+}
+
+// ✅ Référentiel de villas / logements
+export interface VillaConfig {
+  id: string
+  userId: string
+  label: string
+  code?: string | null
+  loyerMontant: number
+  currency: string
+  description?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface LoyerFacture {
+  id: string
+  userId: string
+  villaId?: string | null
+  locataireNom: string
+  mois: number
+  annee: number
+  montantTotal: number
+  montantRestant: number
+  statut: 'en_cours' | 'partiel' | 'solde' | 'annule'
+  description?: string | null
+  createdAt: string
+  updatedAt: string
+  villa?: VillaConfig
+}
+
+export interface LoyerReglement {
+  id: string
+  userId: string
+  factureId: string
+  receiptId?: string | null
+  transactionId?: string | null
+  montant: number
+  soldeApres: number
+  dateOperation: string
+  note?: string | null
   createdAt: string
 }
 

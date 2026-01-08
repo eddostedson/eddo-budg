@@ -39,6 +39,12 @@ const baseSidebarItems = [
     icon: '📅',
     description: 'Budgets mensuels autonomes'
   },
+  { 
+    href: '/monitoring', 
+    label: 'Monitoring', 
+    icon: '📊',
+    description: 'Performance & Analytics'
+  },
 ]
 
 // Menus avancés (optionnels) que l'on peut masquer / afficher

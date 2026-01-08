@@ -24,7 +24,7 @@ const formatCurrency = (amount: number) => {
 const AccueilPage: React.FC = () => {
   const { recettes, loading: recettesLoading, getTotalDisponible } = useRecettes()
   const { depenses, loading: depensesLoading } = useDepenses()
-  const { comptes, loading: comptesLoading, getTotalSoldes } = useComptesBancaires()
+  const { comptes, loading: comptesLoading, getTotalSoldes, getNetTotals } = useComptesBancaires()
   const [loading, setLoading] = useState(true)
 
   // Calculs des totaux avec useMemo
@@ -53,6 +53,12 @@ const AccueilPage: React.FC = () => {
     // Retourner le total moins les comptes exclus
     return total - excludedTotal
   }, [getTotalSoldes, comptes])
+
+  const netBankTotals = getNetTotals()
+  const internalTransfersVolumeAccueil = Math.max(
+    0,
+    netBankTotals.totalCredits - netBankTotals.externalCredits
+  )
 
   // Statistiques avancées
   const recettesUtilisees = recettes.filter(r => (r.soldeDisponible || 0) < (r.montant || 0)).length
@@ -175,6 +181,16 @@ const AccueilPage: React.FC = () => {
               <div className="flex items-center mt-2">
                 <DollarSignIcon className="h-4 w-4 mr-1" />
                 <span className="text-sm opacity-80">{comptes.length} compte{comptes.length > 1 ? 's' : ''} bancaire{comptes.length > 1 ? 's' : ''}</span>
+              </div>
+              <div className="mt-3 text-sm opacity-90">
+                Flux externes (hors transferts) :{' '}
+                <span className="font-semibold">
+                  {formatCurrency(netBankTotals.externalCredits - netBankTotals.externalDebits)}
+                </span>
+              </div>
+              <div className="text-xs opacity-80">
+                Transferts internes neutralisés :{' '}
+                <span className="font-semibold">{formatCurrency(internalTransfersVolumeAccueil)}</span>
               </div>
             </CardContent>
           </Card>
