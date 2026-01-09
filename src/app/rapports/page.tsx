@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/browser'
 import { useRecettes } from '@/contexts/recette-context-direct'
-import { useDepenses } from '@/contexts/depense-context'
+import { useDepenses } from '../../../contexts/depense-context-direct'
+
 
 export default function RapportsPage() {
   const router = useRouter()
