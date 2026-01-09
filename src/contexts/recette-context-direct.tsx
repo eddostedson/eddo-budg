@@ -2,9 +2,15 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { Recette } from '@/lib/shared-data'
-import { createClient } from '@/lib/supabase/browser'
-import { notifySuccess, notifyError, notifyCreated, notifyUpdated, notifyDeleted } from '@/lib/notify'
+import { Recette } from '../lib/shared-data'
+import { createClient } from '../lib/supabase/browser'
+import {
+  notifySuccess,
+  notifyError,
+  notifyCreated,
+  notifyUpdated,
+  notifyDeleted
+} from '../lib/notify'
 
 const supabase = createClient()
 
